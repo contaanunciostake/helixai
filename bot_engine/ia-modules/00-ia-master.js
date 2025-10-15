@@ -17,17 +17,17 @@ export class IAMaster {
   constructor(openaiKey, anthropicKey, db) {
     console.log('[IA-MASTER] Inicializando sistema de IA...');
 
-    // ⚠️ NOTA: Alguns módulos ainda usam OpenAI, outros migrados para Claude
+    // ✅ TODOS OS MÓDULOS MIGRADOS PARA CLAUDE API
     // Inicializar todos os módulos
-    this.analisadorIntencoes = new AnalisadorIntencoes(anthropicKey); // ✅ Usa Claude
-    this.recomendador = new RecomendadorInteligente(openaiKey);
-    this.analisadorSentimento = new AnalisadorSentimento(openaiKey);
-    this.memoria = new MemoriaContexto(openaiKey, db);
-    this.preditor = new PreditorFechamento(openaiKey);
-    this.gerador = new GeradorRespostas(anthropicKey); // ✅ Usa Claude
-    this.geradorPerguntas = new GeradorPerguntasEspontaneas(openaiKey);
+    this.analisadorIntencoes = new AnalisadorIntencoes(anthropicKey); // ✅ Claude Haiku
+    this.recomendador = new RecomendadorInteligente(anthropicKey); // ✅ Claude Haiku
+    this.analisadorSentimento = new AnalisadorSentimento(anthropicKey); // ✅ Claude Haiku
+    this.memoria = new MemoriaContexto(anthropicKey, db); // ✅ Claude Haiku
+    this.preditor = new PreditorFechamento(anthropicKey); // ✅ Claude Haiku
+    this.gerador = new GeradorRespostas(anthropicKey); // ✅ Claude Sonnet
+    this.geradorPerguntas = new GeradorPerguntasEspontaneas(anthropicKey); // ✅ Claude Haiku
 
-    console.log('[IA-MASTER] ✓ Sistema IA inicializado com sucesso!');
+    console.log('[IA-MASTER] ✅ Sistema IA 100% Claude API inicializado com sucesso!');
   }
 
   /**
