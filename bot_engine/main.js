@@ -67,7 +67,7 @@ async function callClaudeInsteadOfOpenAI(anthropic, config) {
   }
 
   const response = await anthropic.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-sonnet-4-20250514',
     max_tokens,
     temperature,
     messages: claudeMessages
@@ -3708,9 +3708,9 @@ class ElevenLabsService {
         text: textoFormatado,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.2,
+          stability: 0.5,
           similarity_boost: 0.75,
-          style: 0.6,
+          style: 0.0,
           use_speaker_boost: true
         },
         output_format: 'mp3_44100_128' // Garantir formato MP3
@@ -4737,7 +4737,7 @@ Seja breve, natural e consultiva (não pressione)!`;
 
       // ✅ USAR CLAUDE EM VEZ DE OPENAI
       const respostaClaude = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 150,
         temperature: 0.9,
         messages: [

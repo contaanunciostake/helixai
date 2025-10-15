@@ -191,7 +191,7 @@ export class GeradorRespostas {
       const systemPrompt = 'Você é Luana, consultora de vendas expert da Feirão Show Car há 15 anos. Seja persuasiva mas genuína. Respostas CURTAS e naturais.';
 
       const response = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 150,
         temperature: 0.8,
         messages: [
