@@ -1262,7 +1262,20 @@ class FuncoesVeiculos {
 
   // Função 1: Buscar Carros
   async buscar_carros(params) {
-    log.function(`Buscando carros: ${JSON.stringify(params)}`);
+    // ✅ Safe stringify - ignora propriedades circulares e complexas
+    const safeParams = {
+      marca: params.marca,
+      modelo: params.modelo,
+      tipo_veiculo: params.tipo_veiculo,
+      ano_min: params.ano_min,
+      ano_max: params.ano_max,
+      preco_min: params.preco_min,
+      preco_max: params.preco_max,
+      cambio: params.cambio,
+      limite: params.limite,
+      ordenar_por: params.ordenar_por
+    };
+    log.function(`Buscando carros: ${JSON.stringify(safeParams)}`);
 
     // ⛔ BLOQUEAR SE JÁ ENVIOU LISTA (a menos que cliente peça explicitamente mais opções)
     const tel = params.tel || this.currentTel; // Pegar telefone do contexto
@@ -1307,7 +1320,7 @@ if (params.modelo) {
 // Filtro por tipo (mantém os já filtrados)
 if (params.tipo_veiculo) {
   const veiculosTemp = veiculos; // ← salva os já filtrados
-  
+
   switch (params.tipo_veiculo) {
     case 'pickup':
       veiculos = veiculosTemp.filter(v => { // ← usa veiculosTemp
@@ -1320,6 +1333,15 @@ if (params.tipo_veiculo) {
         const n = (v.nome || '').toLowerCase();
         return ['compass', 'tucson', 'creta', 'duster', 'kicks', 'tracker', 'ecosport'].some(s => n.includes(s));
       });
+      break;
+    case 'luxo':
+    case 'premium':
+    case 'esportivo':
+      // Filtro para veículos de luxo/premium: os mais caros do estoque (top 30%)
+      veiculos = veiculosTemp.sort((a, b) => b.preco - a.preco);
+      const top30Percent = Math.ceil(veiculos.length * 0.3);
+      veiculos = veiculos.slice(0, top30Percent);
+      log.info(`💎 Filtrado para veículos premium/luxo (${veiculos.length} mais caros do estoque)`);
       break;
       }
     }
@@ -4178,6 +4200,102 @@ class LucasVendedor {
       log.error(`[TTS] ❌ Erro ao gerar áudio: ${error.message}`);
       throw error;
     }
+  }
+
+  // ========== MÉTODO PARA DIVIDIR TEXTO EM SEGMENTOS PARA ÁUDIO ==========
+  /**
+   * Divide texto longo em múltiplos segmentos para áudio
+   * @param {string} texto - Texto completo
+   * @param {number} limiteCaracteres - Limite de caracteres por segmento (padrão: 500)
+   * @returns {Array<string>} Array de segmentos de texto
+   */
+  dividirTextoParaAudio(texto, limiteCaracteres = 500) {
+    const textoLimpo = texto.trim();
+
+    // Se texto é curto, retornar como único segmento
+    if (textoLimpo.length <= limiteCaracteres) {
+      return [textoLimpo];
+    }
+
+    log.info(`[DIVISAO-AUDIO] 📏 Texto longo (${textoLimpo.length} chars), dividindo em segmentos...`);
+
+    const segmentos = [];
+    let textoRestante = textoLimpo;
+
+    while (textoRestante.length > 0) {
+      // Se o restante é menor que o limite, adicionar como último segmento
+      if (textoRestante.length <= limiteCaracteres) {
+        // ✅ VALIDAR MÍNIMO DE 3 PALAVRAS
+        const palavras = textoRestante.trim().split(/\s+/);
+        if (palavras.length >= 3) {
+          segmentos.push(textoRestante.trim());
+        } else if (segmentos.length > 0) {
+          // Juntar com o segmento anterior se for muito curto
+          segmentos[segmentos.length - 1] += ' ' + textoRestante.trim();
+          log.info(`[DIVISAO-AUDIO] ⚠️ Último segmento muito curto (${palavras.length} palavras), juntando com anterior`);
+        } else {
+          // Se é o primeiro e único, adicionar mesmo sendo curto
+          segmentos.push(textoRestante.trim());
+        }
+        break;
+      }
+
+      // Encontrar ponto de corte ideal (antes da última palavra do limite)
+      let pontoCorte = limiteCaracteres;
+      const textoAteCorte = textoRestante.substring(0, pontoCorte);
+
+      // 1. Tentar cortar em ponto final, exclamação ou interrogação
+      const ultimoPontoSentenca = Math.max(
+        textoAteCorte.lastIndexOf('. '),
+        textoAteCorte.lastIndexOf('! '),
+        textoAteCorte.lastIndexOf('? ')
+      );
+
+      if (ultimoPontoSentenca > limiteCaracteres * 0.6) {
+        // Cortar após pontuação se estiver em pelo menos 60% do limite
+        pontoCorte = ultimoPontoSentenca + 2; // +2 para incluir ponto e espaço
+        log.info(`[DIVISAO-AUDIO] ✂️ Cortando em pontuação (${pontoCorte} chars)`);
+      } else {
+        // 2. Cortar em vírgula
+        const ultimaVirgula = textoAteCorte.lastIndexOf(', ');
+        if (ultimaVirgula > limiteCaracteres * 0.7) {
+          pontoCorte = ultimaVirgula + 2; // +2 para incluir vírgula e espaço
+          log.info(`[DIVISAO-AUDIO] ✂️ Cortando em vírgula (${pontoCorte} chars)`);
+        } else {
+          // 3. Cortar antes da última palavra (espaço)
+          const ultimoEspaco = textoAteCorte.lastIndexOf(' ');
+          if (ultimoEspaco > 0) {
+            pontoCorte = ultimoEspaco;
+            log.info(`[DIVISAO-AUDIO] ✂️ Cortando antes da última palavra (${pontoCorte} chars)`);
+          }
+        }
+      }
+
+      // Extrair segmento
+      const segmento = textoRestante.substring(0, pontoCorte).trim();
+
+      // ✅ VALIDAR MÍNIMO DE 3 PALAVRAS
+      const palavras = segmento.split(/\s+/);
+      if (palavras.length >= 3) {
+        segmentos.push(segmento);
+        log.info(`[DIVISAO-AUDIO] ✅ Segmento ${segmentos.length}: ${segmento.length} chars, ${palavras.length} palavras`);
+      } else {
+        log.warning(`[DIVISAO-AUDIO] ⚠️ Segmento muito curto (${palavras.length} palavras), ajustando...`);
+        // Aumentar ponto de corte para incluir mais palavras
+        const palavrasNecessarias = 3 - palavras.length;
+        const palavrasExtras = textoRestante.substring(pontoCorte).trim().split(/\s+/).slice(0, palavrasNecessarias);
+        const segmentoAjustado = segmento + ' ' + palavrasExtras.join(' ');
+        segmentos.push(segmentoAjustado.trim());
+        pontoCorte = segmentoAjustado.length;
+        log.info(`[DIVISAO-AUDIO] ✅ Segmento ajustado: ${segmentoAjustado.length} chars, ${segmentoAjustado.split(/\s+/).length} palavras`);
+      }
+
+      // Atualizar texto restante
+      textoRestante = textoRestante.substring(pontoCorte).trim();
+    }
+
+    log.success(`[DIVISAO-AUDIO] ✅ Texto dividido em ${segmentos.length} segmentos`);
+    return segmentos;
   }
 
   // ========== MÉTODO PARA ENVIAR ÁUDIO COM TRATAMENTO ADEQUADO ==========
@@ -7475,9 +7593,6 @@ if (msg.message?.audioMessage) {
 
           const elevenLabs = new ElevenLabsService();
 
-          // ✅ Mostrar "gravando" apenas quando for enviar áudio
-          await sock.sendPresenceUpdate('recording', tel);
-
           // ✅ DETECTAR SE É RESPOSTA SOBRE FINANCIAMENTO E ADICIONAR OFERTA DE PLANILHA
           // ⚠️ IMPORTANTE: Só oferecer planilha se tem veículo específico E fala de valores/parcelas
           const veiculoAtual = lucas.veiculoInteresse.get(tel);
@@ -7506,26 +7621,50 @@ if (msg.message?.audioMessage) {
           const textoFormatado = FormatadorFala.prepararParaTTS(textoComPlanilha);
           log.info(`📝 [TTS] Texto formatado: "${textoFormatado}"`);
 
-          // Gerar áudio
-          const audioBuffer = await elevenLabs.textToSpeech(textoFormatado);
+          // ✅ DIVIDIR TEXTO EM SEGMENTOS SE MUITO LONGO (>500 chars = ~23s de áudio)
+          const segmentos = lucas.dividirTextoParaAudio(textoFormatado, 500);
 
-          // Salvar temporariamente
-          const audioPath = path.join(__dirname, `temp_resposta_${Date.now()}.mp3`);
-          fs.writeFileSync(audioPath, audioBuffer);
+          if (segmentos.length > 1) {
+            log.info(`🎙️ [DIVISAO-AUDIO] Texto dividido em ${segmentos.length} áudios`);
+          }
 
-          // Enviar áudio
-          await sock.sendMessage(tel, {
-            audio: { url: audioPath },
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
-          });
+          // ✅ GERAR E ENVIAR CADA SEGMENTO SEQUENCIALMENTE
+          for (let i = 0; i < segmentos.length; i++) {
+            const segmento = segmentos[i];
+            const isUltimoSegmento = i === segmentos.length - 1;
 
-          log.success(`✓ Áudio enviado para ${nome}`);
+            log.info(`🎙️ [AUDIO-${i+1}/${segmentos.length}] Gerando: "${segmento.substring(0, 50)}${segmento.length > 50 ? '...' : ''}"`);
 
-          // Limpar arquivo temporário
-          fs.unlinkSync(audioPath);
+            // Mostrar "gravando" antes de cada áudio
+            await sock.sendPresenceUpdate('recording', tel);
 
-          // ✅ Limpar status "gravando" para evitar "Aguardando mensagem"
+            // Gerar áudio do segmento
+            const audioBuffer = await elevenLabs.textToSpeech(segmento);
+
+            // Salvar temporariamente
+            const audioPath = path.join(__dirname, `temp_resposta_${Date.now()}_part${i+1}.mp3`);
+            fs.writeFileSync(audioPath, audioBuffer);
+
+            // Enviar áudio
+            await sock.sendMessage(tel, {
+              audio: { url: audioPath },
+              mimetype: 'audio/ogg; codecs=opus',
+              ptt: true
+            });
+
+            log.success(`✓ Áudio ${i+1}/${segmentos.length} enviado para ${nome}`);
+
+            // Limpar arquivo temporário
+            fs.unlinkSync(audioPath);
+
+            // Delay natural entre segmentos (exceto no último)
+            if (!isUltimoSegmento) {
+              await sock.sendPresenceUpdate('paused', tel);
+              await lucas.aguardar(1500); // 1.5s entre áudios
+            }
+          }
+
+          // ✅ Limpar status "gravando" após último áudio
           await sock.sendPresenceUpdate('paused', tel);
 
           // ✅ SE MENCIONOU PLANILHA, ENVIAR PLANILHA FORMATADA LOGO APÓS O ÁUDIO
@@ -7595,25 +7734,44 @@ if (msg.message?.audioMessage) {
           await lucas.aguardar(delayAdicional);
 
           try {
-            await sock.sendPresenceUpdate('recording', tel);
-
             const elevenLabs = new ElevenLabsService();
             const textoFormatadoDoc = FormatadorFala.prepararParaTTS(mensagemAdicional);
 
-            const audioBufferDoc = await elevenLabs.textToSpeech(textoFormatadoDoc);
-            const audioPathDoc = path.join(__dirname, `temp_doc_${Date.now()}.mp3`);
-            fs.writeFileSync(audioPathDoc, audioBufferDoc);
+            // ✅ DIVIDIR MENSAGEM ADICIONAL EM SEGMENTOS SE MUITO LONGA
+            const segmentosDoc = lucas.dividirTextoParaAudio(textoFormatadoDoc, 500);
 
-            await sock.sendMessage(tel, {
-              audio: { url: audioPathDoc },
-              mimetype: 'audio/ogg; codecs=opus',
-              ptt: true
-            });
+            if (segmentosDoc.length > 1) {
+              log.info(`🎙️ [DIVISAO-AUDIO-DOC] Mensagem adicional dividida em ${segmentosDoc.length} áudios`);
+            }
 
-            log.success(`✓ Pergunta sobre documentação enviada`);
-            fs.unlinkSync(audioPathDoc);
+            // ✅ GERAR E ENVIAR CADA SEGMENTO SEQUENCIALMENTE
+            for (let i = 0; i < segmentosDoc.length; i++) {
+              const segmentoDoc = segmentosDoc[i];
+              const isUltimoSegmentoDoc = i === segmentosDoc.length - 1;
 
-            // ✅ Limpar status "gravando"
+              await sock.sendPresenceUpdate('recording', tel);
+
+              const audioBufferDoc = await elevenLabs.textToSpeech(segmentoDoc);
+              const audioPathDoc = path.join(__dirname, `temp_doc_${Date.now()}_part${i+1}.mp3`);
+              fs.writeFileSync(audioPathDoc, audioBufferDoc);
+
+              await sock.sendMessage(tel, {
+                audio: { url: audioPathDoc },
+                mimetype: 'audio/ogg; codecs=opus',
+                ptt: true
+              });
+
+              log.success(`✓ Pergunta documentação ${i+1}/${segmentosDoc.length} enviada`);
+              fs.unlinkSync(audioPathDoc);
+
+              // Delay natural entre segmentos (exceto no último)
+              if (!isUltimoSegmentoDoc) {
+                await sock.sendPresenceUpdate('paused', tel);
+                await lucas.aguardar(1500); // 1.5s entre áudios
+              }
+            }
+
+            // ✅ Limpar status "gravando" após último áudio
             await sock.sendPresenceUpdate('paused', tel);
 
           } catch (docError) {
