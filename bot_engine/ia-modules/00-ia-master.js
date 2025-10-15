@@ -19,7 +19,7 @@ export class IAMaster {
 
     // ⚠️ NOTA: Alguns módulos ainda usam OpenAI, outros migrados para Claude
     // Inicializar todos os módulos
-    this.analisadorIntencoes = new AnalisadorIntencoes(openaiKey);
+    this.analisadorIntencoes = new AnalisadorIntencoes(anthropicKey); // ✅ Usa Claude
     this.recomendador = new RecomendadorInteligente(openaiKey);
     this.analisadorSentimento = new AnalisadorSentimento(openaiKey);
     this.memoria = new MemoriaContexto(openaiKey, db);
