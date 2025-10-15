@@ -8141,7 +8141,35 @@ if (i < linhas.length - 1) {
   await Promise.allSettled(processingPromises);
   console.log(`\n✅ [PARALELO] ${messages.length} mensagem(ns) processada(s) simultaneamente\n`);
 });
-  
+
+// =====================================================
+// LISTENER: ATUALIZAÇÃO DE STATUS DE MENSAGENS
+// =====================================================
+// Monitora entregas, leituras e falhas de mensagens enviadas
+// Adicionado em: 2025-01-15 por Helix AI Developer
+// Propósito: Rastrear se mensagens foram entregues em todos os dispositivos
+sock.ev.on('messages.update', (updates) => {
+  try {
+    console.log('\n📬 [STATUS] Atualização de status recebida');
+    console.log('📦 [STATUS] Total de atualizações:', updates.length);
+    console.log('📦 [STATUS] Updates:', JSON.stringify(updates, null, 2));
+
+    // Processar atualizações através do message tracker
+    messageTracker.processMessageStatusUpdate(updates);
+
+    // Verificar mensagens pendentes (debug)
+    const pending = messageTracker.getPendingDeliveries();
+    if (pending.length > 0) {
+      console.log('\n⚠️ [STATUS] Mensagens pendentes de entrega há mais de 30s:');
+      pending.forEach(p => {
+        console.log(`   📱 ${p.telefone} | ${p.messageType} | ${p.waitTime} | ID: ${p.messageId}`);
+      });
+    }
+  } catch (error) {
+    console.error('❌ [STATUS] Erro ao processar atualização de status:', error);
+  }
+});
+
 return new Promise(() => {});
 }
 // =====================================================

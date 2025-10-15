@@ -17,9 +17,11 @@ class MessageTracker {
   constructor() {
     this.logsDir = path.join(__dirname, 'logs');
     this.logsFile = path.join(this.logsDir, 'envios.log');
+    this.deliveryLogsFile = path.join(this.logsDir, 'entregas.log');
     this.rateLimitMap = new Map(); // telefone -> timestamp do último envio
     this.retryQueue = new Map(); // messageId -> retry info
     this.messageStatus = new Map(); // messageId -> status
+    this.sentMessages = new Map(); // key.id -> messageInfo (para tracking de entrega)
 
     // Configurações
     this.MIN_INTERVAL_MS = 3000; // 3 segundos entre mensagens
@@ -39,7 +41,12 @@ class MessageTracker {
 
       if (!fs.existsSync(this.logsFile)) {
         fs.writeFileSync(this.logsFile, '');
-        console.log('📝 [TRACKER] Arquivo de logs criado');
+        console.log('📝 [TRACKER] Arquivo de logs de envio criado');
+      }
+
+      if (!fs.existsSync(this.deliveryLogsFile)) {
+        fs.writeFileSync(this.deliveryLogsFile, '');
+        console.log('📝 [TRACKER] Arquivo de logs de entrega criado');
       }
     } catch (error) {
       console.error('❌ [TRACKER] Erro ao inicializar logs:', error.message);
@@ -161,6 +168,9 @@ class MessageTracker {
         timestamp: Date.now(),
         result
       });
+
+      // Registrar mensagem para tracking de entrega
+      this.registerSentMessage(result, telefone, messageType);
 
       // ========== LOG DE SUCESSO ==========
       console.log('\n' + '✅'.repeat(30));
@@ -300,6 +310,206 @@ class MessageTracker {
         erro: error.message
       };
     }
+  }
+
+  /**
+   * Registra mensagem enviada para tracking de entrega
+   * @param {Object} result - Resultado do sendMessage (com key)
+   * @param {string} telefone - Número do telefone
+   * @param {string} messageType - Tipo da mensagem
+   */
+  registerSentMessage(result, telefone, messageType = 'unknown') {
+    if (!result?.key?.id) {
+      console.log('⚠️ [TRACKER] Mensagem sem key.id, não pode ser rastreada');
+      return;
+    }
+
+    const messageInfo = {
+      messageId: result.key.id,
+      remoteJid: result.key.remoteJid || telefone,
+      telefone,
+      messageType,
+      sentAt: Date.now(),
+      status: 'sent',
+      deliveredAt: null,
+      readAt: null,
+      failedAt: null,
+      devices: [] // Lista de dispositivos que receberam a mensagem
+    };
+
+    this.sentMessages.set(result.key.id, messageInfo);
+
+    console.log(`✅ [TRACKER] Mensagem registrada para tracking: ${result.key.id}`);
+    console.log(`📱 [TRACKER] Destinatário: ${telefone}`);
+    console.log(`📝 [TRACKER] Tipo: ${messageType}`);
+  }
+
+  /**
+   * Processa atualização de status de mensagem
+   * @param {Array} updates - Array de atualizações de status
+   */
+  processMessageStatusUpdate(updates) {
+    for (const update of updates) {
+      const { key, update: statusUpdate } = update;
+
+      if (!key?.id) {
+        continue;
+      }
+
+      const messageInfo = this.sentMessages.get(key.id);
+
+      if (!messageInfo) {
+        // Mensagem não está sendo rastreada (provavelmente recebida, não enviada)
+        continue;
+      }
+
+      const status = statusUpdate?.status;
+      const participant = statusUpdate?.participant; // Dispositivo específico (para grupos ou múltiplos dispositivos)
+
+      console.log('\n' + '🔔'.repeat(30));
+      console.log('🔔 [TRACKER] ATUALIZAÇÃO DE STATUS DE MENSAGEM');
+      console.log('🔔'.repeat(30));
+      console.log('🆔 Message ID:', key.id);
+      console.log('📱 Destinatário:', messageInfo.telefone);
+      console.log('📝 Tipo:', messageInfo.messageType);
+      console.log('📊 Status:', status);
+      console.log('🖥️ Participant:', participant || 'N/A');
+      console.log('⏰ Timestamp:', new Date().toISOString());
+      console.log('🔔'.repeat(30) + '\n');
+
+      // Atualizar status
+      if (status === 2 || status === 'DELIVERY_ACK' || status === 'delivered') {
+        // Mensagem entregue
+        if (!messageInfo.deliveredAt) {
+          messageInfo.deliveredAt = Date.now();
+          messageInfo.status = 'delivered';
+
+          const deliveryTime = messageInfo.deliveredAt - messageInfo.sentAt;
+
+          console.log('✅✅✅ [TRACKER] MENSAGEM ENTREGUE! ✅✅✅');
+          console.log(`⏱️ [TRACKER] Tempo de entrega: ${deliveryTime}ms`);
+
+          if (participant) {
+            messageInfo.devices.push({
+              participant,
+              deliveredAt: Date.now()
+            });
+            console.log(`📱 [TRACKER] Dispositivo confirmado: ${participant}`);
+          }
+
+          // Log para arquivo
+          this.logDeliveryToFile({
+            messageId: key.id,
+            telefone: messageInfo.telefone,
+            tipo: messageInfo.messageType,
+            status: 'delivered',
+            deliveryTime,
+            participant: participant || null
+          });
+        } else {
+          // Entrega adicional (outro dispositivo)
+          if (participant && !messageInfo.devices.find(d => d.participant === participant)) {
+            messageInfo.devices.push({
+              participant,
+              deliveredAt: Date.now()
+            });
+            console.log(`📱 [TRACKER] Dispositivo adicional confirmado: ${participant}`);
+
+            this.logDeliveryToFile({
+              messageId: key.id,
+              telefone: messageInfo.telefone,
+              tipo: messageInfo.messageType,
+              status: 'delivered_additional_device',
+              participant
+            });
+          }
+        }
+      } else if (status === 3 || status === 'READ' || status === 'read') {
+        // Mensagem lida
+        if (!messageInfo.readAt) {
+          messageInfo.readAt = Date.now();
+          messageInfo.status = 'read';
+
+          const readTime = messageInfo.readAt - messageInfo.sentAt;
+
+          console.log('👁️👁️👁️ [TRACKER] MENSAGEM LIDA! 👁️👁️👁️');
+          console.log(`⏱️ [TRACKER] Tempo até leitura: ${readTime}ms`);
+
+          // Log para arquivo
+          this.logDeliveryToFile({
+            messageId: key.id,
+            telefone: messageInfo.telefone,
+            tipo: messageInfo.messageType,
+            status: 'read',
+            readTime,
+            participant: participant || null
+          });
+        }
+      } else if (status === 0 || status === 'ERROR' || status === 'error' || status === 'FAILED') {
+        // Mensagem falhou
+        if (!messageInfo.failedAt) {
+          messageInfo.failedAt = Date.now();
+          messageInfo.status = 'failed';
+
+          console.log('❌❌❌ [TRACKER] MENSAGEM FALHOU! ❌❌❌');
+          console.log(`📱 [TRACKER] Destinatário: ${messageInfo.telefone}`);
+          console.log(`⚠️ [TRACKER] A mensagem não foi entregue ao dispositivo!`);
+
+          // Log para arquivo
+          this.logDeliveryToFile({
+            messageId: key.id,
+            telefone: messageInfo.telefone,
+            tipo: messageInfo.messageType,
+            status: 'failed',
+            participant: participant || null
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Log de entrega para arquivo separado
+   * @param {Object} data - Dados do log de entrega
+   */
+  logDeliveryToFile(data) {
+    try {
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        ...data
+      };
+
+      const logLine = JSON.stringify(logEntry) + '\n';
+      fs.appendFileSync(this.deliveryLogsFile, logLine);
+    } catch (error) {
+      console.error('❌ [TRACKER] Erro ao escrever log de entrega:', error.message);
+    }
+  }
+
+  /**
+   * Verifica mensagens pendentes de entrega (para debug)
+   * @returns {Array} Lista de mensagens não entregues há mais de 30 segundos
+   */
+  getPendingDeliveries() {
+    const now = Date.now();
+    const pending = [];
+
+    for (const [messageId, info] of this.sentMessages.entries()) {
+      if (info.status === 'sent' && !info.deliveredAt) {
+        const waitTime = now - info.sentAt;
+        if (waitTime > 30000) { // Mais de 30 segundos
+          pending.push({
+            messageId,
+            telefone: info.telefone,
+            messageType: info.messageType,
+            waitTime: Math.floor(waitTime / 1000) + 's',
+            sentAt: new Date(info.sentAt).toISOString()
+          });
+        }
+      }
+    }
+
+    return pending;
   }
 
   /**
