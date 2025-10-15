@@ -23,7 +23,7 @@ import mysql from 'mysql2/promise';
 import { SimuladorFinanciamento, GerenciadorFinanciamento } from './simulador-financiamento.js';
 
 // ✅ IMPORTAR API FIPE
-import { consultarValorFipe, compararComFipe } from './fipe-wrapper.js';
+import { consultarValorFipe, compararComFipe, buscarDetalhesPersuasao } from './fipe-wrapper.js';
 
 // ✅ IMPORTAR BOT ADAPTER (Integração com Backend Flask)
 import botAdapter from './bot-adapter.js';
@@ -1248,8 +1248,102 @@ O sistema irá:
         required: ['veiculo_id', 'data_agendamento', 'hora_agendamento']
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: 'buscar_detalhes_persuasao_fipe',
+      description: `🎯 BUSCA DETALHES TÉCNICOS COMPLETOS PARA PERSUASÃO
+
+Use esta função quando:
+1️⃣ Cliente demonstra CURIOSIDADE TÉCNICA sobre um veículo específico
+   - "Me fala mais sobre esse carro"
+   - "Esse modelo é bom?"
+   - "Vale a pena?"
+   - "Como é esse carro?"
+
+2️⃣ Cliente COMPARA veículos ou pede argumentos
+   - "Qual a diferença desse pro outro?"
+   - "Por que esse é mais caro?"
+   - "Esse é melhor que o X?"
+
+3️⃣ Cliente pergunta sobre VALOR/MERCADO/FIPE
+   - "Tá na FIPE?"
+   - "É um bom preço?"
+   - "Esse carro valoriza?"
+   - "Quanto vale no mercado?"
+
+4️⃣ Cliente precisa de PERSUASÃO para decidir
+   - "Ainda não sei se é esse"
+   - "Deixa eu pensar"
+   - "Tá caro" (objeção de preço)
+
+A função retorna:
+✅ Dados FIPE oficiais (valor de mercado)
+✅ Especificações técnicas (motor, consumo, categoria)
+✅ Argumentos de venda PRONTOS (pontos fortes, diferenciais)
+✅ Análise de valorização/depreciação
+✅ Comparação com nosso preço (se fornecido)
+✅ Sugestões de como usar os dados na conversa
+
+IMPORTANTE: Use para qualquer marca/modelo. A função tem base de conhecimento + busca FIPE real.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          marca: {
+            type: 'string',
+            description: 'Marca do veículo (ex: Honda, Toyota, Volkswagen, Fiat, Jeep). Extrair da mensagem ou da lista de veículos mostrados.'
+          },
+          modelo: {
+            type: 'string',
+            description: 'Modelo do veículo (ex: Civic, Corolla, Gol, Compass). Extrair da mensagem ou da lista de veículos mostrados.'
+          },
+          ano: {
+            type: ['number', 'null'],
+            description: 'Ano do veículo. Se não informado, usa ano mais recente disponível na FIPE.'
+          },
+          preco_venda: {
+            type: ['number', 'null'],
+            description: 'Preço de venda do nosso estoque (se conhecido). Usado para comparar com FIPE e gerar argumento de oportunidade.'
+          }
+        },
+        required: ['marca', 'modelo']
+      }
+    }
   }
 ];
+
+// =====================================================
+// FUNÇÕES AUXILIARES
+// =====================================================
+
+/**
+ * Gera mensagem sugerida para IA usar na persuasão
+ */
+function gerarMensagemSugeridaPersuasao(resultado) {
+  let msg = '';
+
+  // Começar com ponto forte principal
+  if (resultado.especificacoes_tecnicas.pontos_fortes.length > 0) {
+    msg += `Esse ${resultado.dados_fipe.modelo} é conhecido por ${resultado.especificacoes_tecnicas.pontos_fortes[0].toLowerCase()}! `;
+  }
+
+  // Adicionar valor FIPE
+  msg += `Na tabela FIPE ele está em ${resultado.dados_fipe.valor_fipe}. `;
+
+  // Se preço abaixo da FIPE, destacar
+  if (resultado.comparacao_preco && resultado.comparacao_preco.esta_abaixo_fipe) {
+    msg += `E olha só: nosso preço está ABAIXO da FIPE! É uma oportunidade que não dá pra perder. `;
+  }
+
+  // Adicionar análise de valorização
+  msg += `${resultado.analise_valorizacao.analise}. `;
+
+  // Fechar com pergunta engajadora
+  msg += `O que você achou?`;
+
+  return msg;
+}
 
 // =====================================================
 // IMPLEMENTAÇÃO DAS FUNÇÕES
@@ -2112,7 +2206,101 @@ Máximo 2 linhas, seja empática!`
       log.error(`[AGENDAMENTOS] Erro ao agendar visita: ${error.message}`);
       return {
         sucesso: false,
-        mensagem: 'Erro ao processar agendamento. Por favor, tente novamente.'
+        mensagem: 'Erro ao processar agendamento.',
+        erro: error.message
+      };
+    }
+  }
+
+  // Função: Buscar Detalhes FIPE para Persuasão
+  async buscar_detalhes_persuasao_fipe(params) {
+    log.function(`🎯 Buscando detalhes persuasão FIPE: ${params.marca} ${params.modelo} ${params.ano || 'ano recente'} ${params.preco_venda ? `(R$ ${params.preco_venda})` : ''}`);
+
+    try {
+      console.log('\n🎯 ========== BUSCA DETALHES PERSUASÃO ==========');
+      console.log('📋 Parâmetros:', JSON.stringify({
+        marca: params.marca,
+        modelo: params.modelo,
+        ano: params.ano,
+        preco_venda: params.preco_venda
+      }, null, 2));
+
+      // Chamar função do fipe-wrapper.js
+      const resultado = await buscarDetalhesPersuasao(
+        params.marca,
+        params.modelo,
+        params.ano || null,
+        params.preco_venda || null
+      );
+
+      if (!resultado || !resultado.sucesso) {
+        console.log('❌ [PERSUASAO] Não foi possível buscar detalhes');
+        return {
+          erro: true,
+          mensagem: resultado?.mensagem_para_cliente || 'Não consegui buscar informações completas desse modelo na tabela FIPE.',
+          sugestao: 'Vou te ajudar com as informações que já tenho aqui sobre esse veículo!'
+        };
+      }
+
+      console.log('✅ [PERSUASAO] Detalhes obtidos com sucesso!');
+      console.log('   Valor FIPE:', resultado.dados_fipe.valor_fipe);
+      console.log('   Argumentos:', resultado.argumentos_venda.length);
+      console.log('   Sugestões:', resultado.sugestoes_conversa.length);
+
+      // Formatar resposta estruturada para a IA usar
+      return {
+        sucesso: true,
+
+        // RESUMO EXECUTIVO (para IA processar rapidamente)
+        resumo: {
+          modelo_completo: `${resultado.dados_fipe.marca} ${resultado.dados_fipe.modelo} ${resultado.dados_fipe.ano}`,
+          valor_fipe: resultado.dados_fipe.valor_fipe,
+          categoria: resultado.especificacoes_tecnicas.categoria,
+          tipo: resultado.especificacoes_tecnicas.tipo,
+          pontos_fortes_top3: resultado.especificacoes_tecnicas.pontos_fortes.slice(0, 3),
+          avaliacao_investimento: resultado.analise_valorizacao.analise
+        },
+
+        // DADOS COMPLETOS FIPE
+        fipe: resultado.dados_fipe,
+
+        // ESPECIFICAÇÕES TÉCNICAS
+        especificacoes: resultado.especificacoes_tecnicas,
+
+        // ARGUMENTOS DE VENDA PRONTOS (IA pode usar diretamente no áudio)
+        argumentos: resultado.argumentos_venda.map(arg => ({
+          tipo: arg.tipo,
+          titulo: arg.titulo,
+          texto: arg.argumento,
+          // Shorthand para IA usar rapidamente
+          usar_quando: arg.tipo === 'valor_fipe' ? 'cliente_pergunta_valor' :
+                       arg.tipo === 'pontos_fortes' ? 'cliente_demonstra_interesse' :
+                       arg.tipo === 'preco_vantajoso' ? 'objecao_preco' :
+                       'geral'
+        })),
+
+        // COMPARAÇÃO DE PREÇO (se fornecido preco_venda)
+        comparacao: resultado.comparacao_preco,
+
+        // ANÁLISE DE VALORIZAÇÃO
+        valorizacao: resultado.analise_valorizacao,
+
+        // SUGESTÕES PRÁTICAS PARA A CONVERSA
+        sugestoes: resultado.sugestoes_conversa,
+
+        // MENSAGEM RECOMENDADA PARA IA
+        mensagem_sugerida: gerarMensagemSugeridaPersuasao(resultado)
+      };
+
+    } catch (error) {
+      console.error('❌ [PERSUASAO] Erro:', error.message);
+      console.error('Stack:', error.stack);
+
+      return {
+        erro: true,
+        mensagem: 'Tive um problema ao buscar os detalhes técnicos desse modelo.',
+        sugestao: 'Mas posso te ajudar com as informações que temos aqui no estoque!',
+        erro_tecnico: error.message
       };
     }
   }
