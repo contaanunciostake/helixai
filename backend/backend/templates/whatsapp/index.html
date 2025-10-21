@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp - VendeAI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qr-code-container {
+        background: var(--bg-card);
+        border: 2px dashed var(--border-color);
+        border-radius: 1rem;
+        padding: 2rem;
+        text-align: center;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .qr-code-image {
+        max-width: 300px;
+        max-height: 300px;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .status-badge.conectado {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .status-badge.desconectado {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: white;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .connection-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .connection-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+    }
+
+    .whatsapp-number {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-whatsapp {
+        background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-whatsapp:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+        color: white;
+    }
+
+    .loading-spinner {
+        border: 3px solid rgba(99, 102, 241, 0.1);
+        border-top: 3px solid var(--primary);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1" style="color: var(--text-primary); font-weight: 700;">
+                <i class="bi bi-whatsapp me-2" style="color: #25D366;"></i>
+                Conexões WhatsApp
+            </h1>
+            <p class="text-muted mb-0">Gerencie suas conexões WhatsApp e configure o bot automatizado</p>
+        </div>
+    </div>
+
+    <!-- Cards de Estatísticas -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-white-50 mb-1">Total de Conexões</p>
+                            <h3 class="text-white mb-0 fw-bold">{{ total_conexoes }}</h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 p-3 rounded">
+                            <i class="bi bi-phone text-white fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-white-50 mb-1">Conexões Ativas</p>
+                            <h3 class="text-white mb-0 fw-bold">{{ conexoes_ativas }}</h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 p-3 rounded">
+                            <i class="bi bi-check-circle text-white fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-white-50 mb-1">Mensagens Hoje</p>
+                            <h3 class="text-white mb-0 fw-bold">{{ mensagens_hoje }}</h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 p-3 rounded">
+                            <i class="bi bi-chat-dots text-white fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- QR Code e Conexão -->
+        <div class="col-lg-6">
+            <div class="connection-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0" style="color: var(--text-primary); font-weight: 600;">
+                        Conexão Principal
+                    </h5>
+                    <span class="status-badge {% if empresa.whatsapp_conectado %}conectado{% else %}desconectado{% endif %}" id="statusBadge">
+                        <span class="status-indicator"></span>
+                        <span id="statusText">{% if empresa.whatsapp_conectado %}Conectado{% else %}Desconectado{% endif %}</span>
+                    </span>
+                </div>
+
+                {% if empresa.whatsapp_conectado %}
+                <!-- WhatsApp Conectado -->
+                <div class="text-center py-4">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 mb-2" style="color: var(--text-primary);">WhatsApp Conectado!</h4>
+                    <div class="whatsapp-number justify-content-center mb-4">
+                        <i class="bi bi-phone-fill text-success"></i>
+                        <span id="numeroConectado">{{ empresa.whatsapp_numero or 'Número não disponível' }}</span>
+                    </div>
+
+                    <button class="btn btn-danger" onclick="desconectar()">
+                        <i class="bi bi-x-circle me-2"></i>
+                        Desconectar WhatsApp
+                    </button>
+                </div>
+                {% else %}
+                <!-- QR Code para Conectar -->
+                <div class="qr-code-container" id="qrContainer">
+                    <div id="qrPlaceholder">
+                        <i class="bi bi-qr-code" style="font-size: 4rem; color: var(--text-muted);"></i>
+                        <p class="text-muted mt-3 mb-4">Clique no botão abaixo para gerar o QR Code</p>
+                        <button class="btn btn-whatsapp" onclick="gerarQRCode()">
+                            <i class="bi bi-qr-code me-2"></i>
+                            Gerar QR Code
+                        </button>
+                    </div>
+                    <div id="qrLoading" style="display: none;">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-3">Gerando QR Code...</p>
+                    </div>
+                    <div id="qrDisplay" style="display: none;">
+                        <img id="qrImage" class="qr-code-image mb-3" src="" alt="QR Code">
+                        <p class="text-muted mb-2">Escaneie este QR Code com seu WhatsApp:</p>
+                        <ol class="text-start text-muted" style="max-width: 350px;">
+                            <li>Abra o WhatsApp no seu celular</li>
+                            <li>Toque em <strong>Mais opções</strong> ou <strong>Configurações</strong></li>
+                            <li>Toque em <strong>Aparelhos conectados</strong></li>
+                            <li>Toque em <strong>Conectar um aparelho</strong></li>
+                            <li>Aponte seu celular para esta tela</li>
+                        </ol>
+                        <button class="btn btn-sm btn-outline-secondary mt-3" onclick="gerarQRCode()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>
+                            Gerar Novo QR Code
+                        </button>
+                        <button class="btn btn-sm btn-success mt-3 ms-2" onclick="simularConexao()">
+                            <i class="bi bi-lightning-fill me-1"></i>
+                            Simular Conexão (Dev)
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Configurações do Bot -->
+        <div class="col-lg-6">
+            <div class="connection-card">
+                <h5 class="mb-3" style="color: var(--text-primary); font-weight: 600;">
+                    <i class="bi bi-robot me-2"></i>
+                    Configurações do Bot
+                </h5>
+
+                <div class="alert alert-info border-0" style="background: rgba(99, 102, 241, 0.1);">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <small>O bot automatiza respostas usando IA. Ative após conectar o WhatsApp.</small>
+                </div>
+
+                <!-- Status do Bot -->
+                <div class="d-flex justify-content-between align-items-center p-3 mb-3 rounded" style="background: var(--bg-secondary);">
+                    <div>
+                        <h6 class="mb-1" style="color: var(--text-primary);">Status do Bot</h6>
+                        <small class="text-muted">Bot de respostas automáticas</small>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="botSwitch"
+                               {% if empresa.bot_ativo %}checked{% endif %}
+                               {% if not empresa.whatsapp_conectado %}disabled{% endif %}
+                               onchange="toggleBot(this.checked)">
+                    </div>
+                </div>
+
+                <!-- Informações -->
+                <div class="mt-4">
+                    <h6 class="mb-3" style="color: var(--text-primary);">Recursos do Bot</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            <span class="text-muted">Respostas automáticas com IA</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            <span class="text-muted">Qualificação automática de leads</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            <span class="text-muted">Respostas por áudio (ElevenLabs)</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            <span class="text-muted">Integração com catálogo de produtos</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            <span class="text-muted">Agendamento e remarketing</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="mt-4">
+                    <a href="/produtos/config-avancada" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-gear me-2"></i>
+                        Configurar Bot com IA
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instruções Adicionais -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="connection-card">
+                <h5 class="mb-3" style="color: var(--text-primary); font-weight: 600;">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Informações Importantes
+                </h5>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-shield-check text-success me-3 fs-4"></i>
+                            <div>
+                                <h6 class="mb-1" style="color: var(--text-primary);">Segurança</h6>
+                                <small class="text-muted">Suas mensagens são criptografadas de ponta a ponta pelo WhatsApp</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-clock-history text-primary me-3 fs-4"></i>
+                            <div>
+                                <h6 class="mb-1" style="color: var(--text-primary);">Conexão Persistente</h6>
+                                <small class="text-muted">O WhatsApp permanece conectado mesmo após fechar o navegador</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-phone text-warning me-3 fs-4"></i>
+                            <div>
+                                <h6 class="mb-1" style="color: var(--text-primary);">Número Pessoal</h6>
+                                <small class="text-muted">Use seu número pessoal ou comercial do WhatsApp</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Verificar status periodicamente
+let statusInterval = null;
+
+function iniciarMonitoramento() {
+    statusInterval = setInterval(verificarStatus, 5000);
+}
+
+function pararMonitoramento() {
+    if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+    }
+}
+
+function verificarStatus() {
+    fetch('/whatsapp/api/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const status = data.status;
+
+                // Se acabou de conectar, recarregar página
+                if (status.conectado && !document.getElementById('numeroConectado')) {
+                    location.reload();
+                }
+            }
+        })
+        .catch(error => console.error('Erro ao verificar status:', error));
+}
+
+function gerarQRCode() {
+    const placeholder = document.getElementById('qrPlaceholder');
+    const loading = document.getElementById('qrLoading');
+    const display = document.getElementById('qrDisplay');
+
+    placeholder.style.display = 'none';
+    loading.style.display = 'block';
+    display.style.display = 'none';
+
+    fetch('/whatsapp/api/gerar-qr', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        loading.style.display = 'none';
+
+        if (data.success) {
+            document.getElementById('qrImage').src = data.qr_code;
+            display.style.display = 'block';
+
+            // Iniciar monitoramento de conexão
+            iniciarMonitoramento();
+
+            // Parar monitoramento após 2 minutos
+            setTimeout(() => {
+                pararMonitoramento();
+            }, 120000);
+        } else {
+            placeholder.style.display = 'block';
+            alert('Erro ao gerar QR Code: ' + data.error);
+        }
+    })
+    .catch(error => {
+        loading.style.display = 'none';
+        placeholder.style.display = 'block';
+        alert('Erro ao gerar QR Code: ' + error);
+    });
+}
+
+function simularConexao() {
+    if (!confirm('Simular conexão bem-sucedida? (apenas para desenvolvimento)')) {
+        return;
+    }
+
+    console.log('[WhatsApp] Iniciando simulação de conexão...');
+
+    fetch('/whatsapp/api/simular-conexao', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('[WhatsApp] Resposta recebida:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('[WhatsApp] Dados:', data);
+        if (data.success) {
+            alert(data.message + '\n\nRecarregando página...');
+            console.log('[WhatsApp] Recarregando página...');
+            // Força reload sem cache
+            window.location.href = window.location.href;
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('[WhatsApp] Erro:', error);
+        alert('Erro ao simular conexão: ' + error);
+    });
+}
+
+function desconectar() {
+    if (!confirm('Tem certeza que deseja desconectar o WhatsApp?')) {
+        return;
+    }
+
+    fetch('/whatsapp/api/desconectar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erro ao desconectar: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Erro ao desconectar: ' + error);
+    });
+}
+
+function toggleBot(ativar) {
+    fetch('/whatsapp/api/ativar-bot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ativar: ativar })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+        } else {
+            alert('Erro: ' + data.error);
+            document.getElementById('botSwitch').checked = !ativar;
+        }
+    })
+    .catch(error => {
+        alert('Erro ao alterar status do bot: ' + error);
+        document.getElementById('botSwitch').checked = !ativar;
+    });
+}
+</script>
+{% endblock %}

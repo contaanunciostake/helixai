@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}Conversa com {{ conversa.lead.nome if conversa.lead else 'Usuário' }} - VendeAI{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3 fade-in">
+    <ol class="breadcrumb" style="background: transparent; padding: 0;">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('conversas.index') }}" style="color: var(--text-secondary); text-decoration: none;">
+                <i class="bi bi-chat-dots me-1"></i> Conversas
+            </a>
+        </li>
+        <li class="breadcrumb-item active" style="color: var(--text-primary);">
+            {% if conversa.lead %}
+                {{ conversa.lead.nome or 'Sem nome' }}
+            {% else %}
+                Usuário Desconhecido
+            {% endif %}
+        </li>
+    </ol>
+</nav>
+
+<div class="row g-4">
+    <!-- Chat Area -->
+    <div class="col-lg-8">
+        <div class="card fade-in" style="height: calc(100vh - 200px); display: flex; flex-direction: column;">
+            <!-- Chat Header -->
+            <div class="card-header" style="border-bottom: 2px solid var(--border-color); padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="user-avatar me-3" style="width: 50px; height: 50px; font-size: 1.2rem;">
+                            {% if conversa.lead %}
+                                {{ (conversa.lead.nome or 'L')[0].upper() }}
+                            {% else %}
+                                U
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h6 class="mb-1">
+                                {% if conversa.lead %}
+                                    {{ conversa.lead.nome or 'Sem nome' }}
+                                {% else %}
+                                    Usuário Desconhecido
+                                {% endif %}
+                            </h6>
+                            <small class="text-muted">
+                                <i class="bi bi-whatsapp text-success me-1"></i>
+                                {% if conversa.lead %}
+                                    {{ conversa.lead.telefone }}
+                                {% else %}
+                                    Sem telefone
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        {% if conversa.lead %}
+                        <a href="{{ url_for('leads.detalhe', lead_id=conversa.lead.id) }}"
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-person"></i> Ver Lead
+                        </a>
+                        <button class="btn btn-sm btn-success" onclick="enviarMensagem('{{ conversa.lead.telefone }}')">
+                            <i class="bi bi-whatsapp"></i> WhatsApp
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div class="card-body" style="flex: 1; overflow-y: auto; padding: 1.5rem; background: var(--bg-dark);">
+                {% if mensagens %}
+                <div class="messages-container">
+                    {% for mensagem in mensagens %}
+                    <div class="message-wrapper mb-3 {% if mensagem.tipo == 'ENVIADA' %}text-end{% endif %}">
+                        <div class="message {% if mensagem.tipo == 'ENVIADA' %}message-sent{% else %}message-received{% endif %}"
+                             style="display: inline-block; max-width: 70%; padding: 0.75rem 1rem; border-radius: 0.75rem;
+                                    {% if mensagem.tipo == 'ENVIADA' %}
+                                    background: var(--primary); color: white;
+                                    {% else %}
+                                    background: var(--bg-card); color: var(--text-primary);
+                                    border: 1px solid var(--border-color);
+                                    {% endif %}">
+                            <p class="mb-1" style="word-wrap: break-word; white-space: pre-wrap;">{{ mensagem.conteudo }}</p>
+                            <small style="font-size: 0.75rem; opacity: 0.8;">
+                                {{ mensagem.criado_em.strftime('%d/%m/%Y às %H:%M') }}
+                                {% if mensagem.tipo == 'ENVIADA' %}
+                                    {% if mensagem.entregue %}
+                                    <i class="bi bi-check-all"></i>
+                                    {% else %}
+                                    <i class="bi bi-check"></i>
+                                    {% endif %}
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-chat-left-text display-1 text-muted d-block mb-3"></i>
+                    <h5 class="text-muted">Nenhuma mensagem ainda</h5>
+                    <p class="text-muted">As mensagens desta conversa aparecerão aqui</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Message Input (Info only - actual sending through WhatsApp API) -->
+            <div class="card-footer" style="border-top: 2px solid var(--border-color); padding: 1.25rem;">
+                <div class="alert alert-info mb-0" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--info);">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Envio de mensagens:</strong> Utilize o botão "WhatsApp" acima para enviar mensagens.
+                    As mensagens enviadas pelo WhatsApp Web/Desktop aparecerão automaticamente aqui.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar - Lead Info -->
+    <div class="col-lg-4">
+        {% if conversa.lead %}
+        <!-- Lead Information Card -->
+        <div class="card fade-in mb-3" style="animation-delay: 0.1s;">
+            <div class="card-header">
+                <h6><i class="bi bi-person-circle me-2"></i> Informações do Lead</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Nome</label>
+                    <div><strong>{{ conversa.lead.nome or 'Sem nome' }}</strong></div>
+                </div>
+
+                {% if conversa.lead.email %}
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">E-mail</label>
+                    <div>
+                        <i class="bi bi-envelope me-1"></i>
+                        <a href="mailto:{{ conversa.lead.email }}" style="color: var(--primary); text-decoration: none;">
+                            {{ conversa.lead.email }}
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if conversa.lead.empresa_lead %}
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Empresa</label>
+                    <div>
+                        <i class="bi bi-building me-1"></i>
+                        {{ conversa.lead.empresa_lead }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Status</label>
+                    <div>
+                        {% set status_colors = {
+                            'NOVO': 'info',
+                            'CONTATO_INICIAL': 'primary',
+                            'QUALIFICADO': 'success',
+                            'PROPOSTA': 'warning',
+                            'NEGOCIACAO': 'warning',
+                            'GANHO': 'success',
+                            'PERDIDO': 'danger',
+                            'FRIO': 'secondary'
+                        } %}
+                        <span class="badge bg-{{ status_colors.get(conversa.lead.status.name, 'secondary') }}">
+                            {{ conversa.lead.status.name.replace('_', ' ').title() }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Temperatura</label>
+                    <div>
+                        {% if conversa.lead.temperatura.name == 'QUENTE' %}
+                        <span class="badge" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: white;">
+                            <i class="bi bi-fire"></i> Quente
+                        </span>
+                        {% elif conversa.lead.temperatura.name == 'MORNO' %}
+                        <span class="badge" style="background: linear-gradient(135deg, #3b82f6, #6366f1); color: white;">
+                            <i class="bi bi-thermometer-half"></i> Morno
+                        </span>
+                        {% else %}
+                        <span class="badge" style="background: linear-gradient(135deg, #64748b, #475569); color: white;">
+                            <i class="bi bi-thermometer-snow"></i> Frio
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 mt-4">
+                    <a href="{{ url_for('leads.detalhe', lead_id=conversa.lead.id) }}"
+                       class="btn btn-primary">
+                        <i class="bi bi-eye me-2"></i> Ver Detalhes Completos
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Conversation Stats -->
+        <div class="card fade-in" style="animation-delay: 0.2s;">
+            <div class="card-header">
+                <h6><i class="bi bi-bar-chart me-2"></i> Estatísticas da Conversa</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Total de Mensagens</label>
+                    <h4 class="mb-0">{{ mensagens|length }}</h4>
+                </div>
+
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Primeira Mensagem</label>
+                    <div class="text-muted">
+                        {% if mensagens and mensagens|length > 0 %}
+                        {{ mensagens[0].criado_em.strftime('%d/%m/%Y às %H:%M') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Última Mensagem</label>
+                    <div class="text-muted">
+                        {% if conversa.ultima_mensagem %}
+                        {{ conversa.ultima_mensagem.strftime('%d/%m/%Y às %H:%M') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Status</label>
+                    <div>
+                        {% if conversa.ativa %}
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle me-1"></i> Ativa
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-archive me-1"></i> Arquivada
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 mt-4">
+                    {% if conversa.ativa %}
+                    <button class="btn btn-outline-secondary" onclick="arquivarConversa({{ conversa.id }})">
+                        <i class="bi bi-archive me-2"></i> Arquivar Conversa
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Chat styles */
+.messages-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.message {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-sent {
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.message-received {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Scrollbar for chat */
+.card-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.card-body::-webkit-scrollbar-track {
+    background: var(--bg-darker);
+}
+
+.card-body::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.card-body::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function enviarMensagem(telefone) {
+    if (telefone) {
+        window.open(`https://wa.me/${telefone}`, '_blank');
+    } else {
+        showAlert('warning', 'Telefone não disponível');
+    }
+}
+
+function arquivarConversa(conversaId) {
+    if (confirm('Deseja arquivar esta conversa?')) {
+        fetch(`/conversas/api/${conversaId}/arquivar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                setTimeout(() => window.location.href = '{{ url_for("conversas.index") }}', 1500);
+            } else {
+                showAlert('danger', 'Erro: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showAlert('danger', 'Erro ao arquivar: ' + error);
+        });
+    }
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'x-circle'} me-2"></i> ${message}
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+// Auto-scroll to bottom of chat
+window.addEventListener('load', function() {
+    const chatBody = document.querySelector('.card-body');
+    if (chatBody) {
+        chatBody.scrollTop = chatBody.scrollHeight;
+    }
+});
+</script>
+{% endblock %}

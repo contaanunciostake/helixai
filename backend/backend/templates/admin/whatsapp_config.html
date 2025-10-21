@@ -1,0 +1,336 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Configuração WhatsApp - Admin - VendeAI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qr-code-container {
+        background: var(--bg-dark-tertiary);
+        border: 2px dashed var(--border-dark);
+        border-radius: 1rem;
+        padding: 2rem;
+        text-align: center;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .qr-code-image {
+        max-width: 300px;
+        max-height: 300px;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .empresa-card {
+        background: var(--bg-dark-secondary);
+        border: 1px solid var(--border-dark);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .empresa-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .status-badge.conectado {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .status-badge.desconectado {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: white;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .loading-spinner {
+        border: 3px solid rgba(99, 102, 241, 0.1);
+        border-top: 3px solid var(--primary);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-topbar">
+    <div>
+        <h2>
+            <i class="bi bi-whatsapp me-2" style="color: #25D366;"></i>
+            Configuração WhatsApp
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+                <li class="breadcrumb-item active">WhatsApp</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4 fade-in">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-building"></i>
+            <p>Total de Empresas</p>
+            <h3>{{ total_empresas }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-check-circle"></i>
+            <p>Empresas Conectadas</p>
+            <h3>{{ empresas_conectadas }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-x-circle"></i>
+            <p>Empresas Desconectadas</p>
+            <h3>{{ total_empresas - empresas_conectadas }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Empresas -->
+<div class="admin-card fade-in">
+    <div class="admin-card-header">
+        <h5>
+            <i class="bi bi-building me-2"></i>
+            Empresas e Conexões WhatsApp
+        </h5>
+    </div>
+
+    {% for empresa in empresas %}
+    <div class="empresa-card" id="empresa-{{ empresa.id }}">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <h5 class="mb-1" style="color: var(--text-dark);">{{ empresa.nome }}</h5>
+                <small class="text-muted">{{ empresa.razao_social or 'Não informado' }}</small>
+                <div class="mt-2">
+                    <span class="status-badge {% if empresa.whatsapp_conectado %}conectado{% else %}desconectado{% endif %}"
+                          id="statusBadge-{{ empresa.id }}">
+                        <span class="status-indicator"></span>
+                        <span id="statusText-{{ empresa.id }}">
+                            {% if empresa.whatsapp_conectado %}Conectado{% else %}Desconectado{% endif %}
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                {% if empresa.whatsapp_conectado %}
+                <div class="text-center">
+                    <i class="bi bi-phone-fill text-success me-2"></i>
+                    <span id="numeroConectado-{{ empresa.id }}" style="color: var(--text-dark);">
+                        {{ empresa.whatsapp_numero or 'Número não disponível' }}
+                    </span>
+                </div>
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="bi bi-x-circle me-2"></i>
+                    WhatsApp não conectado
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="col-md-4 text-end">
+                {% if empresa.whatsapp_conectado %}
+                <button class="btn btn-sm btn-danger" onclick="desconectarEmpresa({{ empresa.id }})">
+                    <i class="bi bi-x-circle me-1"></i>
+                    Desconectar
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-primary" onclick="mostrarQRCode({{ empresa.id }})">
+                    <i class="bi bi-qr-code me-1"></i>
+                    Gerar QR Code
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- QR Code Container (oculto por padrão) -->
+        <div class="qr-code-container mt-3" id="qrContainer-{{ empresa.id }}" style="display: none;">
+            <div id="qrPlaceholder-{{ empresa.id }}">
+                <i class="bi bi-qr-code" style="font-size: 4rem; color: var(--text-muted);"></i>
+                <p class="text-muted mt-3 mb-4">Gerando QR Code...</p>
+            </div>
+            <div id="qrLoading-{{ empresa.id }}" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p class="text-muted mt-3">Processando...</p>
+            </div>
+            <div id="qrDisplay-{{ empresa.id }}" style="display: none;">
+                <img id="qrImage-{{ empresa.id }}" class="qr-code-image mb-3" src="" alt="QR Code">
+                <p class="text-muted mb-2">Escaneie este QR Code com o WhatsApp:</p>
+                <ol class="text-start text-muted" style="max-width: 350px;">
+                    <li>Abra o WhatsApp no celular</li>
+                    <li>Toque em <strong>Mais opções</strong> ou <strong>Configurações</strong></li>
+                    <li>Toque em <strong>Aparelhos conectados</strong></li>
+                    <li>Toque em <strong>Conectar um aparelho</strong></li>
+                    <li>Aponte o celular para esta tela</li>
+                </ol>
+                <button class="btn btn-sm btn-outline-light mt-3" onclick="gerarQRCodeEmpresa({{ empresa.id }})">
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                    Gerar Novo QR Code
+                </button>
+                <button class="btn btn-sm btn-success mt-3 ms-2" onclick="simularConexaoEmpresa({{ empresa.id }})">
+                    <i class="bi bi-lightning-fill me-1"></i>
+                    Simular Conexão (Dev)
+                </button>
+                <button class="btn btn-sm btn-secondary mt-3 ms-2" onclick="ocultarQRCode({{ empresa.id }})">
+                    <i class="bi bi-x me-1"></i>
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if not empresas %}
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+        <p class="mt-3">Nenhuma empresa cadastrada</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function mostrarQRCode(empresaId) {
+    const container = document.getElementById(`qrContainer-${empresaId}`);
+    container.style.display = 'block';
+    gerarQRCodeEmpresa(empresaId);
+}
+
+function ocultarQRCode(empresaId) {
+    const container = document.getElementById(`qrContainer-${empresaId}`);
+    container.style.display = 'none';
+}
+
+function gerarQRCodeEmpresa(empresaId) {
+    const placeholder = document.getElementById(`qrPlaceholder-${empresaId}`);
+    const loading = document.getElementById(`qrLoading-${empresaId}`);
+    const display = document.getElementById(`qrDisplay-${empresaId}`);
+
+    placeholder.style.display = 'block';
+    loading.style.display = 'none';
+    display.style.display = 'none';
+
+    fetch(`/admin/api/whatsapp/gerar-qr/${empresaId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        placeholder.style.display = 'none';
+
+        if (data.success) {
+            if (data.connected) {
+                alert('WhatsApp já está conectado!');
+                location.reload();
+            } else {
+                document.getElementById(`qrImage-${empresaId}`).src = data.qr_code;
+                display.style.display = 'block';
+
+                if (data.warning) {
+                    alert(data.warning);
+                }
+            }
+        } else {
+            alert('Erro ao gerar QR Code: ' + data.error);
+        }
+    })
+    .catch(error => {
+        placeholder.style.display = 'block';
+        alert('Erro ao gerar QR Code: ' + error);
+    });
+}
+
+function simularConexaoEmpresa(empresaId) {
+    if (!confirm('Simular conexão bem-sucedida? (apenas para desenvolvimento)')) {
+        return;
+    }
+
+    fetch(`/admin/api/whatsapp/simular-conexao/${empresaId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Erro ao simular conexão: ' + error);
+    });
+}
+
+function desconectarEmpresa(empresaId) {
+    if (!confirm('Tem certeza que deseja desconectar o WhatsApp desta empresa?')) {
+        return;
+    }
+
+    fetch(`/admin/api/whatsapp/desconectar/${empresaId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erro ao desconectar: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Erro ao desconectar: ' + error);
+    });
+}
+</script>
+{% endblock %}

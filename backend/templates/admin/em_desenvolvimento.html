@@ -1,0 +1,30 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}{{ titulo }} - VendeAI Admin{% endblock %}
+
+{% block content %}
+<div class="admin-topbar fade-in">
+    <div>
+        <h2><i class="bi bi-tools me-2"></i> {{ titulo }}</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}" style="color: var(--primary); text-decoration: none;">Dashboard</a></li>
+                <li class="breadcrumb-item active">{{ titulo }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="admin-card fade-in text-center" style="padding: 5rem 2rem;">
+    <i class="bi bi-wrench-adjustable-circle display-1 mb-4" style="color: var(--primary); opacity: 0.3;"></i>
+    <h3 style="color: var(--text-dark); margin-bottom: 1rem;">Em Desenvolvimento</h3>
+    <p style="color: var(--text-dark-secondary); font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
+        Esta funcionalidade está sendo desenvolvida e estará disponível em breve.
+    </p>
+    <div class="mt-4">
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary">
+            <i class="bi bi-arrow-left me-2"></i>Voltar ao Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

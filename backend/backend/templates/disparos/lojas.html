@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Lojas - RoboVendedor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="bi bi-building"></i> Lojas</h1>
+            <p class="text-muted">Gerenciamento de lojas prospectadas</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <label>Status</label>
+                <select class="form-select" id="filterStatus">
+                    <option value="">Todos</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="enviado">Enviado</option>
+                    <option value="respondeu">Respondeu</option>
+                    <option value="converteu">Converteu</option>
+                    <option value="rejeitou">Rejeitou</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label>Cidade</label>
+                <input type="text" class="form-control" id="filterCidade" placeholder="Digite a cidade">
+            </div>
+            <div class="col-md-3">
+                <label>&nbsp;</label>
+                <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
+                    <i class="bi bi-filter"></i> Filtrar
+                </button>
+            </div>
+            <div class="col-md-3">
+                <label>&nbsp;</label>
+                <button class="btn btn-secondary w-100" onclick="limparFiltros()">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Lojas -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome da Loja</th>
+                        <th>Cidade/UF</th>
+                        <th>WhatsApp</th>
+                        <th>Status</th>
+                        <th>Tentativas</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loja in lojas %}
+                    <tr>
+                        <td><span class="badge bg-light text-dark">{{ loja.id }}</span></td>
+                        <td><strong>{{ loja.nome_loja }}</strong></td>
+                        <td>{{ loja.cidade }}-{{ loja.estado }}</td>
+                        <td>
+                            {% if loja.whatsapp %}
+                                <a href="https://wa.me/{{ loja.whatsapp.replace('+', '') }}" target="_blank" class="text-success">
+                                    <i class="bi bi-whatsapp"></i> {{ loja.whatsapp }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if loja.status_prospeccao.value == 'pendente' %}
+                                <span class="badge bg-warning">⏳ Pendente</span>
+                            {% elif loja.status_prospeccao.value == 'enviado' %}
+                                <span class="badge bg-info">📤 Enviado</span>
+                            {% elif loja.status_prospeccao.value == 'respondeu' %}
+                                <span class="badge bg-success">💬 Respondeu</span>
+                            {% elif loja.status_prospeccao.value == 'converteu' %}
+                                <span class="badge bg-success">✅ Converteu</span>
+                            {% elif loja.status_prospeccao.value == 'rejeitou' %}
+                                <span class="badge bg-danger">❌ Rejeitou</span>
+                            {% elif loja.status_prospeccao.value == 'optout' %}
+                                <span class="badge bg-secondary">🚫 Opt-out</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ loja.tentativas_contato }}</td>
+                        <td>
+                            <a href="{{ url_for('loja_detalhes', loja_id=loja.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> Ver
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Nenhuma loja encontrada</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function aplicarFiltros() {
+    const status = document.getElementById('filterStatus').value;
+    const cidade = document.getElementById('filterCidade').value;
+
+    let url = '/lojas?';
+    if (status) url += `status=${status}&`;
+    if (cidade) url += `cidade=${cidade}&`;
+
+    window.location.href = url;
+}
+
+function limparFiltros() {
+    window.location.href = '/lojas';
+}
+</script>
+{% endblock %}

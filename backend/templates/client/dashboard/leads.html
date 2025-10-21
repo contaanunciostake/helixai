@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Leads - RoboVendedor Pro{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-people me-2"></i> Gestão de Leads</h2>
+            <p>Gerencie e acompanhe todos os seus contatos</p>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoLead">
+            <i class="bi bi-person-plus me-2"></i> Novo Lead
+        </button>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card fade-in mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('leads') }}" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Buscar</label>
+                <input type="text" name="busca" class="form-control"
+                       placeholder="Nome, telefone, empresa..."
+                       value="{{ request.args.get('busca', '') }}">
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="novo" {% if request.args.get('status') == 'novo' %}selected{% endif %}>Novo</option>
+                    <option value="contato_inicial" {% if request.args.get('status') == 'contato_inicial' %}selected{% endif %}>Contato Inicial</option>
+                    <option value="qualificado" {% if request.args.get('status') == 'qualificado' %}selected{% endif %}>Qualificado</option>
+                    <option value="proposta" {% if request.args.get('status') == 'proposta' %}selected{% endif %}>Proposta</option>
+                    <option value="negociacao" {% if request.args.get('status') == 'negociacao' %}selected{% endif %}>Negociação</option>
+                    <option value="ganho" {% if request.args.get('status') == 'ganho' %}selected{% endif %}>Ganho</option>
+                    <option value="perdido" {% if request.args.get('status') == 'perdido' %}selected{% endif %}>Perdido</option>
+                    <option value="frio" {% if request.args.get('status') == 'frio' %}selected{% endif %}>Frio</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Temperatura</label>
+                <select name="temperatura" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="quente" {% if request.args.get('temperatura') == 'quente' %}selected{% endif %}>🔥 Quente</option>
+                    <option value="morno" {% if request.args.get('temperatura') == 'morno' %}selected{% endif %}>🌡️ Morno</option>
+                    <option value="frio" {% if request.args.get('temperatura') == 'frio' %}selected{% endif %}>❄️ Frio</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela de Leads -->
+<div class="card fade-in">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Lead</th>
+                        <th>Contato</th>
+                        <th>Status</th>
+                        <th>Temperatura</th>
+                        <th>Pontuação</th>
+                        <th>Última Interação</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lead in leads %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                    {{ (lead.nome or 'L')[0].upper() }}
+                                </div>
+                                <div class="ms-3">
+                                    <strong>{{ lead.nome or 'Sem nome' }}</strong>
+                                    {% if lead.empresa_lead %}
+                                    <br><small class="text-muted">{{ lead.empresa_lead }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <i class="bi bi-whatsapp text-success me-1"></i>
+                                {{ lead.telefone }}
+                            </div>
+                            {% if lead.email %}
+                            <small class="text-muted">
+                                <i class="bi bi-envelope me-1"></i>{{ lead.email }}
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set status_colors = {
+                                'NOVO': 'info',
+                                'CONTATO_INICIAL': 'primary',
+                                'QUALIFICADO': 'success',
+                                'PROPOSTA': 'warning',
+                                'NEGOCIACAO': 'warning',
+                                'GANHO': 'success',
+                                'PERDIDO': 'danger',
+                                'FRIO': 'secondary'
+                            } %}
+                            <span class="badge bg-{{ status_colors.get(lead.status.name, 'secondary') }}">
+                                {{ lead.status.name.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if lead.temperatura.name == 'QUENTE' %}
+                            <span class="badge badge-quente text-white">
+                                <i class="bi bi-fire"></i> Quente
+                            </span>
+                            {% elif lead.temperatura.name == 'MORNO' %}
+                            <span class="badge badge-morno text-white">
+                                <i class="bi bi-thermometer-half"></i> Morno
+                            </span>
+                            {% else %}
+                            <span class="badge badge-frio text-white">
+                                <i class="bi bi-thermometer-snow"></i> Frio
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress" style="width: 60px; height: 8px;">
+                                    <div class="progress-bar
+                                        {% if lead.pontuacao >= 70 %}bg-success
+                                        {% elif lead.pontuacao >= 40 %}bg-warning
+                                        {% else %}bg-danger{% endif %}"
+                                        style="width: {{ lead.pontuacao }}%"></div>
+                                </div>
+                                <small class="ms-2">{{ lead.pontuacao }}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <small class="text-muted">
+                                {{ lead.ultima_interacao.strftime('%d/%m/%y %H:%M') if lead.ultima_interacao else '-' }}
+                            </small>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('lead_detalhe', lead_id=lead.id) }}"
+                                   class="btn btn-outline-primary" title="Ver detalhes">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button class="btn btn-outline-success"
+                                        onclick="enviarMensagem('{{ lead.telefone }}')" title="Enviar mensagem">
+                                    <i class="bi bi-whatsapp"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary"
+                                        onclick="editarLead({{ lead.id }})" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox display-1 d-block mb-3"></i>
+                            <h5>Nenhum lead encontrado</h5>
+                            <p>Adicione seu primeiro lead ou ajuste os filtros</p>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoLead">
+                                <i class="bi bi-person-plus me-2"></i> Adicionar Lead
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Lead -->
+<div class="modal fade" id="modalNovoLead" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2"></i> Adicionar Novo Lead
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoLead">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nome Completo *</label>
+                            <input type="text" name="nome" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Telefone (WhatsApp) *</label>
+                            <input type="tel" name="telefone" class="form-control"
+                                   placeholder="5567999999999" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">E-mail</label>
+                            <input type="email" name="email" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="empresa_lead" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="novo">Novo</option>
+                                <option value="contato_inicial">Contato Inicial</option>
+                                <option value="qualificado">Qualificado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Temperatura</label>
+                            <select name="temperatura" class="form-select">
+                                <option value="frio">Frio</option>
+                                <option value="morno">Morno</option>
+                                <option value="quente">Quente</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observacoes" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarNovoLead()">
+                    <i class="bi bi-save me-2"></i> Salvar Lead
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function enviarMensagem(telefone) {
+    // TODO: Implementar envio de mensagem
+    alert('Enviar mensagem para: ' + telefone);
+}
+
+function editarLead(leadId) {
+    window.location.href = '/leads/' + leadId;
+}
+
+function salvarNovoLead() {
+    // TODO: Implementar salvamento
+    alert('Funcionalidade em desenvolvimento');
+}
+</script>
+{% endblock %}

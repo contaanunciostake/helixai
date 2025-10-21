@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Upload de Produtos - VendeAI{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4><i class="fas fa-upload"></i> Importar Produtos via CSV</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Importe seu catálogo de produtos para que o robô de atendimento possa apresentá-los aos clientes automaticamente.
+                    </p>
+
+                    <!-- Alerta informativo -->
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Formato do CSV:</h6>
+                        <p class="mb-2">Seu arquivo deve conter as seguintes colunas:</p>
+                        <code class="d-block bg-light p-2 rounded">
+                            nome,descricao,categoria,preco,preco_promocional,estoque,sku,marca,disponivel,palavras_chave,link,imagem_url
+                        </code>
+                        <p class="mt-2 mb-0">
+                            <a href="{{ url_for('produtos.template_csv') }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i> Baixar Template CSV
+                            </a>
+                        </p>
+                    </div>
+
+                    <!-- Formulário de Upload -->
+                    <form id="formUpload" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="arquivo" class="form-label">Selecione o arquivo CSV:</label>
+                            <input type="file" class="form-control" id="arquivo" name="arquivo" accept=".csv,.txt" required>
+                            <div class="form-text">Formatos aceitos: .csv, .txt (máx 10MB)</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-upload"></i> Importar Produtos
+                            </button>
+                            <a href="{{ url_for('produtos.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Voltar
+                            </a>
+                        </div>
+                    </form>
+
+                    <!-- Progresso -->
+                    <div id="progressContainer" class="mt-4" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <p class="text-center mt-2">Processando arquivo...</p>
+                    </div>
+
+                    <!-- Resultado -->
+                    <div id="resultadoImportacao" class="mt-4" style="display: none;">
+                        <!-- Será preenchido via JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instruções -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-question-circle"></i> Como funciona?</h5>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li><strong>Baixe o template CSV</strong> acima para ver o formato correto</li>
+                        <li><strong>Preencha com seus produtos</strong> usando Excel, Google Sheets ou editor de texto</li>
+                        <li><strong>Salve como CSV</strong> (separado por vírgulas)</li>
+                        <li><strong>Faça o upload</strong> usando o formulário acima</li>
+                        <li><strong>Pronto!</strong> O robô já terá acesso ao seu catálogo completo</li>
+                    </ol>
+
+                    <div class="alert alert-warning mt-3">
+                        <strong><i class="fas fa-exclamation-triangle"></i> Dicas importantes:</strong>
+                        <ul class="mb-0">
+                            <li>O campo <code>nome</code> é obrigatório</li>
+                            <li>Use <code>true</code> ou <code>false</code> para o campo <code>disponivel</code></li>
+                            <li>Preços devem usar ponto (.) como separador decimal: <code>59.90</code></li>
+                            <li>Palavras-chave podem ser separadas por vírgula: <code>camiseta,básica,preta</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('formUpload').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const progressContainer = document.getElementById('progressContainer');
+    const resultadoDiv = document.getElementById('resultadoImportacao');
+
+    // Mostrar progresso
+    progressContainer.style.display = 'block';
+    resultadoDiv.style.display = 'none';
+
+    fetch('{{ url_for("produtos.upload") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressContainer.style.display = 'none';
+        resultadoDiv.style.display = 'block';
+
+        if (data.success) {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle"></i> Importação Concluída!</h5>
+                    <hr>
+                    <p class="mb-2"><strong>Total de linhas:</strong> ${data.total}</p>
+                    <p class="mb-2"><strong>Importados com sucesso:</strong> ${data.importados}</p>
+                    <p class="mb-2"><strong>Erros:</strong> ${data.erros}</p>
+                    ${data.erros > 0 ? `
+                        <hr>
+                        <p class="mb-1"><strong>Primeiros erros encontrados:</strong></p>
+                        <ul class="mb-0 small">
+                            ${data.detalhes_erros.map(erro => `<li>${erro}</li>`).join('')}
+                        </ul>
+                    ` : ''}
+                    <hr class="mt-3">
+                    <a href="{{ url_for('produtos.index') }}" class="btn btn-primary">
+                        <i class="fas fa-list"></i> Ver Produtos Importados
+                    </a>
+                </div>
+            `;
+        } else {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-times-circle"></i> Erro na Importação</h5>
+                    <p class="mb-0">${data.error}</p>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        progressContainer.style.display = 'none';
+        resultadoDiv.style.display = 'block';
+        resultadoDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h5><i class="fas fa-times-circle"></i> Erro</h5>
+                <p class="mb-0">${error}</p>
+            </div>
+        `;
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,533 @@
+{% extends "base.html" %}
+
+{% block title %}Leads & Conversas - VendeAI{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header mb-4 fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-chat-dots me-2"></i> Leads & Conversas</h2>
+            <p class="mb-0">Gerencie leads e conversas em tempo real</p>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoLead">
+            <i class="bi bi-person-plus me-2"></i> Novo Lead
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards Row -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-4 col-md-6">
+        <div class="stat-card fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Total de Leads</p>
+                    <h3 class="mb-2">{{ total_leads }}</h3>
+                    <small class="text-muted">no sistema</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                    <i class="bi bi-people"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Leads Quentes</p>
+                    <h3 class="mb-2 text-warning">{{ leads_quentes }}</h3>
+                    <small class="text-muted"><i class="bi bi-fire"></i> Alta prioridade</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                    <i class="bi bi-fire"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Convertidos</p>
+                    <h3 class="mb-2 text-success">{{ leads_convertidos }}</h3>
+                    <small class="text-muted">Taxa: {{ '%.1f'|format((leads_convertidos / total_leads * 100) if total_leads > 0 else 0) }}%</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content: Chat Interface -->
+<div class="row g-4">
+    <!-- Lista de Conversas (esquerda) -->
+    <div class="col-lg-4">
+        <div class="card fade-in" style="animation-delay: 0.3s; height: calc(100vh - 300px);">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-chat-left-text me-2"></i> Conversas</h6>
+                    <button class="btn btn-sm btn-outline-primary" onclick="atualizarConversas()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0" style="overflow-y: auto;">
+                <div id="lista-conversas">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Carregando conversas...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Área de Chat (direita) -->
+    <div class="col-lg-8">
+        <div class="card fade-in" style="animation-delay: 0.4s; height: calc(100vh - 300px); display: flex; flex-direction: column;">
+            <div id="chat-vazio" class="d-flex align-items-center justify-content-center" style="flex: 1;">
+                <div class="text-center">
+                    <i class="bi bi-chat-dots display-1 text-muted"></i>
+                    <h5 class="mt-3 text-muted">Selecione uma conversa</h5>
+                    <p class="text-muted">Clique em um lead para ver as mensagens</p>
+                </div>
+            </div>
+
+            <!-- Chat Header -->
+            <div id="chat-header" class="card-header d-none" style="border-bottom: 2px solid var(--border-color);">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div id="chat-avatar" class="user-avatar me-3" style="width: 45px; height: 45px;">L</div>
+                        <div>
+                            <h6 class="mb-0" id="chat-nome">Nome do Lead</h6>
+                            <small class="text-muted">
+                                <i class="bi bi-whatsapp text-success me-1"></i>
+                                <span id="chat-telefone">+55...</span>
+                            </small>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary" onclick="abrirDetalhesLead()">
+                            <i class="bi bi-person"></i> Ver Perfil
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="abrirWhatsApp()">
+                            <i class="bi bi-whatsapp"></i> WhatsApp
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="chat-mensagens" class="card-body d-none" style="flex: 1; overflow-y: auto; background: var(--bg-dark);">
+                <!-- Mensagens serão inseridas aqui via JavaScript -->
+            </div>
+
+            <!-- Message Footer (info) -->
+            <div id="chat-footer" class="card-footer d-none" style="border-top: 2px solid var(--border-color);">
+                <div class="alert alert-info mb-0" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--info);">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <small>Para enviar mensagens, utilize o botão <strong>WhatsApp</strong> acima. As mensagens aparecerão automaticamente aqui.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Lead -->
+<div class="modal fade" id="modalNovoLead" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2"></i> Adicionar Novo Lead
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoLead">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nome Completo *</label>
+                            <input type="text" name="nome" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Telefone (WhatsApp) *</label>
+                            <input type="tel" name="telefone" class="form-control"
+                                   placeholder="5567999999999" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">E-mail</label>
+                            <input type="email" name="email" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="empresa_lead" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Cargo</label>
+                            <input type="text" name="cargo" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="novo">Novo</option>
+                                <option value="contato_inicial">Contato Inicial</option>
+                                <option value="qualificado">Qualificado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Temperatura</label>
+                            <select name="temperatura" class="form-select">
+                                <option value="frio">Frio</option>
+                                <option value="morno">Morno</option>
+                                <option value="quente">Quente</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observacoes" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarNovoLead()">
+                    <i class="bi bi-save me-2"></i> Salvar Lead
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Lista de conversas */
+.conversa-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.conversa-item:hover {
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.conversa-item.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-left: 3px solid var(--primary);
+}
+
+.conversa-badge-nao-lida {
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Mensagens */
+.message-wrapper {
+    margin-bottom: 1rem;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.message {
+    display: inline-block;
+    max-width: 70%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    word-wrap: break-word;
+}
+
+.message-sent {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.message-received {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.form-control, .form-select {
+    background: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.form-control:focus, .form-select:focus {
+    background: var(--bg-darker);
+    border-color: var(--primary);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let conversaAtual = null;
+let leadAtual = null;
+let intervaloAtualizacao = null;
+
+// Carregar conversas ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    atualizarConversas();
+
+    // Atualizar conversas a cada 10 segundos
+    intervaloAtualizacao = setInterval(atualizarConversas, 10000);
+});
+
+// Atualizar lista de conversas
+function atualizarConversas() {
+    fetch('/leads/api/leads-com-conversas')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderizarConversas(data.leads);
+
+                // Se há uma conversa aberta, atualizar mensagens
+                if (conversaAtual) {
+                    carregarMensagens(conversaAtual);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar conversas:', error);
+        });
+}
+
+// Renderizar lista de conversas
+function renderizarConversas(leads) {
+    const lista = document.getElementById('lista-conversas');
+
+    if (leads.length === 0) {
+        lista.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted d-block mb-3"></i>
+                <h5 class="text-muted">Nenhum lead com conversa</h5>
+                <p class="text-muted">Os leads com conversas aparecerão aqui</p>
+            </div>
+        `;
+        return;
+    }
+
+    lista.innerHTML = '';
+
+    leads.forEach(lead => {
+        if (!lead.conversa) return;
+
+        const item = document.createElement('div');
+        item.className = 'conversa-item';
+        if (conversaAtual === lead.conversa.id) {
+            item.classList.add('active');
+        }
+
+        const dataHora = lead.conversa.ultima_mensagem_data
+            ? new Date(lead.conversa.ultima_mensagem_data).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+            : '-';
+
+        item.innerHTML = `
+            <div class="d-flex align-items-start">
+                <div class="user-avatar me-3" style="width: 45px; height: 45px; flex-shrink: 0;">
+                    ${lead.avatar}
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <strong style="font-size: 0.95rem;">${lead.nome}</strong>
+                        <small class="text-muted" style="font-size: 0.75rem;">${dataHora}</small>
+                    </div>
+                    <p class="mb-1 text-muted" style="font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${lead.conversa.ultima_mensagem || 'Sem mensagens'}
+                    </p>
+                    ${lead.conversa.mensagens_nao_lidas > 0 ? `
+                        <span class="conversa-badge-nao-lida">${lead.conversa.mensagens_nao_lidas}</span>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        item.onclick = () => abrirConversa(lead.conversa.id, lead);
+        lista.appendChild(item);
+    });
+}
+
+// Abrir conversa
+function abrirConversa(conversaId, lead) {
+    conversaAtual = conversaId;
+    leadAtual = lead;
+
+    // Atualizar header do chat
+    document.getElementById('chat-avatar').textContent = lead.avatar;
+    document.getElementById('chat-nome').textContent = lead.nome;
+    document.getElementById('chat-telefone').textContent = lead.telefone;
+
+    // Mostrar chat e ocultar mensagem vazia
+    document.getElementById('chat-vazio').classList.add('d-none');
+    document.getElementById('chat-header').classList.remove('d-none');
+    document.getElementById('chat-mensagens').classList.remove('d-none');
+    document.getElementById('chat-footer').classList.remove('d-none');
+
+    // Carregar mensagens
+    carregarMensagens(conversaId);
+
+    // Atualizar ativo na lista
+    document.querySelectorAll('.conversa-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    event.currentTarget.classList.add('active');
+}
+
+// Carregar mensagens
+function carregarMensagens(conversaId) {
+    fetch(`/leads/api/conversa/${conversaId}/mensagens`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderizarMensagens(data.mensagens);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar mensagens:', error);
+        });
+}
+
+// Renderizar mensagens
+function renderizarMensagens(mensagens) {
+    const container = document.getElementById('chat-mensagens');
+
+    if (mensagens.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-chat-left-text display-1 text-muted d-block mb-3"></i>
+                <h5 class="text-muted">Nenhuma mensagem ainda</h5>
+                <p class="text-muted">As mensagens do WhatsApp aparecerão aqui</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = '';
+
+    mensagens.forEach(msg => {
+        const wrapper = document.createElement('div');
+        wrapper.className = `message-wrapper ${msg.tipo === 'ENVIADA' ? 'text-end' : ''}`;
+
+        const data = new Date(msg.criado_em).toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        wrapper.innerHTML = `
+            <div class="message ${msg.tipo === 'ENVIADA' ? 'message-sent' : 'message-received'}">
+                <p class="mb-1" style="white-space: pre-wrap;">${msg.conteudo}</p>
+                <small style="font-size: 0.75rem; opacity: 0.8;">
+                    ${data}
+                    ${msg.tipo === 'ENVIADA' ? (msg.entregue ? '<i class="bi bi-check-all"></i>' : '<i class="bi bi-check"></i>') : ''}
+                </small>
+            </div>
+        `;
+
+        container.appendChild(wrapper);
+    });
+
+    // Scroll para baixo
+    container.scrollTop = container.scrollHeight;
+}
+
+// Abrir detalhes do lead
+function abrirDetalhesLead() {
+    if (leadAtual) {
+        window.location.href = `/leads/${leadAtual.id}`;
+    }
+}
+
+// Abrir WhatsApp
+function abrirWhatsApp() {
+    if (leadAtual) {
+        window.open(`https://wa.me/${leadAtual.telefone}`, '_blank');
+    }
+}
+
+// Salvar novo lead
+function salvarNovoLead() {
+    const form = document.getElementById('formNovoLead');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/leads/api/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            bootstrap.Modal.getInstance(document.getElementById('modalNovoLead')).hide();
+            form.reset();
+            atualizarConversas();
+        } else {
+            showAlert('danger', 'Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erro ao salvar lead: ' + error);
+    });
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'x-circle'} me-2"></i> ${message}
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+// Limpar intervalo ao sair da página
+window.addEventListener('beforeunload', function() {
+    if (intervaloAtualizacao) {
+        clearInterval(intervaloAtualizacao);
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos - VendeAI{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-box me-2"></i> Gestão de Produtos</h2>
+            <p>Gerencie o catálogo de produtos do seu robô de atendimento</p>
+        </div>
+        <div>
+            <a href="{{ url_for('produtos.upload') }}" class="btn btn-primary me-2">
+                <i class="bi bi-upload me-2"></i> Importar CSV
+            </a>
+            <a href="{{ url_for('produtos.config_avancada') }}" class="btn btn-success">
+                <i class="bi bi-robot me-2"></i> Configurar Bot IA
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Status Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Total de Produtos</p>
+                    <h3 class="mb-2">{{ total_produtos }}</h3>
+                    <small class="text-muted">no catálogo</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                    <i class="bi bi-box"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Disponíveis</p>
+                    <h3 class="mb-2 text-success">{{ produtos_disponiveis }}</h3>
+                    <small class="text-muted">para venda</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Valor do Estoque</p>
+                    <h3 class="mb-2 text-info">R$ {{ "%.2f"|format(valor_estoque) }}</h3>
+                    <small class="text-muted">total</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--info);">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.3s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Bot IA</p>
+                    <h3 class="mb-2 text-warning">Ativo</h3>
+                    <small class="text-muted">{{ total_produtos }} produtos</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                    <i class="bi bi-robot"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<div class="card fade-in" style="animation-delay: 0.4s;">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="produtosTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="produtos-tab" data-bs-toggle="tab" data-bs-target="#produtos" type="button">
+                    <i class="bi bi-list"></i> Produtos
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="importacoes-tab" data-bs-toggle="tab" data-bs-target="#importacoes" type="button">
+                    <i class="bi bi-clock-history"></i> Histórico de Importações
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <div class="tab-content" id="produtosTabContent">
+        <!-- Aba de Produtos -->
+        <div class="tab-pane fade show active" id="produtos" role="tabpanel">
+            <div class="card-body p-0">
+                {% if produtos %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="tabelaProdutos">
+                        <thead>
+                            <tr>
+                                <th>Produto</th>
+                                <th>Categoria</th>
+                                <th>Preço</th>
+                                <th>Estoque</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for produto in produtos %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div style="width: 40px; height: 40px; border-radius: 0.5rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                            <i class="bi bi-box"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <strong>{{ produto.nome }}</strong>
+                                            {% if produto.descricao %}
+                                            <br><small class="text-muted">{{ produto.descricao[:80] }}...</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if produto.categoria %}
+                                    <span class="badge bg-secondary">{{ produto.categoria }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if produto.preco_promocional and produto.preco_promocional < produto.preco %}
+                                    <span class="text-decoration-line-through text-muted small">R$ {{ "%.2f"|format(produto.preco) }}</span><br>
+                                    <strong class="text-success">R$ {{ "%.2f"|format(produto.preco_promocional) }}</strong>
+                                    {% elif produto.preco %}
+                                    <strong>R$ {{ "%.2f"|format(produto.preco) }}</strong>
+                                    {% else %}
+                                    <span class="text-muted">Sob consulta</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if produto.estoque %}
+                                    <span class="badge bg-light text-dark">{{ produto.estoque }} un.</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if produto.disponivel %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Disponível
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-x-circle"></i> Indisponível
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deletarProduto({{ produto.id }})" title="Remover produto">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted d-block mb-3"></i>
+                    <h5>Nenhum produto cadastrado ainda</h5>
+                    <p class="text-muted">Importe seu primeiro CSV para começar!</p>
+                    <a href="{{ url_for('produtos.upload') }}" class="btn btn-primary">
+                        <i class="bi bi-upload me-2"></i> Importar CSV
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Aba de Importações -->
+        <div class="tab-pane fade" id="importacoes" role="tabpanel">
+            <div class="card-body p-0">
+                {% if importacoes %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Arquivo</th>
+                                <th>Data</th>
+                                <th>Status</th>
+                                <th>Linhas</th>
+                                <th>Sucesso</th>
+                                <th>Erros</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for imp in importacoes %}
+                            <tr>
+                                <td>
+                                    <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>
+                                    {{ imp.nome_arquivo }}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ imp.criado_em.strftime('%d/%m/%Y %H:%M') }}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if imp.status == 'concluido' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Concluído
+                                    </span>
+                                    {% elif imp.status == 'processando' %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-clock"></i> Processando
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-x-circle"></i> Erro
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ imp.total_linhas }}</td>
+                                <td>
+                                    <span class="badge bg-success">{{ imp.importados_sucesso }}</span>
+                                </td>
+                                <td>
+                                    {% if imp.importados_erro > 0 %}
+                                    <span class="badge bg-danger">{{ imp.importados_erro }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-clock-history display-1 text-muted d-block mb-3"></i>
+                    <h5>Nenhuma importação realizada ainda</h5>
+                    <p class="text-muted">Suas importações aparecerão aqui</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Custom tabs styling */
+.nav-tabs .nav-link {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    padding: 0.75rem 1rem;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--primary);
+}
+
+.nav-tabs .nav-link.active {
+    background: transparent;
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// DataTable para produtos
+$(document).ready(function() {
+    if ($('#tabelaProdutos').length) {
+        $('#tabelaProdutos').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+            },
+            order: [[0, 'asc']],
+            pageLength: 25,
+            dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+        });
+    }
+});
+
+// Deletar produto
+function deletarProduto(produtoId) {
+    if (confirm('Tem certeza que deseja remover este produto?\n\nEsta ação não pode ser desfeita.')) {
+        fetch(`/produtos/api/delete/${produtoId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Alert sucesso
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+                alertDiv.style.zIndex = '9999';
+                alertDiv.innerHTML = `
+                    <i class="bi bi-check-circle me-2"></i> Produto removido com sucesso!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(alertDiv);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                alert('Erro ao remover produto: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            alert('Erro ao remover produto: ' + error);
+        });
+    }
+}
+</script>
+{% endblock %}

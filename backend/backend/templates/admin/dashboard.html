@@ -1,0 +1,161 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Dashboard - Admin - VendeAI{% endblock %}
+
+{% block content %}
+<div class="admin-topbar">
+    <div>
+        <h2>Dashboard Administrativo</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item active">Admin</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Estatísticas Principais -->
+<div class="row mb-4 fade-in">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="bi bi-building"></i>
+            <p>Total de Empresas</p>
+            <h3>{{ total_empresas }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="bi bi-people"></i>
+            <p>Total de Usuários</p>
+            <h3>{{ total_usuarios }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="bi bi-whatsapp" style="color: #25D366;"></i>
+            <p>WhatsApp Conectados</p>
+            <h3>{{ empresas|selectattr('whatsapp_conectado')|list|length }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="bi bi-robot"></i>
+            <p>Bots Ativos</p>
+            <h3>{{ empresas|selectattr('bot_ativo')|list|length }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div class="row mb-4 fade-in">
+    <div class="col-12">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h5>
+                    <i class="bi bi-lightning me-2"></i>
+                    Ações Rápidas
+                </h5>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <a href="{{ url_for('admin.whatsapp_config') }}" class="btn btn-success w-100 py-3">
+                        <i class="bi bi-whatsapp fs-4 d-block mb-2"></i>
+                        Configurar WhatsApp
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('admin.disparador') }}" class="btn btn-primary w-100 py-3">
+                        <i class="bi bi-send fs-4 d-block mb-2"></i>
+                        Disparador
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('admin.empresas') }}" class="btn btn-outline-light w-100 py-3">
+                        <i class="bi bi-building fs-4 d-block mb-2"></i>
+                        Gerenciar Empresas
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('admin.usuarios') }}" class="btn btn-outline-light w-100 py-3">
+                        <i class="bi bi-people fs-4 d-block mb-2"></i>
+                        Gerenciar Usuários
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Empresas Recentes -->
+<div class="row fade-in">
+    <div class="col-12">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h5>
+                    <i class="bi bi-building me-2"></i>
+                    Empresas Cadastradas
+                </h5>
+                <a href="{{ url_for('admin.empresas') }}" class="btn btn-sm btn-outline-light">
+                    Ver Todas
+                </a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>CNPJ</th>
+                            <th>WhatsApp</th>
+                            <th>Bot</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for empresa in empresas %}
+                        <tr>
+                            <td>{{ empresa.id }}</td>
+                            <td>{{ empresa.nome }}</td>
+                            <td>{{ empresa.cnpj or '-' }}</td>
+                            <td>
+                                {% if empresa.whatsapp_conectado %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle me-1"></i>Conectado
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-x-circle me-1"></i>Desconectado
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if empresa.bot_ativo %}
+                                    <span class="badge bg-primary">
+                                        <i class="bi bi-robot me-1"></i>Ativo
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin.whatsapp_config') }}" class="btn btn-sm btn-outline-light">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if not empresas %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                <p class="mt-3">Nenhuma empresa cadastrada</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

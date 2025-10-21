@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - VendeAI{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header mb-4 fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-speedometer2 me-2"></i> Dashboard</h2>
+            <p class="mb-0">Bem-vindo de volta, {{ current_user.nome }}! Aqui está um resumo do seu negócio.</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="window.location.href='/whatsapp'">
+                <i class="bi bi-whatsapp me-2"></i> Conectar WhatsApp
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards Row -->
+<div class="row g-4 mb-4">
+    <!-- Total Leads -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Total de Leads</p>
+                    <h3 class="mb-2">{{ total_leads }}</h3>
+                    <small class="text-success">
+                        <i class="bi bi-arrow-up"></i> +{{ conversoes_mes }} este mês
+                    </small>
+                </div>
+                <div class="stat-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                    <i class="bi bi-people"></i>
+                </div>
+            </div>
+            <!-- Mini Sparkline -->
+            <div id="sparkline-leads" style="height: 50px; margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <!-- Leads Quentes -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Leads Quentes</p>
+                    <h3 class="mb-2 text-warning">{{ leads_quentes }}</h3>
+                    <small class="text-muted">
+                        <i class="bi bi-fire"></i> Alta prioridade
+                    </small>
+                </div>
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                    <i class="bi bi-fire"></i>
+                </div>
+            </div>
+            <div id="sparkline-quentes" style="height: 50px; margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <!-- Convertidos -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Convertidos</p>
+                    <h3 class="mb-2 text-success">{{ leads_convertidos }}</h3>
+                    <small class="text-muted">
+                        Taxa: {{ '%.1f'|format((leads_convertidos / total_leads * 100) if total_leads > 0 else 0) }}%
+                    </small>
+                </div>
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+            <div id="sparkline-convertidos" style="height: 50px; margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <!-- Conversas Ativas -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.3s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Conversas Ativas</p>
+                    <h3 class="mb-2 text-info">{{ conversas_ativas }}</h3>
+                    <small class="text-muted">
+                        <i class="bi bi-chat-dots"></i> Em andamento
+                    </small>
+                </div>
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--info);">
+                    <i class="bi bi-chat-dots"></i>
+                </div>
+            </div>
+            <div id="sparkline-conversas" style="height: 50px; margin-top: 1rem;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Sales Over Time (Area Chart) -->
+    <div class="col-xl-8">
+        <div class="card fade-in" style="animation-delay: 0.4s;">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-graph-up me-2"></i> Leads ao Longo do Tempo
+                    </h6>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary active">7D</button>
+                        <button type="button" class="btn btn-outline-secondary">30D</button>
+                        <button type="button" class="btn btn-outline-secondary">90D</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="chart-leads-overtime" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lead Distribution (Donut Chart) -->
+    <div class="col-xl-4">
+        <div class="card fade-in" style="animation-delay: 0.5s;">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-pie-chart me-2"></i> Distribuição por Temperatura
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="chart-lead-temperature" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Leads Table -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card fade-in" style="animation-delay: 0.6s;">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i> Leads Recentes
+                    </h6>
+                    <a href="/leads" class="btn btn-sm btn-outline-primary">
+                        Ver Todos <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Lead</th>
+                                <th>Telefone</th>
+                                <th>Status</th>
+                                <th>Temperatura</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for lead in leads_recentes %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="user-avatar me-3" style="width: 36px; height: 36px; font-size: 0.9rem;">
+                                            {{ (lead.nome or 'L')[0].upper() }}
+                                        </div>
+                                        <div>
+                                            <strong>{{ lead.nome or 'Sem nome' }}</strong>
+                                            {% if lead.empresa_lead %}
+                                            <br><small class="text-muted">{{ lead.empresa_lead }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <i class="bi bi-whatsapp text-success me-1"></i>
+                                    {{ lead.telefone }}
+                                </td>
+                                <td>
+                                    {% set status_colors = {
+                                        'NOVO': 'info',
+                                        'CONTATO_INICIAL': 'primary',
+                                        'QUALIFICADO': 'success',
+                                        'PROPOSTA': 'warning',
+                                        'NEGOCIACAO': 'warning',
+                                        'GANHO': 'success',
+                                        'PERDIDO': 'danger',
+                                        'FRIO': 'secondary'
+                                    } %}
+                                    <span class="badge bg-{{ status_colors.get(lead.status.name, 'secondary') }}">
+                                        {{ lead.status.name.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if lead.temperatura.name == 'QUENTE' %}
+                                    <span class="badge" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: white;">
+                                        <i class="bi bi-fire"></i> Quente
+                                    </span>
+                                    {% elif lead.temperatura.name == 'MORNO' %}
+                                    <span class="badge" style="background: linear-gradient(135deg, #3b82f6, #6366f1); color: white;">
+                                        <i class="bi bi-thermometer-half"></i> Morno
+                                    </span>
+                                    {% else %}
+                                    <span class="badge" style="background: linear-gradient(135deg, #64748b, #475569); color: white;">
+                                        <i class="bi bi-thermometer-snow"></i> Frio
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ lead.criado_em.strftime('%d/%m/%y %H:%M') }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/leads/{{ lead.id }}" class="btn btn-outline-primary" title="Ver detalhes">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button class="btn btn-outline-success" title="Enviar mensagem">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <i class="bi bi-inbox display-4 text-muted d-block mb-3"></i>
+                                    <h5 class="text-muted">Nenhum lead encontrado</h5>
+                                    <p class="text-muted">Os leads aparecerão aqui assim que forem captados</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WhatsApp Status Card -->
+<div class="row g-4 mt-2">
+    <div class="col-xl-4">
+        <div class="card fade-in" style="animation-delay: 0.7s;">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-whatsapp me-2"></i> Status do WhatsApp
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3" style="border-bottom: 1px solid var(--border-color);">
+                    <div>
+                        <strong>Conexão</strong>
+                        <br><small class="text-muted">Status da conexão WhatsApp</small>
+                    </div>
+                    <span class="badge {% if empresa.whatsapp_conectado %}bg-success{% else %}bg-danger{% endif %} p-2">
+                        {% if empresa.whatsapp_conectado %}
+                        <i class="bi bi-check-circle"></i> Conectado
+                        {% else %}
+                        <i class="bi bi-x-circle"></i> Desconectado
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                        <strong>Bot de Atendimento</strong>
+                        <br><small class="text-muted">Respostas automáticas</small>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="toggleBot"
+                               {% if empresa.bot_ativo %}checked{% endif %}
+                               style="width: 3rem; height: 1.5rem; cursor: pointer;">
+                    </div>
+                </div>
+
+                {% if not empresa.whatsapp_conectado %}
+                <a href="/whatsapp" class="btn btn-primary w-100 mt-3">
+                    <i class="bi bi-qr-code me-2"></i> Conectar WhatsApp
+                </a>
+                {% else %}
+                <div class="alert alert-success mb-0 mt-3">
+                    <i class="bi bi-check-circle me-2"></i>
+                    Sistema pronto para atender!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Color Palette
+const colors = {
+    primary: '#6366f1',
+    success: '#10b981',
+    warning: '#f59e0b',
+    danger: '#ef4444',
+    info: '#3b82f6',
+    text: '#f1f5f9',
+    textSecondary: '#94a3b8'
+};
+
+// Sparklines
+function renderSparkline(elementId, data, color) {
+    const options = {
+        series: [{
+            data: data
+        }],
+        chart: {
+            type: 'area',
+            height: 50,
+            sparkline: {
+                enabled: true
+            }
+        },
+        stroke: {
+            curve: 'smooth',
+            width: 2
+        },
+        fill: {
+            opacity: 0.3,
+            colors: [color]
+        },
+        colors: [color],
+        tooltip: {
+            enabled: false
+        }
+    };
+
+    new ApexCharts(document.querySelector(elementId), options).render();
+}
+
+// Render sparklines
+renderSparkline('#sparkline-leads', [12, 15, 13, 18, 20, 25, {{ total_leads }}], colors.primary);
+renderSparkline('#sparkline-quentes', [3, 5, 4, 7, 8, 6, {{ leads_quentes }}], colors.warning);
+renderSparkline('#sparkline-convertidos', [2, 3, 4, 3, 5, 6, {{ leads_convertidos }}], colors.success);
+renderSparkline('#sparkline-conversas', [5, 7, 6, 9, 8, 10, {{ conversas_ativas }}], colors.info);
+
+// Leads Over Time Chart
+const chartLeadsOptions = {
+    series: [{
+        name: 'Novos Leads',
+        data: [12, 15, 18, 22, 28, 32, {{ total_leads }}]
+    }],
+    chart: {
+        type: 'area',
+        height: 350,
+        toolbar: {
+            show: false
+        },
+        background: 'transparent'
+    },
+    dataLabels: {
+        enabled: false
+    },
+    stroke: {
+        curve: 'smooth',
+        width: 3
+    },
+    fill: {
+        type: 'gradient',
+        gradient: {
+            opacityFrom: 0.6,
+            opacityTo: 0.1,
+        }
+    },
+    colors: [colors.primary],
+    xaxis: {
+        categories: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+        labels: {
+            style: {
+                colors: colors.textSecondary
+            }
+        },
+        axisBorder: {
+            show: false
+        },
+        axisTicks: {
+            show: false
+        }
+    },
+    yaxis: {
+        labels: {
+            style: {
+                colors: colors.textSecondary
+            }
+        }
+    },
+    grid: {
+        borderColor: '#334155',
+        strokeDashArray: 4
+    },
+    tooltip: {
+        theme: 'dark',
+        x: {
+            show: true
+        }
+    }
+};
+
+new ApexCharts(document.querySelector("#chart-leads-overtime"), chartLeadsOptions).render();
+
+// Temperature Distribution Chart
+const totalLeads = {{ total_leads if total_leads > 0 else 1 }};
+const chartTempOptions = {
+    series: [{{ leads_quentes }}, {{ (total_leads - leads_quentes - leads_convertidos) if (total_leads - leads_quentes - leads_convertidos) > 0 else 0 }}, {{ leads_convertidos }}],
+    chart: {
+        type: 'donut',
+        height: 350,
+        background: 'transparent'
+    },
+    labels: ['Quentes', 'Mornos/Frios', 'Convertidos'],
+    colors: [colors.warning, colors.info, colors.success],
+    legend: {
+        position: 'bottom',
+        labels: {
+            colors: colors.text
+        }
+    },
+    plotOptions: {
+        pie: {
+            donut: {
+                size: '70%',
+                labels: {
+                    show: true,
+                    name: {
+                        show: true,
+                        color: colors.text
+                    },
+                    value: {
+                        show: true,
+                        color: colors.text,
+                        fontSize: '22px',
+                        fontWeight: 600
+                    },
+                    total: {
+                        show: true,
+                        label: 'Total Leads',
+                        color: colors.textSecondary,
+                        fontSize: '14px',
+                        formatter: function (w) {
+                            return {{ total_leads }}
+                        }
+                    }
+                }
+            }
+        }
+    },
+    dataLabels: {
+        enabled: false
+    },
+    tooltip: {
+        theme: 'dark'
+    }
+};
+
+new ApexCharts(document.querySelector("#chart-lead-temperature"), chartTempOptions).render();
+</script>
+{% endblock %}

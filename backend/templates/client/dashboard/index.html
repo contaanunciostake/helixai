@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - RoboVendedor Pro{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-speedometer2 me-2"></i> Dashboard</h2>
+            <p>Bem-vindo de volta, {{ current_user.nome }}!</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="window.location.href='{{ url_for('whatsapp') }}'">
+                <i class="bi bi-whatsapp me-2"></i> Conectar WhatsApp
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Status Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Total de Leads</p>
+                    <h3>{{ total_leads }}</h3>
+                    <small class="text-success">
+                        <i class="bi bi-arrow-up"></i> +{{ conversoes_mes }} este mês
+                    </small>
+                </div>
+                <i class="bi bi-people text-primary"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Leads Quentes</p>
+                    <h3 class="text-warning">{{ leads_quentes }}</h3>
+                    <small class="text-muted">
+                        <i class="bi bi-fire"></i> Alta prioridade
+                    </small>
+                </div>
+                <i class="bi bi-fire text-warning"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Convertidos</p>
+                    <h3 class="text-success">{{ leads_convertidos }}</h3>
+                    <small class="text-muted">
+                        Taxa: {{ '%.1f'|format((leads_convertidos / total_leads * 100) if total_leads > 0 else 0) }}%
+                    </small>
+                </div>
+                <i class="bi bi-check-circle text-success"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.3s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Conversas Ativas</p>
+                    <h3 class="text-info">{{ conversas_ativas }}</h3>
+                    <small class="text-muted">
+                        <i class="bi bi-chat-dots"></i> Em andamento
+                    </small>
+                </div>
+                <i class="bi bi-chat-dots text-info"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card fade-in" style="animation-delay: 0.4s;">
+            <div class="card-header">
+                <h5><i class="bi bi-bar-chart me-2"></i> Leads por Status</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartStatus" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card fade-in" style="animation-delay: 0.5s;">
+            <div class="card-header">
+                <h5><i class="bi bi-thermometer-half me-2"></i> Leads por Temperatura</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartTemperatura" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row g-4">
+    <div class="col-md-7">
+        <div class="card fade-in" style="animation-delay: 0.6s;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-clock-history me-2"></i> Leads Recentes</h5>
+                <a href="{{ url_for('leads') }}" class="btn btn-sm btn-outline-primary">
+                    Ver Todos <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Telefone</th>
+                                <th>Status</th>
+                                <th>Temperatura</th>
+                                <th>Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for lead in leads_recentes %}
+                            <tr onclick="window.location.href='{{ url_for('lead_detalhe', lead_id=lead.id) }}'" style="cursor: pointer;">
+                                <td>
+                                    <strong>{{ lead.nome or 'Sem nome' }}</strong>
+                                    {% if lead.empresa_lead %}
+                                    <br><small class="text-muted">{{ lead.empresa_lead }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ lead.telefone }}</td>
+                                <td>
+                                    {% set status_colors = {
+                                        'NOVO': 'info',
+                                        'CONTATO_INICIAL': 'primary',
+                                        'QUALIFICADO': 'success',
+                                        'PROPOSTA': 'warning',
+                                        'NEGOCIACAO': 'warning',
+                                        'GANHO': 'success',
+                                        'PERDIDO': 'danger',
+                                        'FRIO': 'secondary'
+                                    } %}
+                                    <span class="badge bg-{{ status_colors.get(lead.status.name, 'secondary') }}">
+                                        {{ lead.status.name.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if lead.temperatura.name == 'QUENTE' %}
+                                    <span class="badge badge-quente text-white">
+                                        <i class="bi bi-fire"></i> Quente
+                                    </span>
+                                    {% elif lead.temperatura.name == 'MORNO' %}
+                                    <span class="badge badge-morno text-white">
+                                        <i class="bi bi-thermometer-half"></i> Morno
+                                    </span>
+                                    {% else %}
+                                    <span class="badge badge-frio text-white">
+                                        <i class="bi bi-thermometer-snow"></i> Frio
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ lead.criado_em.strftime('%d/%m/%y %H:%M') }}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                                    Nenhum lead encontrado
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card fade-in" style="animation-delay: 0.7s;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-chat-dots me-2"></i> Conversas Recentes</h5>
+                <a href="{{ url_for('conversas') }}" class="btn btn-sm btn-outline-primary">
+                    Ver Todas <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            <div class="card-body">
+                {% for conversa in conversas_recentes %}
+                <div class="d-flex align-items-center mb-3 p-3 rounded" style="background: #f8fafc; cursor: pointer;"
+                     onclick="window.location.href='{{ url_for('conversa_detalhe', conversa_id=conversa.id) }}'">
+                    <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1.2rem;">
+                        {{ conversa.telefone[-4:] }}
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>{{ conversa.telefone }}</strong>
+                                {% if conversa.lead %}
+                                <br><small class="text-muted">{{ conversa.lead.nome or 'Sem nome' }}</small>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">
+                                {{ conversa.ultima_mensagem.strftime('%d/%m %H:%M') }}
+                            </small>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-light text-dark">
+                                <i class="bi bi-chat"></i> {{ conversa.total_mensagens }} mensagens
+                            </span>
+                            {% if conversa.bot_ativo %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-robot"></i> Bot ativo
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                    Nenhuma conversa encontrada
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Status WhatsApp Card -->
+        <div class="card mt-4 fade-in" style="animation-delay: 0.8s;">
+            <div class="card-header">
+                <h5><i class="bi bi-whatsapp me-2"></i> Status do WhatsApp</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                        <strong>Conexão</strong>
+                        <br><small class="text-muted">Status da conexão WhatsApp</small>
+                    </div>
+                    <span class="badge {% if empresa.whatsapp_conectado %}bg-success{% else %}bg-danger{% endif %} p-2">
+                        {% if empresa.whatsapp_conectado %}
+                        <i class="bi bi-check-circle"></i> Conectado
+                        {% else %}
+                        <i class="bi bi-x-circle"></i> Desconectado
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                        <strong>Bot de Atendimento</strong>
+                        <br><small class="text-muted">Respostas automáticas</small>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="toggleBot"
+                               {% if empresa.bot_ativo %}checked{% endif %}
+                               onchange="toggleBot()">
+                    </div>
+                </div>
+
+                {% if not empresa.whatsapp_conectado %}
+                <a href="{{ url_for('whatsapp') }}" class="btn btn-primary w-100">
+                    <i class="bi bi-qr-code me-2"></i> Conectar WhatsApp
+                </a>
+                {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="bi bi-check-circle me-2"></i>
+                    Sistema pronto para atender!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Chart Status
+const ctxStatus = document.getElementById('chartStatus').getContext('2d');
+const chartStatus = new Chart(ctxStatus, {
+    type: 'bar',
+    data: {
+        labels: [
+            {% for stat in stats_status %}
+            '{{ stat[0].name.replace("_", " ").title() }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Quantidade de Leads',
+            data: [
+                {% for stat in stats_status %}
+                {{ stat[1] }},
+                {% endfor %}
+            ],
+            backgroundColor: [
+                'rgba(99, 102, 241, 0.8)',
+                'rgba(59, 130, 246, 0.8)',
+                'rgba(16, 185, 129, 0.8)',
+                'rgba(245, 158, 11, 0.8)',
+                'rgba(239, 68, 68, 0.8)',
+            ],
+            borderRadius: 8,
+            barThickness: 30
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// Chart Temperatura
+const ctxTemp = document.getElementById('chartTemperatura').getContext('2d');
+const chartTemp = new Chart(ctxTemp, {
+    type: 'doughnut',
+    data: {
+        labels: [
+            {% for stat in stats_temperatura %}
+            '{{ stat[0].name.title() }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            data: [
+                {% for stat in stats_temperatura %}
+                {{ stat[1] }},
+                {% endfor %}
+            ],
+            backgroundColor: [
+                '#f59e0b', // Quente
+                '#3b82f6', // Morno
+                '#64748b', // Frio
+            ],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Toggle Bot
+function toggleBot() {
+    fetch('{{ url_for("api_whatsapp_toggle") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+            alert.style.zIndex = '9999';
+            alert.innerHTML = `
+                <i class="bi bi-check-circle me-2"></i> ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alert);
+            setTimeout(() => alert.remove(), 3000);
+        }
+    });
+}
+</script>
+{% endblock %}

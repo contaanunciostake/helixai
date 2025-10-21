@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Leads Quentes - RoboVendedor{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-fire"></i> Leads Quentes</h1>
+    <p class="text-muted">Lojas que responderam às mensagens</p>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Loja</th>
+                    <th>Cidade</th>
+                    <th>WhatsApp</th>
+                    <th>Data Resposta</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loja in lojas %}
+                <tr>
+                    <td><strong>{{ loja.nome_loja }}</strong></td>
+                    <td>{{ loja.cidade }}-{{ loja.estado }}</td>
+                    <td><a href="https://wa.me/{{ loja.whatsapp.replace('+', '') }}" target="_blank" class="text-success"><i class="bi bi-whatsapp"></i> {{ loja.whatsapp }}</a></td>
+                    <td>{{ loja.data_resposta.strftime('%d/%m/%Y %H:%M') if loja.data_resposta else '-' }}</td>
+                    <td><a href="{{ url_for('loja_detalhes', loja_id=loja.id) }}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted">Nenhum lead quente no momento</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

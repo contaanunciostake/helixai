@@ -1,0 +1,704 @@
+{% extends "base.html" %}
+
+{% block title %}Conversas WhatsApp - VendeAI{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header mb-4 fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-chat-dots me-2"></i> Central de Conversas</h2>
+            <p class="mb-0">Gerencie todas as conversas do WhatsApp em tempo real</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" onclick="atualizarConversas()" title="Atualizar conversas">
+                <i class="bi bi-arrow-clockwise me-2"></i> Atualizar
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-funnel me-2"></i> Filtrar
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                    <li><a class="dropdown-item" href="#" onclick="filtrarConversas('todas')">Todas</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="filtrarConversas('nao_lidas')">Não lidas</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="filtrarConversas('ativas')">Ativas</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="filtrarConversas('arquivadas')">Arquivadas</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards Row -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Total de Conversas</p>
+                    <h3 class="mb-2" id="stat-total">{{ total_conversas }}</h3>
+                    <small class="text-muted">no sistema</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                    <i class="bi bi-chat-dots"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Não Lidas</p>
+                    <h3 class="mb-2 text-warning" id="stat-nao-lidas">{{ conversas_nao_lidas }}</h3>
+                    <small class="text-muted"><i class="bi bi-bell"></i> Aguardando resposta</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                    <i class="bi bi-bell"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Conversas Ativas</p>
+                    <h3 class="mb-2 text-success" id="stat-ativas">{{ conversas_ativas }}</h3>
+                    <small class="text-muted">Em andamento</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.3s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="mb-2">Tempo Médio</p>
+                    <h3 class="mb-2 text-info">< 5min</h3>
+                    <small class="text-muted">de resposta</small>
+                </div>
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--info);">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WhatsApp-Style Chat Interface -->
+<div class="row g-0">
+    <div class="col-12">
+        <div class="card fade-in" style="animation-delay: 0.4s; height: calc(100vh - 380px); min-height: 600px;">
+            <div class="row g-0 h-100">
+                <!-- Lista de Conversas (35%) -->
+                <div class="col-lg-4 border-end" style="border-color: var(--border-color) !important;">
+                    <div class="chat-list-header p-3" style="border-bottom: 1px solid var(--border-color);">
+                        <div class="input-group">
+                            <span class="input-group-text" style="background: var(--bg-darker); border-color: var(--border-color);">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="busca-conversas"
+                                   placeholder="Buscar conversa..."
+                                   style="background: var(--bg-darker); border-color: var(--border-color); color: var(--text-primary);">
+                        </div>
+                    </div>
+
+                    <div class="chat-list" style="overflow-y: auto; height: calc(100% - 70px);" id="lista-conversas">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Carregando conversas...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Área de Chat (65%) -->
+                <div class="col-lg-8 d-flex flex-column">
+                    <!-- Estado vazio -->
+                    <div id="chat-vazio" class="d-flex align-items-center justify-content-center h-100">
+                        <div class="text-center">
+                            <i class="bi bi-chat-dots display-1 text-muted mb-3"></i>
+                            <h5 class="text-muted">Selecione uma conversa</h5>
+                            <p class="text-muted">Escolha uma conversa da lista para visualizar as mensagens</p>
+                        </div>
+                    </div>
+
+                    <!-- Chat ativo -->
+                    <div id="chat-ativo" class="d-none h-100 d-flex flex-column">
+                        <!-- Header -->
+                        <div class="chat-header p-3" style="border-bottom: 2px solid var(--border-color);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <div id="chat-avatar" class="user-avatar me-3" style="width: 50px; height: 50px; font-size: 1.3rem;">
+                                        L
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0" id="chat-nome">Nome do Lead</h6>
+                                        <small class="text-muted">
+                                            <i class="bi bi-whatsapp text-success me-1"></i>
+                                            <span id="chat-telefone">+55...</span>
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="verPerfilLead()" title="Ver perfil do lead">
+                                        <i class="bi bi-person"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-success" onclick="abrirWhatsApp()" title="Abrir no WhatsApp">
+                                        <i class="bi bi-whatsapp"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="marcarComoLida()" title="Marcar como lida">
+                                        <i class="bi bi-check2-all"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="arquivarConversa()" title="Arquivar">
+                                        <i class="bi bi-archive"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mensagens -->
+                        <div class="chat-messages flex-grow-1 p-4" id="chat-mensagens"
+                             style="overflow-y: auto; background: linear-gradient(180deg, var(--bg-dark) 0%, rgba(15, 23, 42, 0.8) 100%);">
+                            <!-- Mensagens serão inseridas aqui -->
+                        </div>
+
+                        <!-- Footer com info -->
+                        <div class="chat-footer p-3" style="border-top: 2px solid var(--border-color); background: var(--bg-card);">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <div class="alert alert-info mb-0 py-2" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--info);">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        <small>
+                                            <strong>WhatsApp Web/Desktop:</strong> Use o botão WhatsApp acima para responder.
+                                            As mensagens aparecem automaticamente aqui.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Chat List Item */
+.chat-item {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.chat-item:hover {
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.chat-item.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-left: 4px solid var(--primary);
+}
+
+.chat-item.unread {
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.chat-item.unread .chat-nome {
+    font-weight: 700;
+}
+
+.chat-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Messages */
+.message-group {
+    margin-bottom: 1.5rem;
+    animation: messageSlide 0.3s ease-out;
+}
+
+@keyframes messageSlide {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-bubble {
+    max-width: 65%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    position: relative;
+    word-wrap: break-word;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.message-sent .message-bubble {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    margin-left: auto;
+    border-bottom-right-radius: 0.25rem;
+}
+
+.message-received .message-bubble {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: 0.25rem;
+}
+
+.message-time {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.message-sent .message-time {
+    justify-content: flex-end;
+}
+
+/* Date separator */
+.date-separator {
+    text-align: center;
+    margin: 1.5rem 0;
+    position: relative;
+}
+
+.date-separator span {
+    background: rgba(99, 102, 241, 0.1);
+    padding: 0.35rem 1rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+/* Scrollbar */
+.chat-list::-webkit-scrollbar,
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-list::-webkit-scrollbar-track,
+.chat-messages::-webkit-scrollbar-track {
+    background: var(--bg-darker);
+}
+
+.chat-list::-webkit-scrollbar-thumb,
+.chat-messages::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.chat-list::-webkit-scrollbar-thumb:hover,
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Dropdown */
+.dropdown-item {
+    color: var(--text-primary);
+    padding: 0.5rem 1rem;
+}
+
+.dropdown-item:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--text-primary);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let conversaAtual = null;
+let leadAtual = null;
+let intervaloAtualizacao = null;
+let todasConversas = [];
+let filtroAtivo = 'todas';
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    carregarConversas();
+
+    // Auto-refresh a cada 5 segundos
+    intervaloAtualizacao = setInterval(() => {
+        carregarConversas(true); // Silent refresh
+    }, 5000);
+
+    // Busca em tempo real
+    document.getElementById('busca-conversas').addEventListener('input', function(e) {
+        filtrarPorBusca(e.target.value);
+    });
+});
+
+// Carregar conversas
+function carregarConversas(silent = false) {
+    if (!silent) {
+        document.getElementById('lista-conversas').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3 text-muted">Carregando...</p>
+            </div>
+        `;
+    }
+
+    fetch('/leads/api/leads-com-conversas')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                todasConversas = data.leads.filter(lead => lead.conversa);
+                renderizarListaConversas(todasConversas);
+                atualizarStats(todasConversas);
+
+                // Atualizar mensagens se conversa estiver aberta
+                if (conversaAtual) {
+                    carregarMensagens(conversaAtual, true);
+                }
+            }
+        })
+        .catch(error => console.error('Erro ao carregar conversas:', error));
+}
+
+// Renderizar lista de conversas
+function renderizarListaConversas(conversas) {
+    const lista = document.getElementById('lista-conversas');
+
+    if (conversas.length === 0) {
+        lista.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted d-block mb-3"></i>
+                <h6 class="text-muted">Nenhuma conversa encontrada</h6>
+                <p class="text-muted small">As conversas do WhatsApp aparecerão aqui</p>
+            </div>
+        `;
+        return;
+    }
+
+    lista.innerHTML = '';
+
+    conversas.forEach(lead => {
+        const conv = lead.conversa;
+        const item = document.createElement('div');
+        item.className = `chat-item ${conversaAtual === conv.id ? 'active' : ''} ${conv.mensagens_nao_lidas > 0 ? 'unread' : ''}`;
+
+        const dataHora = conv.ultima_mensagem_data
+            ? formatarDataHora(new Date(conv.ultima_mensagem_data))
+            : '';
+
+        item.innerHTML = `
+            <div class="d-flex">
+                <div class="user-avatar me-3" style="width: 50px; height: 50px; flex-shrink: 0; font-size: 1.2rem;">
+                    ${lead.avatar}
+                </div>
+                <div class="flex-grow-1" style="min-width: 0;">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <h6 class="mb-0 chat-nome" style="font-size: 0.95rem;">${lead.nome}</h6>
+                        <small class="text-muted" style="font-size: 0.7rem; white-space: nowrap;">
+                            ${dataHora}
+                        </small>
+                    </div>
+                    <p class="mb-0 text-muted small text-truncate" style="font-size: 0.85rem;">
+                        ${conv.ultima_mensagem || 'Sem mensagens'}
+                    </p>
+                    ${!conv.ativa ? '<span class="badge bg-secondary mt-1" style="font-size: 0.65rem;">Arquivada</span>' : ''}
+                </div>
+                ${conv.mensagens_nao_lidas > 0 ? `<div class="chat-badge">${conv.mensagens_nao_lidas}</div>` : ''}
+            </div>
+        `;
+
+        item.onclick = () => abrirConversa(conv.id, lead);
+        lista.appendChild(item);
+    });
+}
+
+// Abrir conversa
+function abrirConversa(conversaId, lead) {
+    conversaAtual = conversaId;
+    leadAtual = lead;
+
+    // Atualizar header
+    document.getElementById('chat-avatar').textContent = lead.avatar;
+    document.getElementById('chat-nome').textContent = lead.nome;
+    document.getElementById('chat-telefone').textContent = lead.telefone;
+
+    // Mostrar chat
+    document.getElementById('chat-vazio').classList.add('d-none');
+    document.getElementById('chat-ativo').classList.remove('d-none');
+
+    // Carregar mensagens
+    carregarMensagens(conversaId);
+
+    // Atualizar item ativo na lista
+    document.querySelectorAll('.chat-item').forEach(item => item.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+}
+
+// Carregar mensagens
+function carregarMensagens(conversaId, silent = false) {
+    if (!silent) {
+        document.getElementById('chat-mensagens').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        `;
+    }
+
+    fetch(`/leads/api/conversa/${conversaId}/mensagens`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderizarMensagens(data.mensagens);
+            }
+        })
+        .catch(error => console.error('Erro ao carregar mensagens:', error));
+}
+
+// Renderizar mensagens
+function renderizarMensagens(mensagens) {
+    const container = document.getElementById('chat-mensagens');
+
+    if (mensagens.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-chat-left-text display-1 text-muted d-block mb-3"></i>
+                <h6 class="text-muted">Nenhuma mensagem ainda</h6>
+                <p class="text-muted small">As mensagens do WhatsApp aparecerão aqui</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = '';
+    let dataAtual = null;
+
+    mensagens.forEach(msg => {
+        const dataMensagem = new Date(msg.criado_em).toLocaleDateString('pt-BR');
+
+        // Adicionar separador de data
+        if (dataMensagem !== dataAtual) {
+            dataAtual = dataMensagem;
+            const separator = document.createElement('div');
+            separator.className = 'date-separator';
+            separator.innerHTML = `<span>${formatarDataSeparador(new Date(msg.criado_em))}</span>`;
+            container.appendChild(separator);
+        }
+
+        // Adicionar mensagem
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message-group ${msg.tipo === 'ENVIADA' ? 'text-end' : ''}`;
+
+        const hora = new Date(msg.criado_em).toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        messageDiv.innerHTML = `
+            <div class="message-${msg.tipo === 'ENVIADA' ? 'sent' : 'received'} d-inline-block">
+                <div class="message-bubble">
+                    <div style="white-space: pre-wrap;">${escapeHtml(msg.conteudo)}</div>
+                    <div class="message-time">
+                        <span>${hora}</span>
+                        ${msg.tipo === 'ENVIADA' ? `
+                            <i class="bi bi-${msg.entregue ? 'check-all' : 'check'}"></i>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(messageDiv);
+    });
+
+    // Scroll para baixo
+    container.scrollTop = container.scrollHeight;
+}
+
+// Funções auxiliares
+function formatarDataHora(data) {
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    const dataMsg = new Date(data);
+
+    if (dataMsg.toDateString() === hoje.toDateString()) {
+        return dataMsg.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } else if (dataMsg.toDateString() === ontem.toDateString()) {
+        return 'Ontem';
+    } else {
+        return dataMsg.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    }
+}
+
+function formatarDataSeparador(data) {
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    if (data.toDateString() === hoje.toDateString()) {
+        return 'Hoje';
+    } else if (data.toDateString() === ontem.toDateString()) {
+        return 'Ontem';
+    } else {
+        return data.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function atualizarStats(conversas) {
+    const naoLidas = conversas.filter(c => c.conversa.mensagens_nao_lidas > 0).length;
+    const ativas = conversas.filter(c => c.conversa.ativa).length;
+
+    document.getElementById('stat-total').textContent = conversas.length;
+    document.getElementById('stat-nao-lidas').textContent = naoLidas;
+    document.getElementById('stat-ativas').textContent = ativas;
+}
+
+// Ações
+function atualizarConversas() {
+    carregarConversas();
+}
+
+function verPerfilLead() {
+    if (leadAtual) {
+        window.location.href = `/leads/${leadAtual.id}`;
+    }
+}
+
+function abrirWhatsApp() {
+    if (leadAtual) {
+        window.open(`https://wa.me/${leadAtual.telefone}`, '_blank');
+    }
+}
+
+function marcarComoLida() {
+    if (!conversaAtual) return;
+
+    fetch(`/conversas/api/${conversaAtual}/marcar_lida`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', 'Conversa marcada como lida');
+            carregarConversas(true);
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+
+function arquivarConversa() {
+    if (!conversaAtual) return;
+
+    if (confirm('Deseja arquivar esta conversa?')) {
+        fetch(`/conversas/api/${conversaAtual}/arquivar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', 'Conversa arquivada');
+                document.getElementById('chat-vazio').classList.remove('d-none');
+                document.getElementById('chat-ativo').classList.add('d-none');
+                conversaAtual = null;
+                leadAtual = null;
+                carregarConversas();
+            }
+        })
+        .catch(error => console.error('Erro:', error));
+    }
+}
+
+// Filtros
+function filtrarConversas(tipo) {
+    filtroAtivo = tipo;
+    let filtradas = [...todasConversas];
+
+    if (tipo === 'nao_lidas') {
+        filtradas = filtradas.filter(c => c.conversa.mensagens_nao_lidas > 0);
+    } else if (tipo === 'ativas') {
+        filtradas = filtradas.filter(c => c.conversa.ativa);
+    } else if (tipo === 'arquivadas') {
+        filtradas = filtradas.filter(c => !c.conversa.ativa);
+    }
+
+    renderizarListaConversas(filtradas);
+}
+
+function filtrarPorBusca(termo) {
+    if (!termo) {
+        filtrarConversas(filtroAtivo);
+        return;
+    }
+
+    const filtradas = todasConversas.filter(lead =>
+        lead.nome.toLowerCase().includes(termo.toLowerCase()) ||
+        lead.telefone.includes(termo) ||
+        (lead.conversa.ultima_mensagem && lead.conversa.ultima_mensagem.toLowerCase().includes(termo.toLowerCase()))
+    );
+
+    renderizarListaConversas(filtradas);
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'x-circle'} me-2"></i> ${message}
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 3000);
+}
+
+// Cleanup
+window.addEventListener('beforeunload', function() {
+    if (intervaloAtualizacao) {
+        clearInterval(intervaloAtualizacao);
+    }
+});
+</script>
+{% endblock %}

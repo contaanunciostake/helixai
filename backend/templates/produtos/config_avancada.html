@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}Configuração do Bot - VendeAI{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-robot me-2"></i> Configuração do Bot com IA</h2>
+            <p>Configure seu robô de atendimento usando inteligência artificial</p>
+        </div>
+        <div>
+            <a href="{{ url_for('produtos.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i> Voltar
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Alerta sobre produtos -->
+{% if total_produtos > 0 %}
+<div class="alert alert-success alert-dismissible fade show fade-in">
+    <i class="bi bi-check-circle me-2"></i>
+    <strong>{{ total_produtos }} produtos</strong> cadastrados! O bot já tem acesso ao seu catálogo completo.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% else %}
+<div class="alert alert-warning alert-dismissible fade show fade-in">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    Você ainda não tem produtos cadastrados.
+    <a href="{{ url_for('produtos.upload') }}" class="alert-link">Importe seu catálogo</a> para o bot ter mais informações!
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <!-- Formulário -->
+    <div class="col-md-8">
+        <div class="card fade-in">
+            <div class="card-header">
+                <h5><i class="bi bi-building me-2"></i> Informações do Seu Negócio</h5>
+                <small class="text-muted">A IA usará essas informações para personalizar o robô</small>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    <strong>Dica:</strong> Seja específico! Quanto mais detalhes, melhor a IA configurará seu robô.
+                </div>
+
+                <form id="formConfiguracao">
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>O que sua empresa faz?</strong>
+                            <small class="text-muted">(Descreva seu negócio)</small>
+                        </label>
+                        <textarea name="descricao_empresa" class="form-control" rows="3"
+                                  placeholder="Ex: Somos uma loja de roupas femininas modernas, focada em qualidade e preços acessíveis..."
+                                  required>{{ config.descricao_empresa if config else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>Quais produtos/serviços você oferece?</strong>
+                            <small class="text-muted">(Liste os principais)</small>
+                        </label>
+                        <textarea name="produtos_servicos" class="form-control" rows="3"
+                                  placeholder="Ex: Vestidos, blusas, saias, acessórios. Trabalhamos com marcas X, Y e Z..."
+                                  required>{{ config.produtos_servicos if config else '' }}</textarea>
+                        {% if total_produtos > 0 %}
+                        <div class="form-text text-success">
+                            <i class="bi bi-info-circle"></i> O bot também terá acesso aos {{ total_produtos }} produtos do seu catálogo!
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>Quem é seu público-alvo?</strong>
+                            <small class="text-muted">(Idade, perfil, classe social)</small>
+                        </label>
+                        <textarea name="publico_alvo" class="form-control" rows="2"
+                                  placeholder="Ex: Mulheres de 18 a 35 anos, classe B e C, interessadas em moda casual..."
+                                  required>{{ config.publico_alvo if config else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>Quais seus diferenciais?</strong>
+                            <small class="text-muted">(O que te torna único)</small>
+                        </label>
+                        <textarea name="diferenciais" class="form-control" rows="2"
+                                  placeholder="Ex: Entrega rápida, troca grátis, atendimento personalizado..."
+                                  required>{{ config.diferenciais if config else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>Horário de Atendimento</strong>
+                        </label>
+                        <input type="text" name="horario_atendimento" class="form-control"
+                               placeholder="Ex: Segunda a Sexta, 9h às 18h"
+                               value="{{ config.horario_atendimento if config else '' }}">
+                    </div>
+
+                    <div class="text-center">
+                        <button type="button" class="btn btn-primary btn-lg" onclick="gerarComIA()">
+                            <i class="bi bi-stars me-2"></i> Gerar Configuração com IA
+                        </button>
+                        <p class="text-muted mt-2 small">
+                            A IA criará automaticamente todas as mensagens e comportamentos do robô
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="col-md-4">
+        <div class="card fade-in sticky-top" style="top: 2rem; animation-delay: 0.2s;">
+            <div class="card-header">
+                <h5><i class="bi bi-robot me-2"></i> Preview do Robô</h5>
+            </div>
+            <div class="card-body">
+                <div id="previewStatus" class="text-center py-4">
+                    <i class="bi bi-robot display-3 text-muted d-block mb-3"></i>
+                    <p class="text-muted">Configure os dados e clique em<br>"Gerar com IA"</p>
+                </div>
+
+                <div id="previewResult" class="d-none">
+                    <div class="mb-3">
+                        <strong>Tom de Conversa:</strong>
+                        <br><span id="previewTom" class="badge bg-primary">-</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <strong>Mensagem de Boas-vindas:</strong>
+                        <div class="p-3 rounded" style="background: #f8fafc;">
+                            <small id="previewBoasVindas">-</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <strong>Palavras-chave de Interesse:</strong>
+                        <div id="previewPalavras" class="mt-2">
+                            <!-- Tags aqui -->
+                        </div>
+                    </div>
+
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-check-circle me-2"></i>
+                        Configuração pronta!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configurações Geradas -->
+<div class="row g-4 mt-1" id="secaoConfigGerada" style="display: none;">
+    <div class="col-12">
+        <div class="card fade-in">
+            <div class="card-header">
+                <h5><i class="bi bi-check-circle me-2"></i> Configuração Gerada pela IA</h5>
+                <small class="text-muted">Revise e edite se necessário</small>
+            </div>
+            <div class="card-body">
+                <!-- Abas -->
+                <ul class="nav nav-tabs" id="configTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="prompt-tab" data-bs-toggle="tab" data-bs-target="#prompt" type="button">
+                            <i class="bi bi-brain"></i> Prompt do Sistema
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mensagens-tab" data-bs-toggle="tab" data-bs-target="#mensagens" type="button">
+                            <i class="bi bi-chat-dots"></i> Mensagens
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="palavras-tab" data-bs-toggle="tab" data-bs-target="#palavras" type="button">
+                            <i class="bi bi-key"></i> Palavras-chave
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="perguntas-tab" data-bs-toggle="tab" data-bs-target="#perguntas" type="button">
+                            <i class="bi bi-question-circle"></i> Perguntas de Qualificação
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-4" id="configTabContent">
+                    <!-- Prompt -->
+                    <div class="tab-pane fade show active" id="prompt" role="tabpanel">
+                        <textarea class="form-control" id="prompt_sistema_gerado" rows="15" style="font-family: 'Courier New', monospace;"></textarea>
+                    </div>
+
+                    <!-- Mensagens -->
+                    <div class="tab-pane fade" id="mensagens" role="tabpanel">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Tom de Conversa:</strong></label>
+                            <input type="text" class="form-control" id="tom_conversa_gerado" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Boas-vindas:</strong></label>
+                            <textarea class="form-control" id="mensagem_boas_vindas_gerada" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Ausência:</strong></label>
+                            <textarea class="form-control" id="mensagem_ausencia_gerada" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Encerramento:</strong></label>
+                            <textarea class="form-control" id="mensagem_encerramento_gerada" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Palavras-chave -->
+                    <div class="tab-pane fade" id="palavras" role="tabpanel">
+                        <div id="palavrasChaveContainer"></div>
+                    </div>
+
+                    <!-- Perguntas -->
+                    <div class="tab-pane fade" id="perguntas" role="tabpanel">
+                        <div id="perguntasContainer"></div>
+                    </div>
+                </div>
+
+                <!-- Botão para aceitar -->
+                <div class="d-grid gap-2 mt-3">
+                    <button type="button" class="btn btn-lg btn-success" onclick="aceitarConfigIA()">
+                        <i class="bi bi-check me-2"></i> Aceitar e Salvar Esta Configuração
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Loading -->
+<div class="modal fade" id="modalLoading" data-bs-backdrop="static" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;"></div>
+                <h5>A IA está configurando seu robô...</h5>
+                <p class="text-muted">Isso pode levar alguns segundos</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let configGerada = null;
+
+function gerarComIA() {
+    // Validar campos
+    const descricao = document.querySelector('[name="descricao_empresa"]').value;
+    const produtos = document.querySelector('[name="produtos_servicos"]').value;
+    const publico = document.querySelector('[name="publico_alvo"]').value;
+    const diferenciais = document.querySelector('[name="diferenciais"]').value;
+
+    if (!descricao || !produtos || !publico || !diferenciais) {
+        alert('Por favor, preencha todos os campos obrigatórios!');
+        return;
+    }
+
+    // Mostrar loading
+    const modal = new bootstrap.Modal(document.getElementById('modalLoading'));
+    modal.show();
+
+    // Chamar API
+    fetch('{{ url_for("produtos.api_gerar_config_ia") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            descricao_empresa: descricao,
+            produtos_servicos: produtos,
+            publico_alvo: publico,
+            diferenciais: diferenciais
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        modal.hide();
+
+        if (data.success) {
+            configGerada = data.config;
+            mostrarConfigGerada(data.config);
+        } else {
+            alert('Erro ao gerar configuração: ' + (data.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        modal.hide();
+        alert('Erro ao conectar com a IA: ' + error);
+    });
+}
+
+function mostrarConfigGerada(config) {
+    // Mostrar seção
+    document.getElementById('secaoConfigGerada').style.display = 'block';
+
+    // Preencher campos
+    document.getElementById('prompt_sistema_gerado').value = config.prompt_sistema || '';
+    document.getElementById('tom_conversa_gerado').value = config.tom_conversa || '';
+    document.getElementById('mensagem_boas_vindas_gerada').value = config.mensagem_boas_vindas || '';
+    document.getElementById('mensagem_ausencia_gerada').value = config.mensagem_ausencia || '';
+    document.getElementById('mensagem_encerramento_gerada').value = config.mensagem_encerramento || '';
+
+    // Atualizar preview
+    document.getElementById('previewTom').textContent = config.tom_conversa || '-';
+    document.getElementById('previewBoasVindas').textContent = config.mensagem_boas_vindas || '-';
+
+    // Palavras-chave no preview
+    const palavrasDiv = document.getElementById('previewPalavras');
+    palavrasDiv.innerHTML = '';
+    if (config.palavras_chave_interesse) {
+        config.palavras_chave_interesse.forEach(palavra => {
+            palavrasDiv.innerHTML += `<span class="badge bg-light text-dark me-1 mb-1">${palavra}</span>`;
+        });
+    }
+
+    // Palavras-chave na seção gerada
+    const palavrasContainer = document.getElementById('palavrasChaveContainer');
+    if (config.palavras_chave_interesse) {
+        palavrasContainer.innerHTML = '<div class="mb-2"><strong>Palavras-chave de interesse:</strong></div>';
+        config.palavras_chave_interesse.forEach(palavra => {
+            palavrasContainer.innerHTML += `<span class="badge bg-primary me-1 mb-1">${palavra}</span>`;
+        });
+    }
+
+    // Perguntas de qualificação
+    const perguntasContainer = document.getElementById('perguntasContainer');
+    if (config.perguntas_qualificacao) {
+        perguntasContainer.innerHTML = '<ol class="list-group list-group-numbered">';
+        config.perguntas_qualificacao.forEach(pergunta => {
+            perguntasContainer.innerHTML += `<li class="list-group-item">${pergunta}</li>`;
+        });
+        perguntasContainer.innerHTML += '</ol>';
+    }
+
+    // Mostrar preview
+    document.getElementById('previewStatus').classList.add('d-none');
+    document.getElementById('previewResult').classList.remove('d-none');
+
+    // Scroll até a seção
+    document.getElementById('secaoConfigGerada').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Alert sucesso
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        <i class="bi bi-check-circle me-2"></i> Configuração gerada com sucesso!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+function aceitarConfigIA() {
+    if (!configGerada) {
+        alert('Nenhuma configuração gerada!');
+        return;
+    }
+
+    // Criar FormData com config gerada
+    const formData = {
+        ...configGerada,
+        descricao_empresa: document.querySelector('[name="descricao_empresa"]').value,
+        produtos_servicos: document.querySelector('[name="produtos_servicos"]').value,
+        publico_alvo: document.querySelector('[name="publico_alvo"]').value,
+        diferenciais: document.querySelector('[name="diferenciais"]').value,
+        horario_atendimento: document.querySelector('[name="horario_atendimento"]').value
+    };
+
+    // Converter arrays para string se necessário
+    if (Array.isArray(formData.palavras_chave_interesse)) {
+        formData.palavras_chave_interesse = formData.palavras_chave_interesse.join(', ');
+    }
+    if (Array.isArray(formData.perguntas_qualificacao)) {
+        formData.perguntas_qualificacao = JSON.stringify(formData.perguntas_qualificacao);
+    }
+
+    // Salvar via API
+    fetch('{{ url_for("produtos.config_avancada") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+            alertDiv.style.zIndex = '9999';
+            alertDiv.innerHTML = `
+                <i class="bi bi-check-circle me-2"></i> Configuração salva com sucesso!
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            alert('Erro ao salvar: ' + (data.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        alert('Erro: ' + error);
+    });
+}
+</script>
+{% endblock %}

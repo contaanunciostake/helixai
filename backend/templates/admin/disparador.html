@@ -1,0 +1,479 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Disparador de Mensagens - VendeAI Admin{% endblock %}
+
+{% block content %}
+<!-- Top Bar -->
+<div class="admin-topbar fade-in">
+    <div>
+        <h2><i class="bi bi-send me-2"></i> Disparador de Mensagens</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}" style="color: var(--primary); text-decoration: none;">Dashboard</a></li>
+                <li class="breadcrumb-item active">Disparador</li>
+            </ol>
+        </nav>
+    </div>
+    <div>
+        <button class="btn btn-outline-light" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-2"></i>Atualizar
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Total de Leads</p>
+                    <h3>{{ total_leads }}</h3>
+                    <small style="color: var(--text-dark-muted);">
+                        <i class="bi bi-database"></i> No banco de dados
+                    </small>
+                </div>
+                <i class="bi bi-people" style="color: var(--primary);"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Leads Conectados</p>
+                    <h3>{{ leads_conectados }}</h3>
+                    <small style="color: var(--success);">
+                        <i class="bi bi-check-circle"></i> Prontos para disparo
+                    </small>
+                </div>
+                <i class="bi bi-check2-circle" style="color: var(--success);"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Disparos Hoje</p>
+                    <h3>{{ disparos_hoje }}</h3>
+                    <small style="color: var(--info);">
+                        <i class="bi bi-calendar-check"></i> Realizados
+                    </small>
+                </div>
+                <i class="bi bi-send-check" style="color: var(--info);"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card fade-in" style="animation-delay: 0.3s;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p>Taxa de Sucesso</p>
+                    <h3>{{ taxa_sucesso }}%</h3>
+                    <small style="color: var(--warning);">
+                        <i class="bi bi-graph-up"></i> Média geral
+                    </small>
+                </div>
+                <i class="bi bi-trophy" style="color: var(--warning);"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WhatsApp Status Alert -->
+{% if not whatsapp_conectado %}
+<div class="alert alert-warning fade-in">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>WhatsApp não conectado!</strong> Conecte o WhatsApp antes de realizar disparos.
+    <a href="{{ url_for('admin.whatsapp_config') }}" class="btn btn-sm btn-outline-warning ms-3">
+        <i class="bi bi-whatsapp me-1"></i>Conectar Agora
+    </a>
+</div>
+{% endif %}
+
+<!-- Disparo de Teste -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="admin-card fade-in" style="animation-delay: 0.4s;">
+            <div class="admin-card-header">
+                <h5><i class="bi bi-phone me-2"></i>Disparo de Teste</h5>
+                <span class="badge bg-info">Modo Teste</span>
+            </div>
+            <div class="card-body">
+                <p style="color: var(--text-dark-secondary); margin-bottom: 1.5rem;">
+                    Envie uma mensagem de teste para um número específico antes de disparar para todos os leads.
+                </p>
+
+                <form id="formDisparoTeste">
+                    <div class="mb-3">
+                        <label for="numeroTeste" class="form-label">
+                            <i class="bi bi-phone me-1"></i>Número de Teste
+                        </label>
+                        <input type="text"
+                               class="form-control"
+                               id="numeroTeste"
+                               value="5567999883484"
+                               readonly
+                               style="font-weight: 600; font-size: 1.1rem;">
+                        <small style="color: var(--text-dark-muted);" class="form-text">
+                            Número formatado: +55 67 99988-3484
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="mensagemTeste" class="form-label">
+                            <i class="bi bi-chat-text me-1"></i>Mensagem de Teste
+                        </label>
+                        <textarea class="form-control"
+                                  id="mensagemTeste"
+                                  rows="4"
+                                  placeholder="Digite a mensagem que deseja enviar..."
+                                  required>Olá! Esta é uma mensagem de teste do sistema VendeAI. 🚀
+
+Estamos testando nosso sistema de disparos automáticos.</textarea>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-info btn-lg" {% if not whatsapp_conectado %}disabled{% endif %}>
+                            <i class="bi bi-send me-2"></i>Enviar Teste
+                        </button>
+                    </div>
+                </form>
+
+                <div id="resultadoTeste" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disparo em Massa -->
+    <div class="col-md-6">
+        <div class="admin-card fade-in" style="animation-delay: 0.5s;">
+            <div class="admin-card-header">
+                <h5><i class="bi bi-broadcast me-2"></i>Disparo em Massa</h5>
+                <span class="badge bg-danger">Atenção</span>
+            </div>
+            <div class="card-body">
+                <p style="color: var(--text-dark-secondary); margin-bottom: 1.5rem;">
+                    Envie mensagens para todos os leads conectados no banco de dados.
+                </p>
+
+                <form id="formDisparoMassa">
+                    <div class="mb-3">
+                        <label for="mensagemMassa" class="form-label">
+                            <i class="bi bi-chat-dots me-1"></i>Mensagem para Todos
+                        </label>
+                        <textarea class="form-control"
+                                  id="mensagemMassa"
+                                  rows="4"
+                                  placeholder="Digite a mensagem que será enviada para todos..."
+                                  required>Olá {nome}! 👋
+
+Temos novidades incríveis para você!
+
+Nossa equipe está preparada para oferecer as melhores condições.
+
+Entre em contato conosco e saiba mais!</textarea>
+                        <small style="color: var(--text-dark-muted);" class="form-text">
+                            <i class="bi bi-info-circle"></i> Use {nome} para personalizar com o nome do lead
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-funnel me-1"></i>Filtros de Disparo
+                        </label>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <select class="form-select" id="filtroTemperatura">
+                                    <option value="TODOS">Todas as Temperaturas</option>
+                                    <option value="QUENTE">Apenas Quentes 🔥</option>
+                                    <option value="MORNO">Apenas Mornos 🌡️</option>
+                                    <option value="FRIO">Apenas Frios ❄️</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <select class="form-select" id="filtroStatus">
+                                    <option value="TODOS">Todos os Status</option>
+                                    <option value="NOVO">Novos</option>
+                                    <option value="CONTATO_INICIAL">Contato Inicial</option>
+                                    <option value="QUALIFICADO">Qualificados</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning mb-3">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Atenção:</strong> Esta ação enviará mensagens para {{ leads_conectados }} leads!
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg" {% if not whatsapp_conectado %}disabled{% endif %}>
+                            <i class="bi bi-broadcast me-2"></i>Disparar para Todos
+                        </button>
+                    </div>
+                </form>
+
+                <div id="resultadoMassa" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Histórico de Disparos -->
+<div class="admin-card fade-in" style="animation-delay: 0.6s;">
+    <div class="admin-card-header">
+        <h5><i class="bi bi-clock-history me-2"></i>Histórico de Disparos Recentes</h5>
+        <button class="btn btn-sm btn-outline-light" onclick="carregarHistorico()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Tipo</th>
+                        <th>Telefone</th>
+                        <th>Mensagem</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaHistorico">
+                    {% if historico_disparos %}
+                        {% for disparo in historico_disparos %}
+                        <tr>
+                            <td>
+                                <small style="color: var(--text-dark-muted);">
+                                    {{ disparo.enviado_em.strftime('%d/%m/%Y %H:%M') if disparo.enviado_em else 'Pendente' }}
+                                </small>
+                            </td>
+                            <td>
+                                {% if disparo.campanha_id %}
+                                    <span class="badge bg-primary">Campanha</span>
+                                {% else %}
+                                    <span class="badge bg-info">Manual</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ disparo.telefone }}</strong>
+                            </td>
+                            <td>
+                                <small style="color: var(--text-dark-secondary);">
+                                    {{ disparo.mensagem_enviada[:50] }}...
+                                </small>
+                            </td>
+                            <td>
+                                {% if disparo.status.name == 'ENVIADO' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Enviado
+                                    </span>
+                                {% elif disparo.status.name == 'ERRO' %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-x-circle"></i> Erro
+                                    </span>
+                                {% elif disparo.status.name == 'RESPONDIDO' %}
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-reply"></i> Respondido
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-clock"></i> Pendente
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-light" onclick="verDetalhes({{ disparo.id }})">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center" style="padding: 3rem; color: var(--text-dark-muted);">
+                                <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                                Nenhum disparo realizado ainda
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Disparo de Teste
+document.getElementById('formDisparoTeste').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const numero = document.getElementById('numeroTeste').value;
+    const mensagem = document.getElementById('mensagemTeste').value;
+    const resultadoDiv = document.getElementById('resultadoTeste');
+
+    // Mostrar loading
+    resultadoDiv.innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-hourglass-split me-2"></i>
+            Enviando mensagem de teste...
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/admin/api/disparo-teste', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                telefone: numero,
+                mensagem: mensagem
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong>Sucesso!</strong> Mensagem de teste enviada para ${numero}
+                </div>
+            `;
+        } else {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle me-2"></i>
+                    <strong>Erro:</strong> ${data.message || 'Falha ao enviar mensagem'}
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultadoDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle me-2"></i>
+                <strong>Erro:</strong> ${error.message}
+            </div>
+        `;
+    }
+});
+
+// Disparo em Massa
+document.getElementById('formDisparoMassa').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    // Confirmação
+    if (!confirm('⚠️ ATENÇÃO!\n\nVocê está prestes a enviar mensagens para TODOS os leads conectados.\n\nDeseja continuar?')) {
+        return;
+    }
+
+    const mensagem = document.getElementById('mensagemMassa').value;
+    const temperatura = document.getElementById('filtroTemperatura').value;
+    const status = document.getElementById('filtroStatus').value;
+    const resultadoDiv = document.getElementById('resultadoMassa');
+
+    // Mostrar loading
+    resultadoDiv.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                <strong>Processando disparos...</strong>
+            </div>
+            <div class="mt-2">
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/admin/api/disparo-massa', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mensagem: mensagem,
+                filtro_temperatura: temperatura,
+                filtro_status: status
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong>Disparos Iniciados!</strong><br>
+                    <small>
+                        • Total de disparos: ${data.total_disparos}<br>
+                        • Enviados com sucesso: ${data.enviados}<br>
+                        • Erros: ${data.erros}
+                    </small>
+                </div>
+            `;
+
+            // Recarregar histórico
+            setTimeout(() => {
+                carregarHistorico();
+            }, 2000);
+        } else {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle me-2"></i>
+                    <strong>Erro:</strong> ${data.message || 'Falha ao processar disparos'}
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultadoDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle me-2"></i>
+                <strong>Erro:</strong> ${error.message}
+            </div>
+        `;
+    }
+});
+
+// Carregar Histórico
+function carregarHistorico() {
+    // Recarregar a página para atualizar o histórico
+    location.reload();
+}
+
+// Ver Detalhes do Disparo
+function verDetalhes(disparoId) {
+    // Implementar modal ou página de detalhes
+    alert('Visualizar detalhes do disparo #' + disparoId);
+}
+
+// Atualizar contador de leads em tempo real
+setInterval(async function() {
+    try {
+        const response = await fetch('/admin/api/stats-disparador');
+        const data = await response.json();
+
+        if (data.success) {
+            // Atualizar os números nas cards (opcional)
+            console.log('Stats atualizadas:', data);
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar stats:', error);
+    }
+}, 30000); // A cada 30 segundos
+</script>
+{% endblock %}

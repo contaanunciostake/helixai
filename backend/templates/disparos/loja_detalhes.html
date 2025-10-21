@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ loja.nome_loja }} - RoboVendedor{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('lojas') }}" class="btn btn-outline-secondary mb-3">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+    <h1><i class="bi bi-building"></i> {{ loja.nome_loja }}</h1>
+    <p class="text-muted">ID: {{ loja.id }} | {{ loja.cidade }}-{{ loja.estado }}</p>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header"><h5><i class="bi bi-info-circle"></i> Informações</h5></div>
+            <div class="card-body">
+                <table class="table">
+                    <tr><th>Nome:</th><td>{{ loja.nome_loja }}</td></tr>
+                    <tr><th>WhatsApp:</th><td>{{ loja.whatsapp or '-' }}</td></tr>
+                    <tr><th>Telefone:</th><td>{{ loja.telefone or '-' }}</td></tr>
+                    <tr><th>Endereço:</th><td>{{ loja.endereco or '-' }}</td></tr>
+                    <tr><th>Cidade/UF:</th><td>{{ loja.cidade }}-{{ loja.estado }}</td></tr>
+                    <tr><th>URL:</th><td>{% if loja.url_loja %}<a href="{{ loja.url_loja }}" target="_blank">{{ loja.url_loja }}</a>{% else %}-{% endif %}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header"><h5><i class="bi bi-clock-history"></i> Status</h5></div>
+            <div class="card-body">
+                <p><strong>Status Atual:</strong><br><span class="badge bg-warning mt-2">{{ loja.status_prospeccao.value }}</span></p>
+                <p><strong>Tentativas:</strong> {{ loja.tentativas_contato }}</p>
+                <p><strong>Data Extração:</strong><br>{{ loja.data_extracao.strftime('%d/%m/%Y %H:%M') if loja.data_extracao }}</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h5><i class="bi bi-chat-left-text"></i> Gerar Mensagem</h5></div>
+            <div class="card-body">
+                <button class="btn btn-primary w-100" onclick="gerarMensagem()">
+                    <i class="bi bi-magic"></i> Gerar com IA
+                </button>
+                <div id="mensagemGerada" class="mt-3" style="display:none;">
+                    <h6>Mensagem Gerada:</h6>
+                    <div class="alert alert-info" id="textoMensagem"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function gerarMensagem() {
+    fetch('/api/gerar-mensagem/{{ loja.id }}')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert('Erro: ' + data.error + (data.hint ? '\n' + data.hint : ''));
+            } else {
+                document.getElementById('textoMensagem').innerText = data.mensagem;
+                document.getElementById('mensagemGerada').style.display = 'block';
+            }
+        });
+}
+</script>
+{% endblock %}

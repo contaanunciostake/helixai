@@ -1,0 +1,87 @@
+{% extends "auth/login.html" %}
+
+{% block body %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="logo">
+            <i class="bi bi-robot"></i>
+            <h2>Criar Conta</h2>
+            <p>Comece a automatizar seu WhatsApp gratuitamente</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}" role="alert">
+                    <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}x-circle{% else %}info-circle{% endif %} me-2"></i>
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('register') }}">
+            <div class="mb-3">
+                <label for="nome" class="form-label">Nome Completo</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control" id="nome" name="nome"
+                           placeholder="João Silva" required autofocus>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="nome_empresa" class="form-label">Nome da Empresa</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-building"></i></span>
+                    <input type="text" class="form-control" id="nome_empresa" name="nome_empresa"
+                           placeholder="Minha Empresa Ltda" required>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="email" class="form-label">E-mail</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control" id="email" name="email"
+                           placeholder="seu@email.com" required>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="senha" class="form-label">Senha</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input type="password" class="form-control" id="senha" name="senha"
+                           placeholder="••••••••" required minlength="6">
+                </div>
+                <small class="text-muted">Mínimo de 6 caracteres</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-person-plus me-2"></i> Criar Conta Grátis
+            </button>
+        </form>
+
+        <div class="divider">
+            <span>ou</span>
+        </div>
+
+        <div class="register-link">
+            Já tem uma conta? <a href="{{ url_for('login') }}">Fazer login</a>
+        </div>
+
+        <div class="text-center mt-4">
+            <small style="color: #94a3b8;">
+                <i class="bi bi-check-circle me-1"></i> Sem necessidade de cartão de crédito
+            </small>
+        </div>
+    </div>
+
+    <div class="text-center mt-4">
+        <p style="color: white; font-size: 0.9rem;">
+            &copy; 2025 RoboVendedor Pro. Todos os direitos reservados.
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lead.nome }} - Detalhes do Lead{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3 fade-in">
+    <ol class="breadcrumb" style="background: transparent; padding: 0;">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('leads.index') }}" style="color: var(--text-secondary); text-decoration: none;">
+                <i class="bi bi-people me-1"></i> Leads
+            </a>
+        </li>
+        <li class="breadcrumb-item active" style="color: var(--text-primary);">
+            {{ lead.nome or 'Lead #' + lead.id|string }}
+        </li>
+    </ol>
+</nav>
+
+<!-- Page Header -->
+<div class="page-header mb-4 fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <div class="user-avatar me-3" style="width: 60px; height: 60px; font-size: 1.5rem;">
+                {{ (lead.nome or 'L')[0].upper() }}
+            </div>
+            <div>
+                <h2 class="mb-1">{{ lead.nome or 'Sem nome' }}</h2>
+                <p class="mb-0 text-muted">
+                    <i class="bi bi-calendar me-2"></i>
+                    Lead desde {{ lead.criado_em.strftime('%d/%m/%Y') }}
+                </p>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditarLead">
+                <i class="bi bi-pencil me-2"></i> Editar
+            </button>
+            <button class="btn btn-success" onclick="enviarMensagem('{{ lead.telefone }}')">
+                <i class="bi bi-whatsapp me-2"></i> WhatsApp
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Info Cards Row -->
+<div class="row g-4 mb-4">
+    <!-- Status Card -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in">
+            <div class="text-center">
+                <p class="mb-2 text-muted">Status Atual</p>
+                {% set status_colors = {
+                    'NOVO': 'info',
+                    'CONTATO_INICIAL': 'primary',
+                    'QUALIFICADO': 'success',
+                    'PROPOSTA': 'warning',
+                    'NEGOCIACAO': 'warning',
+                    'GANHO': 'success',
+                    'PERDIDO': 'danger',
+                    'FRIO': 'secondary'
+                } %}
+                <h4 class="mb-2">
+                    <span class="badge bg-{{ status_colors.get(lead.status.name, 'secondary') }}" style="font-size: 1rem;">
+                        {{ lead.status.name.replace('_', ' ').title() }}
+                    </span>
+                </h4>
+                <small class="text-muted">Última atualização: {{ lead.atualizado_em.strftime('%d/%m/%y') }}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Temperature Card -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.1s;">
+            <div class="text-center">
+                <p class="mb-2 text-muted">Temperatura</p>
+                <h4 class="mb-2">
+                    {% if lead.temperatura.name == 'QUENTE' %}
+                    <span class="badge" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; font-size: 1rem;">
+                        <i class="bi bi-fire"></i> Quente
+                    </span>
+                    {% elif lead.temperatura.name == 'MORNO' %}
+                    <span class="badge" style="background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; font-size: 1rem;">
+                        <i class="bi bi-thermometer-half"></i> Morno
+                    </span>
+                    {% else %}
+                    <span class="badge" style="background: linear-gradient(135deg, #64748b, #475569); color: white; font-size: 1rem;">
+                        <i class="bi bi-thermometer-snow"></i> Frio
+                    </span>
+                    {% endif %}
+                </h4>
+                <small class="text-muted">Nível de interesse</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Card -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.2s;">
+            <div class="text-center">
+                <p class="mb-2 text-muted">Pontuação</p>
+                <h4 class="mb-2">{{ lead.pontuacao }}/100</h4>
+                <div class="progress" style="height: 8px; background: rgba(255,255,255,0.1);">
+                    <div class="progress-bar
+                        {% if lead.pontuacao >= 70 %}bg-success
+                        {% elif lead.pontuacao >= 40 %}bg-warning
+                        {% else %}bg-danger{% endif %}"
+                        style="width: {{ lead.pontuacao }}%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conversations Card -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card fade-in" style="animation-delay: 0.3s;">
+            <div class="text-center">
+                <p class="mb-2 text-muted">Conversas</p>
+                <h4 class="mb-2">{{ conversas|length }}</h4>
+                <small class="text-muted">
+                    {% if lead.ultima_interacao %}
+                    Última: {{ lead.ultima_interacao.strftime('%d/%m/%y %H:%M') }}
+                    {% else %}
+                    Nenhuma interação
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column - Lead Info -->
+    <div class="col-lg-4">
+        <!-- Contact Information -->
+        <div class="card fade-in" style="animation-delay: 0.4s;">
+            <div class="card-header">
+                <h6><i class="bi bi-person-lines-fill me-2"></i> Informações de Contato</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Telefone (WhatsApp)</label>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-whatsapp text-success me-2"></i>
+                        <strong>{{ lead.telefone }}</strong>
+                    </div>
+                </div>
+
+                {% if lead.email %}
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">E-mail</label>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-envelope me-2"></i>
+                        <a href="mailto:{{ lead.email }}" style="color: var(--primary); text-decoration: none;">
+                            {{ lead.email }}
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if lead.empresa_lead %}
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Empresa</label>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-building me-2"></i>
+                        <strong>{{ lead.empresa_lead }}</strong>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if lead.cargo %}
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Cargo</label>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-briefcase me-2"></i>
+                        <strong>{{ lead.cargo }}</strong>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="text-muted small mb-1">Origem</label>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-geo-alt me-2"></i>
+                        <span class="badge bg-secondary">{{ lead.origem }}</span>
+                    </div>
+                </div>
+
+                {% if lead.vendido %}
+                <div class="alert alert-success" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); margin-top: 1rem;">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong>Lead Convertido!</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Notes -->
+        {% if lead.observacoes %}
+        <div class="card fade-in mt-4" style="animation-delay: 0.5s;">
+            <div class="card-header">
+                <h6><i class="bi bi-sticky me-2"></i> Observações</h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-0" style="white-space: pre-wrap;">{{ lead.observacoes }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Column - Activity -->
+    <div class="col-lg-8">
+        <!-- Tabs -->
+        <div class="card fade-in" style="animation-delay: 0.6s;">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-interacoes"
+                                type="button" role="tab">
+                            <i class="bi bi-clock-history me-2"></i> Linha do Tempo
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-conversas"
+                                type="button" role="tab">
+                            <i class="bi bi-chat-dots me-2"></i> Conversas ({{ conversas|length }})
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                <div class="tab-content">
+                    <!-- Timeline Tab -->
+                    <div class="tab-pane fade show active" id="tab-interacoes" role="tabpanel">
+                        {% if interacoes %}
+                        <div class="timeline">
+                            {% for interacao in interacoes %}
+                            <div class="timeline-item mb-4">
+                                <div class="d-flex">
+                                    <div class="timeline-marker me-3">
+                                        <div style="width: 40px; height: 40px; border-radius: 50%;
+                                                    background: rgba(99, 102, 241, 0.2);
+                                                    display: flex; align-items: center; justify-content: center;
+                                                    border: 2px solid var(--primary);">
+                                            <i class="bi bi-{{
+                                                'chat-dots' if interacao.tipo == 'MENSAGEM' else
+                                                'telephone' if interacao.tipo == 'LIGACAO' else
+                                                'envelope' if interacao.tipo == 'EMAIL' else
+                                                'sticky'
+                                            }}" style="color: var(--primary);"></i>
+                                        </div>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <strong>{{ interacao.tipo.replace('_', ' ').title() }}</strong>
+                                            <small class="text-muted">
+                                                {{ interacao.criado_em.strftime('%d/%m/%Y às %H:%M') }}
+                                            </small>
+                                        </div>
+                                        {% if interacao.descricao %}
+                                        <p class="mb-0 text-muted" style="font-size: 0.9rem;">
+                                            {{ interacao.descricao }}
+                                        </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-clock-history display-1 text-muted d-block mb-3"></i>
+                            <h5 class="text-muted">Nenhuma interação registrada</h5>
+                            <p class="text-muted">As interações com este lead aparecerão aqui</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Conversations Tab -->
+                    <div class="tab-pane fade" id="tab-conversas" role="tabpanel">
+                        {% if conversas %}
+                        <div class="list-group list-group-flush">
+                            {% for conversa in conversas %}
+                            <a href="{{ url_for('conversas.detalhe', conversa_id=conversa.id) }}"
+                               class="list-group-item list-group-item-action"
+                               style="background: transparent; border-color: var(--border-color); color: var(--text-primary);">
+                                <div class="d-flex w-100 justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            <i class="bi bi-whatsapp text-success me-2"></i>
+                                            Conversa WhatsApp
+                                        </h6>
+                                        {% if conversa.ultima_mensagem_texto %}
+                                        <p class="mb-1 text-muted" style="font-size: 0.9rem;">
+                                            {{ conversa.ultima_mensagem_texto[:100] }}
+                                            {% if conversa.ultima_mensagem_texto|length > 100 %}...{% endif %}
+                                        </p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">
+                                            {{ conversa.ultima_mensagem.strftime('%d/%m/%y %H:%M') if conversa.ultima_mensagem else '-' }}
+                                        </small>
+                                        <br>
+                                        {% if not conversa.lida %}
+                                        <span class="badge bg-primary mt-1">Nova</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-chat-dots display-1 text-muted d-block mb-3"></i>
+                            <h5 class="text-muted">Nenhuma conversa iniciada</h5>
+                            <p class="text-muted">Envie uma mensagem para iniciar uma conversa</p>
+                            <button class="btn btn-primary mt-3" onclick="enviarMensagem('{{ lead.telefone }}')">
+                                <i class="bi bi-whatsapp me-2"></i> Iniciar Conversa
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Lead -->
+<div class="modal fade" id="modalEditarLead" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i> Editar Lead
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarLead">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nome Completo *</label>
+                            <input type="text" name="nome" class="form-control"
+                                   value="{{ lead.nome }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Telefone (WhatsApp) *</label>
+                            <input type="tel" name="telefone" class="form-control"
+                                   value="{{ lead.telefone }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">E-mail</label>
+                            <input type="email" name="email" class="form-control"
+                                   value="{{ lead.email or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="empresa_lead" class="form-control"
+                                   value="{{ lead.empresa_lead or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Cargo</label>
+                            <input type="text" name="cargo" class="form-control"
+                                   value="{{ lead.cargo or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="novo" {% if lead.status.name == 'NOVO' %}selected{% endif %}>Novo</option>
+                                <option value="contato_inicial" {% if lead.status.name == 'CONTATO_INICIAL' %}selected{% endif %}>Contato Inicial</option>
+                                <option value="qualificado" {% if lead.status.name == 'QUALIFICADO' %}selected{% endif %}>Qualificado</option>
+                                <option value="proposta" {% if lead.status.name == 'PROPOSTA' %}selected{% endif %}>Proposta</option>
+                                <option value="negociacao" {% if lead.status.name == 'NEGOCIACAO' %}selected{% endif %}>Negociação</option>
+                                <option value="ganho" {% if lead.status.name == 'GANHO' %}selected{% endif %}>Ganho</option>
+                                <option value="perdido" {% if lead.status.name == 'PERDIDO' %}selected{% endif %}>Perdido</option>
+                                <option value="frio" {% if lead.status.name == 'FRIO' %}selected{% endif %}>Frio</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Temperatura</label>
+                            <select name="temperatura" class="form-select">
+                                <option value="frio" {% if lead.temperatura.name == 'FRIO' %}selected{% endif %}>Frio</option>
+                                <option value="morno" {% if lead.temperatura.name == 'MORNO' %}selected{% endif %}>Morno</option>
+                                <option value="quente" {% if lead.temperatura.name == 'QUENTE' %}selected{% endif %}>Quente</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Lead Convertido?</label>
+                            <select name="vendido" class="form-select">
+                                <option value="false" {% if not lead.vendido %}selected{% endif %}>Não</option>
+                                <option value="true" {% if lead.vendido %}selected{% endif %}>Sim</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observacoes" class="form-control" rows="3">{{ lead.observacoes or '' }}</textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarEdicaoLead()">
+                    <i class="bi bi-save me-2"></i> Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Custom styles for this page */
+.nav-tabs .nav-link {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    padding: 0.75rem 1rem;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--primary);
+}
+
+.nav-tabs .nav-link.active {
+    background: transparent;
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--text-muted);
+}
+
+.form-control, .form-select {
+    background: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.form-control:focus, .form-select:focus {
+    background: var(--bg-darker);
+    border-color: var(--primary);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+}
+
+.form-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.list-group-item:hover {
+    background: rgba(99, 102, 241, 0.1) !important;
+}
+
+.timeline-item {
+    position: relative;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 50px;
+    height: calc(100% - 10px);
+    width: 2px;
+    background: var(--border-color);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function enviarMensagem(telefone) {
+    window.open(`https://wa.me/${telefone}`, '_blank');
+}
+
+function salvarEdicaoLead() {
+    const form = document.getElementById('formEditarLead');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    // Convert vendido to boolean
+    data.vendido = data.vendido === 'true';
+
+    fetch('/leads/api/{{ lead.id }}/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            bootstrap.Modal.getInstance(document.getElementById('modalEditarLead')).hide();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('danger', 'Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erro ao atualizar lead: ' + error);
+    });
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'x-circle'} me-2"></i> ${message}
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}

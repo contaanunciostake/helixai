@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robô Disparador - Painel Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem;
+        }
+
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .upload-zone {
+            border: 3px dashed #ddd;
+            border-radius: 15px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary-color);
+            background: #f8f9ff;
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--success-color);
+            background: #f0fdf4;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .lead-row {
+            transition: background 0.3s;
+        }
+
+        .lead-row:hover {
+            background: #f8f9fa;
+        }
+
+        .badge-custom {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .btn-gradient {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            color: white;
+            transition: transform 0.3s;
+        }
+
+        .btn-gradient:hover {
+            transform: scale(1.05);
+            color: white;
+        }
+
+        .tab-custom {
+            border-bottom: 3px solid transparent;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-custom.active {
+            border-bottom-color: var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .metric-chart {
+            height: 300px;
+        }
+
+        .log-entry {
+            border-left: 4px solid #ddd;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+        }
+
+        .log-entry.success {
+            border-left-color: var(--success-color);
+            background: #f0fdf4;
+        }
+
+        .log-entry.error {
+            border-left-color: var(--danger-color);
+            background: #fef2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-card">
+            <!-- Header -->
+            <div class="header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1><i class="bi bi-robot"></i> Robô Disparador</h1>
+                        <p class="mb-0">Sistema de Disparo em Massa WhatsApp</p>
+                    </div>
+                    <div>
+                        <span class="badge badge-custom" style="background: rgba(255,255,255,0.2);">
+                            <i class="bi bi-circle-fill text-success"></i> Online
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="p-4">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="text-muted mb-1">Total de Leads</p>
+                                    <h3 id="totalLeads">0</h3>
+                                </div>
+                                <div class="stat-icon" style="background: #e0e7ff; color: var(--primary-color);">
+                                    <i class="bi bi-people-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="text-muted mb-1">Pendentes</p>
+                                    <h3 id="pendentesLeads">0</h3>
+                                </div>
+                                <div class="stat-icon" style="background: #fef3c7; color: var(--warning-color);">
+                                    <i class="bi bi-clock-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="text-muted mb-1">Enviados</p>
+                                    <h3 id="enviadosLeads">0</h3>
+                                </div>
+                                <div class="stat-icon" style="background: #d1fae5; color: var(--success-color);">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="text-muted mb-1">Taxa de Sucesso</p>
+                                    <h3 id="taxaSucesso">0%</h3>
+                                </div>
+                                <div class="stat-icon" style="background: #ddd6fe; color: var(--secondary-color);">
+                                    <i class="bi bi-graph-up"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="d-flex border-bottom mb-4">
+                    <div class="tab-custom active" onclick="showTab('importacao')">
+                        <i class="bi bi-upload"></i> Importação
+                    </div>
+                    <div class="tab-custom" onclick="showTab('leads')">
+                        <i class="bi bi-list-check"></i> Leads
+                    </div>
+                    <div class="tab-custom" onclick="showTab('configuracao')">
+                        <i class="bi bi-gear"></i> Configuração
+                    </div>
+                    <div class="tab-custom" onclick="showTab('metricas')">
+                        <i class="bi bi-bar-chart"></i> Métricas
+                    </div>
+                    <div class="tab-custom" onclick="showTab('logs')">
+                        <i class="bi bi-journal-text"></i> Logs
+                    </div>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="importacao-tab" class="tab-content">
+                    <div class="upload-zone" id="uploadZone">
+                        <i class="bi bi-cloud-upload" style="font-size: 48px; color: var(--primary-color);"></i>
+                        <h4 class="mt-3">Arraste o arquivo CSV aqui</h4>
+                        <p class="text-muted">ou clique para selecionar</p>
+                        <input type="file" id="csvFile" accept=".csv" style="display:none;">
+                        <button class="btn btn-gradient mt-3" onclick="document.getElementById('csvFile').click()">
+                            <i class="bi bi-file-earmark-arrow-up"></i> Selecionar Arquivo
+                        </button>
+                    </div>
+
+                    <div class="mt-3">
+                        <a href="/api/robo/template-csv" class="btn btn-outline-primary">
+                            <i class="bi bi-download"></i> Baixar Template CSV
+                        </a>
+                    </div>
+
+                    <div id="importProgress" class="mt-4" style="display: none;">
+                        <h5>Importando...</h5>
+                        <div class="progress" style="height: 30px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div id="importResult" class="mt-4" style="display: none;"></div>
+                </div>
+
+                <div id="leads-tab" class="tab-content" style="display: none;">
+                    <div class="d-flex justify-content-between mb-3">
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="filtrarLeads('todos')">Todos</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="filtrarLeads('pendentes')">Pendentes</button>
+                            <button class="btn btn-sm btn-outline-success" onclick="filtrarLeads('enviados')">Enviados</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="filtrarLeads('erros')">Com Erro</button>
+                        </div>
+                        <button class="btn btn-gradient" onclick="iniciarDisparoMassa()">
+                            <i class="bi bi-play-fill"></i> Iniciar Disparo em Massa
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>WhatsApp</th>
+                                    <th>Empresa</th>
+                                    <th>Cidade</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leadsTable"></tbody>
+                        </table>
+                    </div>
+
+                    <nav id="leadsPagination"></nav>
+                </div>
+
+                <div id="configuracao-tab" class="tab-content" style="display: none;">
+                    <form id="configForm">
+                        <div class="config-section">
+                            <h5><i class="bi bi-speedometer2"></i> Rate Limiter</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Máx. Mensagens por Hora</label>
+                                    <input type="number" class="form-control" name="max_mensagens_por_hora" value="15">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Delay Mín (segundos)</label>
+                                    <input type="number" class="form-control" name="delay_entre_mensagens_min" value="300">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Delay Máx (segundos)</label>
+                                    <input type="number" class="form-control" name="delay_entre_mensagens_max" value="600">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h5><i class="bi bi-clock"></i> Horário Comercial</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Horário Início</label>
+                                    <input type="number" class="form-control" name="horario_inicio" value="9" min="0" max="23">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Horário Fim</label>
+                                    <input type="number" class="form-control" name="horario_fim" value="18" min="0" max="23">
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check mt-4">
+                                        <input class="form-check-input" type="checkbox" name="habilitar_fins_semana" id="weekendCheck">
+                                        <label class="form-check-label" for="weekendCheck">
+                                            Habilitar Fins de Semana
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h5><i class="bi bi-robot"></i> Comportamento</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modo_assistido" id="assistidoCheck" checked>
+                                        <label class="form-check-label" for="assistidoCheck">
+                                            Modo Assistido (Aprovar Manualmente)
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="pausar_em_erro" id="pausarCheck" checked>
+                                        <label class="form-check-label" for="pausarCheck">
+                                            Pausar em Caso de Erro
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Máx. Tentativas por Lead</label>
+                                    <input type="number" class="form-control" name="max_tentativas_por_lead" value="3">
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mt-4">
+                                        <input class="form-check-input" type="checkbox" name="sempre_enviar_audio" id="audioCheck" checked>
+                                        <label class="form-check-label" for="audioCheck">
+                                            Sempre Enviar Áudio
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h5><i class="bi bi-chat-dots"></i> Template de Mensagem</h5>
+                            <textarea class="form-control" name="template_padrao" rows="5"
+                                placeholder="Olá {nome}! Tudo bem? Sou da {empresa}..."
+                            >Olá {nome}! Vi que você trabalha na {empresa} em {cidade}.
+
+Tenho uma solução que pode revolucionar suas vendas! Que tal conversar?</textarea>
+                            <small class="text-muted">
+                                Variáveis disponíveis: {nome}, {empresa}, {cidade}, {estado}, {cargo}
+                            </small>
+                        </div>
+
+                        <button type="submit" class="btn btn-gradient btn-lg">
+                            <i class="bi bi-save"></i> Salvar Configurações
+                        </button>
+                    </form>
+                </div>
+
+                <div id="metricas-tab" class="tab-content" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="config-section">
+                                <h5>Desempenho de Envios</h5>
+                                <canvas id="enviosChart" class="metric-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="config-section">
+                                <h5>Taxa de Sucesso</h5>
+                                <canvas id="sucessoChart" class="metric-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="logs-tab" class="tab-content" style="display: none;">
+                    <div class="d-flex justify-content-between mb-3">
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="filtrarLogs('todos')">Todos</button>
+                            <button class="btn btn-sm btn-outline-success" onclick="filtrarLogs('sucesso')">Sucesso</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="filtrarLogs('erro')">Erros</button>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" onclick="atualizarLogs()">
+                            <i class="bi bi-arrow-clockwise"></i> Atualizar
+                        </button>
+                    </div>
+
+                    <div id="logsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/robo_disparador.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Usuários - Admin - VendeAI{% endblock %}
+
+{% block content %}
+<div class="admin-topbar">
+    <div>
+        <h2>
+            <i class="bi bi-people me-2"></i>
+            Gestão de Usuários
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+                <li class="breadcrumb-item active">Usuários</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4 fade-in">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-people"></i>
+            <p>Total de Usuários</p>
+            <h3>{{ total_usuarios }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-check-circle"></i>
+            <p>Usuários Ativos</p>
+            <h3>{{ usuarios_ativos }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-x-circle"></i>
+            <p>Usuários Inativos</p>
+            <h3>{{ total_usuarios - usuarios_ativos }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Usuários -->
+<div class="admin-card fade-in">
+    <div class="admin-card-header">
+        <h5>
+            <i class="bi bi-list me-2"></i>
+            Lista de Usuários
+        </h5>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Empresa</th>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th>Último Login</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                <tr>
+                    <td>{{ usuario.id }}</td>
+                    <td>{{ usuario.nome }}</td>
+                    <td>{{ usuario.email }}</td>
+                    <td>{{ usuario.empresa.nome if usuario.empresa else '-' }}</td>
+                    <td>
+                        {% if usuario.tipo.value == 'super_admin' %}
+                            <span class="badge bg-danger">Super Admin</span>
+                        {% elif usuario.tipo.value == 'admin' %}
+                            <span class="badge bg-warning">Admin</span>
+                        {% else %}
+                            <span class="badge bg-info">Usuário</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if usuario.ativo %}
+                            <span class="badge bg-success">Ativo</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inativo</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ usuario.ultimo_login.strftime('%d/%m/%Y %H:%M') if usuario.ultimo_login else 'Nunca' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not usuarios %}
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+        <p class="mt-3">Nenhum usuário cadastrado</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

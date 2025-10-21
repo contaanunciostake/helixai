@@ -1,0 +1,111 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Leads - Admin - VendeAI{% endblock %}
+
+{% block content %}
+<div class="admin-topbar">
+    <div>
+        <h2>
+            <i class="bi bi-person-check me-2"></i>
+            Gestão de Leads
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+                <li class="breadcrumb-item active">Leads</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4 fade-in">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-person"></i>
+            <p>Total de Leads</p>
+            <h3>{{ total_leads }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-fire"></i>
+            <p>Leads Quentes</p>
+            <h3>{{ leads_quentes }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-thermometer-half"></i>
+            <p>Taxa de Conversão</p>
+            <h3>{{ ((leads_quentes / total_leads * 100)|int) if total_leads > 0 else 0 }}%</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Leads -->
+<div class="admin-card fade-in">
+    <div class="admin-card-header">
+        <h5>
+            <i class="bi bi-list me-2"></i>
+            Últimos Leads (100)
+        </h5>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Empresa</th>
+                    <th>Temperatura</th>
+                    <th>Status</th>
+                    <th>Criado em</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr>
+                    <td>{{ lead.id }}</td>
+                    <td>{{ lead.nome or '-' }}</td>
+                    <td>{{ lead.telefone or '-' }}</td>
+                    <td>{{ lead.empresa.nome if lead.empresa else '-' }}</td>
+                    <td>
+                        {% if lead.temperatura.value == 'QUENTE' %}
+                            <span class="badge bg-danger">🔥 Quente</span>
+                        {% elif lead.temperatura.value == 'MORNO' %}
+                            <span class="badge bg-warning">⚡ Morno</span>
+                        {% else %}
+                            <span class="badge bg-info">❄️ Frio</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if lead.status.value == 'NOVO' %}
+                            <span class="badge bg-primary">Novo</span>
+                        {% elif lead.status.value == 'CONTATADO' %}
+                            <span class="badge bg-info">Contatado</span>
+                        {% elif lead.status.value == 'QUALIFICADO' %}
+                            <span class="badge bg-success">Qualificado</span>
+                        {% elif lead.status.value == 'CONVERTIDO' %}
+                            <span class="badge bg-success">Convertido</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ lead.status.value }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ lead.criado_em.strftime('%d/%m/%Y %H:%M') if lead.criado_em else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not leads %}
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+        <p class="mt-3">Nenhum lead cadastrado</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

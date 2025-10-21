@@ -1,0 +1,797 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - VendeAI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .config-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .config-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+    }
+
+    .config-section-title {
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .config-section-title i {
+        color: var(--primary);
+    }
+
+    .nav-pills .nav-link {
+        color: var(--text-secondary);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .nav-pills .nav-link:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+        color: white;
+    }
+
+    .nav-pills .nav-link i {
+        margin-right: 0.5rem;
+    }
+
+    .form-label {
+        color: var(--text-primary);
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control, .form-select {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        background: var(--bg-secondary);
+        border-color: var(--primary);
+        color: var(--text-primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .form-control::placeholder {
+        color: var(--text-muted);
+    }
+
+    .badge-plan {
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .table {
+        color: var(--text-primary);
+    }
+
+    .table thead th {
+        background: var(--bg-secondary);
+        border-color: var(--border-color);
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .table tbody td {
+        border-color: var(--border-color);
+    }
+
+    .table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1" style="color: var(--text-primary); font-weight: 700;">
+                <i class="bi bi-gear-fill me-2" style="color: var(--primary);"></i>
+                Configurações
+            </h1>
+            <p class="text-muted mb-0">Gerencie as configurações da sua empresa e do bot</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Menu Lateral -->
+        <div class="col-lg-3">
+            <div class="config-card">
+                <ul class="nav nav-pills flex-column" id="configTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active w-100 text-start" data-bs-toggle="pill" data-bs-target="#empresa-tab">
+                            <i class="bi bi-building"></i> Empresa
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#bot-tab">
+                            <i class="bi bi-robot"></i> Bot & IA
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#integracao-tab">
+                            <i class="bi bi-plug"></i> Integrações
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#usuarios-tab">
+                            <i class="bi bi-people"></i> Usuários
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#plano-tab">
+                            <i class="bi bi-credit-card"></i> Plano & Faturamento
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#seguranca-tab">
+                            <i class="bi bi-shield-lock"></i> Segurança
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Conteúdo -->
+        <div class="col-lg-9">
+            <div class="tab-content">
+                <!-- Aba Empresa -->
+                <div class="tab-pane fade show active" id="empresa-tab">
+                    <div class="config-card">
+                        <div class="config-section-title">
+                            <i class="bi bi-building"></i>
+                            Dados da Empresa
+                        </div>
+
+                        <form id="formEmpresa">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Nome da Empresa *</label>
+                                    <input type="text" class="form-control" name="nome" value="{{ empresa.nome }}" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Nome Fantasia</label>
+                                    <input type="text" class="form-control" name="nome_fantasia" value="{{ empresa.nome_fantasia or '' }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">CNPJ</label>
+                                    <input type="text" class="form-control" name="cnpj" value="{{ empresa.cnpj or '' }}" placeholder="00.000.000/0000-00">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Telefone</label>
+                                    <input type="text" class="form-control" name="telefone" value="{{ empresa.telefone or '' }}" placeholder="(00) 00000-0000">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-control" name="email" value="{{ empresa.email or '' }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Website</label>
+                                    <input type="url" class="form-control" name="website" value="{{ empresa.website or '' }}" placeholder="https://...">
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Endereço</label>
+                                    <input type="text" class="form-control" name="endereco" value="{{ empresa.endereco or '' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Cidade</label>
+                                    <input type="text" class="form-control" name="cidade" value="{{ empresa.cidade or '' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Estado</label>
+                                    <select class="form-select" name="estado">
+                                        <option value="">Selecione...</option>
+                                        <option value="AC" {% if empresa.estado == 'AC' %}selected{% endif %}>Acre</option>
+                                        <option value="AL" {% if empresa.estado == 'AL' %}selected{% endif %}>Alagoas</option>
+                                        <option value="AP" {% if empresa.estado == 'AP' %}selected{% endif %}>Amapá</option>
+                                        <option value="AM" {% if empresa.estado == 'AM' %}selected{% endif %}>Amazonas</option>
+                                        <option value="BA" {% if empresa.estado == 'BA' %}selected{% endif %}>Bahia</option>
+                                        <option value="CE" {% if empresa.estado == 'CE' %}selected{% endif %}>Ceará</option>
+                                        <option value="DF" {% if empresa.estado == 'DF' %}selected{% endif %}>Distrito Federal</option>
+                                        <option value="ES" {% if empresa.estado == 'ES' %}selected{% endif %}>Espírito Santo</option>
+                                        <option value="GO" {% if empresa.estado == 'GO' %}selected{% endif %}>Goiás</option>
+                                        <option value="MA" {% if empresa.estado == 'MA' %}selected{% endif %}>Maranhão</option>
+                                        <option value="MT" {% if empresa.estado == 'MT' %}selected{% endif %}>Mato Grosso</option>
+                                        <option value="MS" {% if empresa.estado == 'MS' %}selected{% endif %}>Mato Grosso do Sul</option>
+                                        <option value="MG" {% if empresa.estado == 'MG' %}selected{% endif %}>Minas Gerais</option>
+                                        <option value="PA" {% if empresa.estado == 'PA' %}selected{% endif %}>Pará</option>
+                                        <option value="PB" {% if empresa.estado == 'PB' %}selected{% endif %}>Paraíba</option>
+                                        <option value="PR" {% if empresa.estado == 'PR' %}selected{% endif %}>Paraná</option>
+                                        <option value="PE" {% if empresa.estado == 'PE' %}selected{% endif %}>Pernambuco</option>
+                                        <option value="PI" {% if empresa.estado == 'PI' %}selected{% endif %}>Piauí</option>
+                                        <option value="RJ" {% if empresa.estado == 'RJ' %}selected{% endif %}>Rio de Janeiro</option>
+                                        <option value="RN" {% if empresa.estado == 'RN' %}selected{% endif %}>Rio Grande do Norte</option>
+                                        <option value="RS" {% if empresa.estado == 'RS' %}selected{% endif %}>Rio Grande do Sul</option>
+                                        <option value="RO" {% if empresa.estado == 'RO' %}selected{% endif %}>Rondônia</option>
+                                        <option value="RR" {% if empresa.estado == 'RR' %}selected{% endif %}>Roraima</option>
+                                        <option value="SC" {% if empresa.estado == 'SC' %}selected{% endif %}>Santa Catarina</option>
+                                        <option value="SP" {% if empresa.estado == 'SP' %}selected{% endif %}>São Paulo</option>
+                                        <option value="SE" {% if empresa.estado == 'SE' %}selected{% endif %}>Sergipe</option>
+                                        <option value="TO" {% if empresa.estado == 'TO' %}selected{% endif %}>Tocantins</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">CEP</label>
+                                    <input type="text" class="form-control" name="cep" value="{{ empresa.cep or '' }}" placeholder="00000-000">
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    Salvar Alterações
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Aba Bot & IA -->
+                <div class="tab-pane fade" id="bot-tab">
+                    <div class="config-card">
+                        <div class="config-section-title">
+                            <i class="bi bi-robot"></i>
+                            Configurações do Bot
+                        </div>
+
+                        <form id="formBot">
+                            <!-- Informações do Negócio -->
+                            <h6 class="text-primary mb-3 mt-4">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Informações do Negócio
+                            </h6>
+
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Descrição da Empresa</label>
+                                    <textarea class="form-control" name="descricao_empresa" rows="3" placeholder="Descreva o que sua empresa faz...">{{ config_bot.descricao_empresa or '' }}</textarea>
+                                    <small class="text-muted">Essa descrição ajuda a IA a entender seu negócio</small>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Produtos/Serviços</label>
+                                    <textarea class="form-control" name="produtos_servicos" rows="3" placeholder="Liste seus principais produtos ou serviços...">{{ config_bot.produtos_servicos or '' }}</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Público-Alvo</label>
+                                    <input type="text" class="form-control" name="publico_alvo" value="{{ config_bot.publico_alvo or '' }}" placeholder="Ex: Empresas B2B, Clientes finais...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Horário de Atendimento</label>
+                                    <input type="text" class="form-control" name="horario_atendimento" value="{{ config_bot.horario_atendimento or '' }}" placeholder="Ex: Seg-Sex 9h-18h">
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Diferenciais</label>
+                                    <textarea class="form-control" name="diferenciais" rows="2" placeholder="O que torna sua empresa única?">{{ config_bot.diferenciais or '' }}</textarea>
+                                </div>
+                            </div>
+
+                            <!-- Mensagens Automáticas -->
+                            <h6 class="text-primary mb-3 mt-4">
+                                <i class="bi bi-chat-dots me-2"></i>
+                                Mensagens Automáticas
+                            </h6>
+
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Mensagem de Boas-vindas</label>
+                                    <textarea class="form-control" name="mensagem_boas_vindas" rows="3" placeholder="Primeira mensagem que o bot envia...">{{ config_bot.mensagem_boas_vindas or 'Olá! Bem-vindo ao nosso atendimento.' }}</textarea>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Mensagem de Ausência</label>
+                                    <textarea class="form-control" name="mensagem_ausencia" rows="2" placeholder="Mensagem fora do horário de atendimento...">{{ config_bot.mensagem_ausencia or '' }}</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Tom de Conversa</label>
+                                    <select class="form-select" name="tom_conversa">
+                                        <option value="formal" {% if config_bot.tom_conversa == 'formal' %}selected{% endif %}>Formal</option>
+                                        <option value="casual" {% if config_bot.tom_conversa == 'casual' %}selected{% endif %}>Casual</option>
+                                        <option value="profissional" {% if config_bot.tom_conversa == 'profissional' %}selected{% endif %}>Profissional</option>
+                                        <option value="amigavel" {% if config_bot.tom_conversa == 'amigavel' %}selected{% endif %}>Amigável</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Comportamento -->
+                            <h6 class="text-primary mb-3 mt-4">
+                                <i class="bi bi-sliders me-2"></i>
+                                Comportamento do Bot
+                            </h6>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="auto_resposta_ativa" {% if config_bot.auto_resposta_ativa %}checked{% endif %}>
+                                        <label class="form-check-label">Auto-resposta Ativa</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="enviar_audio" {% if config_bot.enviar_audio %}checked{% endif %}>
+                                        <label class="form-check-label">Enviar Áudio</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Tempo de Resposta (segundos)</label>
+                                    <input type="number" class="form-control" name="tempo_resposta_segundos" value="{{ config_bot.tempo_resposta_segundos or 5 }}" min="1" max="60">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Máx. Tentativas de Contato</label>
+                                    <input type="number" class="form-control" name="max_tentativas_contato" value="{{ config_bot.max_tentativas_contato or 3 }}" min="1" max="10">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Intervalo Entre Mensagens (seg)</label>
+                                    <input type="number" class="form-control" name="intervalo_entre_mensagens" value="{{ config_bot.intervalo_entre_mensagens or 10 }}" min="5" max="120">
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    Salvar Configurações do Bot
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Aba Integrações -->
+                <div class="tab-pane fade" id="integracao-tab">
+                    <div class="config-card">
+                        <div class="config-section-title">
+                            <i class="bi bi-plug"></i>
+                            Integrações de IA
+                        </div>
+
+                        <form id="formIntegracoes">
+                            <!-- OpenAI -->
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-cpu me-2"></i>
+                                OpenAI / ChatGPT
+                            </h6>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-8">
+                                    <label class="form-label">API Key</label>
+                                    <input type="password" class="form-control" name="openai_api_key" value="{{ config_bot.openai_api_key or '' }}" placeholder="sk-...">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Modelo</label>
+                                    <select class="form-select" name="openai_model">
+                                        <option value="gpt-4-turbo" {% if config_bot.openai_model == 'gpt-4-turbo' %}selected{% endif %}>GPT-4 Turbo</option>
+                                        <option value="gpt-4" {% if config_bot.openai_model == 'gpt-4' %}selected{% endif %}>GPT-4</option>
+                                        <option value="gpt-3.5-turbo" {% if config_bot.openai_model == 'gpt-3.5-turbo' %}selected{% endif %}>GPT-3.5 Turbo</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Groq -->
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-lightning me-2"></i>
+                                Groq (LLMs Rápidos)
+                            </h6>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-12">
+                                    <label class="form-label">API Key</label>
+                                    <input type="password" class="form-control" name="groq_api_key" value="{{ config_bot.groq_api_key or '' }}" placeholder="gsk_...">
+                                </div>
+                            </div>
+
+                            <!-- ElevenLabs -->
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-mic me-2"></i>
+                                ElevenLabs (Áudio)
+                            </h6>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label">API Key</label>
+                                    <input type="password" class="form-control" name="elevenlabs_api_key" value="{{ config_bot.elevenlabs_api_key or '' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Voice ID</label>
+                                    <input type="text" class="form-control" name="elevenlabs_voice_id" value="{{ config_bot.elevenlabs_voice_id or '' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Agent ID</label>
+                                    <input type="text" class="form-control" name="elevenlabs_agent_id" value="{{ config_bot.elevenlabs_agent_id or '' }}">
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    Salvar Integrações
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Aba Usuários -->
+                <div class="tab-pane fade" id="usuarios-tab">
+                    <div class="config-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="config-section-title mb-0">
+                                <i class="bi bi-people"></i>
+                                Usuários da Empresa
+                            </div>
+                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNovoUsuario">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Novo Usuário
+                            </button>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Email</th>
+                                        <th>Tipo</th>
+                                        <th>Telefone</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for usuario in usuarios %}
+                                    <tr>
+                                        <td>
+                                            <i class="bi bi-person-circle me-2"></i>
+                                            {{ usuario.nome }}
+                                        </td>
+                                        <td>{{ usuario.email }}</td>
+                                        <td>
+                                            <span class="badge bg-info">{{ usuario.tipo.value }}</span>
+                                        </td>
+                                        <td>{{ usuario.telefone or '-' }}</td>
+                                        <td>
+                                            {% if usuario.id != current_user.id %}
+                                            <button class="btn btn-sm btn-danger" onclick="deletarUsuario({{ usuario.id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="alert alert-info border-0 mt-3" style="background: rgba(99, 102, 241, 0.1);">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <small>Limite de usuários no plano {{ empresa.plano.value }}: <strong>{{ usuarios|length }}/{{ empresa.limite_usuarios }}</strong></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Plano -->
+                <div class="tab-pane fade" id="plano-tab">
+                    <div class="config-card">
+                        <div class="config-section-title">
+                            <i class="bi bi-credit-card"></i>
+                            Plano & Faturamento
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-12">
+                                <div class="p-4 rounded" style="background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);">
+                                    <h4 class="text-white mb-2">Plano Atual</h4>
+                                    <h2 class="text-white mb-3">
+                                        <span class="badge-plan bg-white text-primary">{{ empresa.plano.value|upper }}</span>
+                                    </h2>
+                                    <p class="text-white mb-0">
+                                        <i class="bi bi-calendar-check me-2"></i>
+                                        Ativo desde: {{ empresa.data_inicio_plano.strftime('%d/%m/%Y') }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h6 class="text-primary mb-3">Limites do Plano</h6>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="card border-0" style="background: var(--bg-secondary);">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-people fs-2 text-primary mb-2"></i>
+                                        <h6 style="color: var(--text-primary);">Usuários</h6>
+                                        <p class="mb-0 text-muted">{{ usuarios|length }} / {{ empresa.limite_usuarios }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-0" style="background: var(--bg-secondary);">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-person-badge fs-2 text-success mb-2"></i>
+                                        <h6 style="color: var(--text-primary);">Leads</h6>
+                                        <p class="mb-0 text-muted">Até {{ empresa.limite_leads }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-0" style="background: var(--bg-secondary);">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-send fs-2 text-warning mb-2"></i>
+                                        <h6 style="color: var(--text-primary);">Disparos/Mês</h6>
+                                        <p class="mb-0 text-muted">Até {{ empresa.limite_disparos_mes }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <button class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-up-circle me-2"></i>
+                                Fazer Upgrade
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Segurança -->
+                <div class="tab-pane fade" id="seguranca-tab">
+                    <div class="config-card">
+                        <div class="config-section-title">
+                            <i class="bi bi-shield-lock"></i>
+                            Segurança da Conta
+                        </div>
+
+                        <form id="formSenha">
+                            <h6 class="text-primary mb-3">Alterar Senha</h6>
+
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Senha Atual</label>
+                                    <input type="password" class="form-control" name="senha_atual" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Nova Senha</label>
+                                    <input type="password" class="form-control" name="senha_nova" required minlength="6">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Confirmar Nova Senha</label>
+                                    <input type="password" class="form-control" name="senha_confirmacao" required minlength="6">
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="bi bi-key me-2"></i>
+                                    Alterar Senha
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Usuário -->
+<div class="modal fade" id="modalNovoUsuario" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background: var(--bg-card); color: var(--text-primary);">
+            <div class="modal-header border-bottom" style="border-color: var(--border-color) !important;">
+                <h5 class="modal-title">Novo Usuário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoUsuario">
+                    <div class="mb-3">
+                        <label class="form-label">Nome *</label>
+                        <input type="text" class="form-control" name="nome" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email *</label>
+                        <input type="email" class="form-control" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Telefone</label>
+                        <input type="text" class="form-control" name="telefone" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Usuário *</label>
+                        <select class="form-select" name="tipo" required>
+                            <option value="USUARIO">Usuário Padrão</option>
+                            <option value="ADMIN_EMPRESA">Administrador</option>
+                            <option value="VISUALIZADOR">Apenas Visualização</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Senha *</label>
+                        <input type="password" class="form-control" name="senha" required minlength="6">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top" style="border-color: var(--border-color) !important;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="criarUsuario()">Criar Usuário</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Salvar dados da empresa
+document.getElementById('formEmpresa').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/configuracoes/api/empresa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => alert('Erro: ' + error));
+});
+
+// Salvar configurações do bot
+document.getElementById('formBot').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = {};
+
+    for (let [key, value] of formData.entries()) {
+        // Checkboxes
+        if (this.elements[key].type === 'checkbox') {
+            data[key] = this.elements[key].checked;
+        } else {
+            data[key] = value;
+        }
+    }
+
+    fetch('/configuracoes/api/bot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => alert('Erro: ' + error));
+});
+
+// Salvar integrações (reutiliza formulário do bot)
+document.getElementById('formIntegracoes').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/configuracoes/api/bot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => alert('Erro: ' + error));
+});
+
+// Criar novo usuário
+function criarUsuario() {
+    const form = document.getElementById('formNovoUsuario');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/configuracoes/api/usuario', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => alert('Erro: ' + error));
+}
+
+// Deletar usuário
+function deletarUsuario(id) {
+    if (!confirm('Tem certeza que deseja desativar este usuário?')) {
+        return;
+    }
+
+    fetch(`/configuracoes/api/usuario/${id}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => alert('Erro: ' + error));
+}
+
+// Alterar senha
+document.getElementById('formSenha').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    if (data.senha_nova !== data.senha_confirmacao) {
+        alert('As senhas não conferem!');
+        return;
+    }
+
+    fetch('/configuracoes/api/alterar-senha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            this.reset();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => alert('Erro: ' + error));
+});
+</script>
+{% endblock %}

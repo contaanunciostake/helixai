@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Campanhas - RoboVendedor{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-megaphone"></i> Campanhas</h1>
+    <p class="text-muted">Gerenciamento de campanhas de prospecção</p>
+</div>
+
+<div class="row">
+    {% for camp in campanhas %}
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5>{{ camp.nome_campanha }}</h5>
+                <span class="badge {% if camp.ativa %}bg-success{% else %}bg-secondary{% endif %}">
+                    {% if camp.ativa %}Ativa{% else %}Inativa{% endif %}
+                </span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">{{ camp.descricao or 'Sem descrição' }}</p>
+                <div class="row text-center mt-3">
+                    <div class="col-4">
+                        <h4>{{ camp.total_enviados }}</h4>
+                        <small class="text-muted">Enviados</small>
+                    </div>
+                    <div class="col-4">
+                        <h4>{{ camp.total_respostas }}</h4>
+                        <small class="text-muted">Respostas</small>
+                    </div>
+                    <div class="col-4">
+                        <h4>{{ camp.total_conversoes }}</h4>
+                        <small class="text-muted">Conversões</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><strong>Taxa de Conversão:</strong> {{ "%.1f"|format(camp.taxa_conversao) }}%</span>
+                    <small class="text-muted">{{ camp.data_criacao.strftime('%d/%m/%Y') }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12"><p class="text-center text-muted">Nenhuma campanha criada</p></div>
+    {% endfor %}
+</div>
+{% endblock %}

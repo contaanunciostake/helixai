@@ -1,0 +1,101 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Conversas - Admin - VendeAI{% endblock %}
+
+{% block content %}
+<div class="admin-topbar">
+    <div>
+        <h2>
+            <i class="bi bi-chat-dots me-2"></i>
+            Gestão de Conversas
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+                <li class="breadcrumb-item active">Conversas</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4 fade-in">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-chat"></i>
+            <p>Total de Conversas</p>
+            <h3>{{ total_conversas }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-check-circle"></i>
+            <p>Conversas Ativas</p>
+            <h3>{{ conversas_ativas }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <i class="bi bi-x-circle"></i>
+            <p>Conversas Encerradas</p>
+            <h3>{{ total_conversas - conversas_ativas }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Conversas -->
+<div class="admin-card fade-in">
+    <div class="admin-card-header">
+        <h5>
+            <i class="bi bi-list me-2"></i>
+            Últimas Conversas (100)
+        </h5>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Lead</th>
+                    <th>Empresa</th>
+                    <th>Status</th>
+                    <th>Mensagens</th>
+                    <th>Última Mensagem</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for conversa in conversas %}
+                <tr>
+                    <td>{{ conversa.id }}</td>
+                    <td>{{ conversa.lead.nome if conversa.lead else '-' }}</td>
+                    <td>{{ conversa.empresa.nome if conversa.empresa else '-' }}</td>
+                    <td>
+                        {% if conversa.ativa %}
+                            <span class="badge bg-success">Ativa</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Encerrada</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ conversa.mensagens|length if conversa.mensagens else 0 }}</td>
+                    <td>{{ conversa.ultima_mensagem_em.strftime('%d/%m/%Y %H:%M') if conversa.ultima_mensagem_em else '-' }}</td>
+                    <td>
+                        <a href="/conversas/{{ conversa.id }}" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not conversas %}
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+        <p class="mt-3">Nenhuma conversa registrada</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
