@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AIRA - Assistente de Vendas com IA para Concessionárias. Atendimento WhatsApp 24/7 com inteligência artificial humanizada.">
+    <title>AIRA - Inteligência Artificial para Vendas no WhatsApp</title>
+
+    <!-- Favicons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="../favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon_io/favicon-16x16.png">
+    <link rel="manifest" href="../favicon_io/site.webmanifest">
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- ========== NAVBAR ========== -->
+    <header class="navbar">
+        <div class="container">
+            <div class="nav-logo">
+                <img src="../AIra_Logotipo.png" alt="AIRA Logo" class="logo-image">
+            </div>
+            <nav class="nav-links">
+                <a href="#home">Home</a>
+                <a href="#funcionalidades">Funcionalidades</a>
+                <a href="#precos">Preços</a>
+                <a href="#resultados">Resultados</a>
+                <a href="#faq">FAQ</a>
+            </nav>
+            <button class="btn-nav" onclick="scrollToPrecos()">QUERO TESTAR</button>
+        </div>
+    </header>
+
+    <!-- ========== HERO SECTION ========== -->
+    <section id="home" class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>Inteligência Artificial de WhatsApp para Concessionárias Venderem Mais e Atenderem Melhor 24/7</h1>
+                    <p>Aumente o volume de atendimentos e gere mais clientes qualificados sem aumentar o seu time de vendas com AIRA - a assistente que trabalha 24 horas por dia no WhatsApp.</p>
+                    <button class="btn-primary">QUERO CONHECER A AIRA →</button>
+                    <div class="hero-stats">
+                        <div class="stat">
+                            <span class="stat-number">+47%</span>
+                            <span class="stat-label">Conversão</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number">24/7</span>
+                            <span class="stat-label">Disponível</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number">3s</span>
+                            <span class="stat-label">Resposta</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <div class="hero-image-placeholder">
+                        <div class="phone-mockup">
+                            <div class="phone-screen">
+                                <div class="whatsapp-header">
+                                    <span>AIRA - Vendas</span>
+                                </div>
+                                <div class="chat-messages">
+                                    <div class="message received">Olá! Estou procurando um carro...</div>
+                                    <div class="message sent">Olá! 👋 Sou a AIRA, assistente de vendas! Vou te ajudar...</div>
+                                    <div class="message received">Gostaria de ver SUVs disponíveis</div>
+                                    <div class="message sent">Temos ótimas opções! Deixa eu te mostrar... 🚗</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="floating-badge badge-1">🚗 147 atendimentos simultâneos</div>
+                        <div class="floating-badge badge-2">💬 Voz Natural Humanizada</div>
+                        <div class="floating-badge badge-3">⚡ Resposta Instantânea</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="hero-bg-gradient"></div>
+    </section>
+
+    <!-- ========== SOCIAL PROOF ========== -->
+    <section class="social-proof">
+        <div class="container">
+            <p class="proof-title">Lojas que confiam no nosso trabalho</p>
+            <div class="logos-grid">
+                <div class="logo-placeholder">LOGO 1</div>
+                <div class="logo-placeholder">LOGO 2</div>
+                <div class="logo-placeholder">LOGO 3</div>
+                <div class="logo-placeholder">LOGO 4</div>
+                <div class="logo-placeholder">LOGO 5</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FUNCIONALIDADES ========== -->
+    <section id="funcionalidades" class="features">
+        <div class="container">
+            <h2 class="section-title">FUNCIONALIDADES</h2>
+            <div class="features-grid">
+
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>IA Humanizada</h3>
+                    <p>Integração Artificial que conversa naturalmente 100% humanizada</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎤</div>
+                    <h3>Áudios Com Sua Voz</h3>
+                    <p>Envie mensagens de voz para humanizar o atendimento</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🚗</div>
+                    <h3>Estoque da Sua Loja</h3>
+                    <p>Apresenta o estoque da loja e imagens</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Plataforma Online</h3>
+                    <p>Toda sua equipe conectada em um painel online</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Follow Up</h3>
+                    <p>Acompanhamento de todas as conversas</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">⏰</div>
+                    <h3>Atendimento 24/7</h3>
+                    <p>Sua loja atendendo 24h, até fins de semana e feriados</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">👤</div>
+                    <h3>Suporte Personalizado</h3>
+                    <p>Nossa equipe está disponível para auxiliar você sempre que precisar</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Integração com Instagram</h3>
+                    <p>Conecte seu Instagram à nossa plataforma sem esforços</p>
+                </div>
+
+            </div>
+            <div class="features-cta">
+                <button class="btn-primary">CONHECER TODAS AS FUNCIONALIDADES →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== PREÇOS ========== -->
+    <section id="precos" class="pricing">
+        <div class="container">
+            <h2 class="section-title">PLANOS E PREÇOS</h2>
+            <p class="pricing-subtitle">Escolha o plano ideal para o tamanho do seu negócio</p>
+
+            <div class="pricing-grid">
+                <!-- Plano Starter -->
+                <div class="pricing-card">
+                    <h3 class="plan-name">Starter</h3>
+                    <div class="plan-price">
+                        <span class="price-value">R$ 497</span>
+                        <span class="price-period">/mês</span>
+                    </div>
+                    <p class="plan-description">Economize R$ 4.500/mês vs 1 CLT</p>
+                    <ul class="plan-features">
+                        <li>✓ 1 Equipe de IA Completa</li>
+                        <li>✓ Até 1.000 conversas/mês</li>
+                        <li>✓ WhatsApp + Site + Redes Sociais</li>
+                        <li>✓ Trabalha 24/7 sem pausas</li>
+                        <li>✓ Nunca tira férias ou adoece</li>
+                        <li>✓ Conhecimento infinito atualizado</li>
+                        <li>✓ Suporte por Email</li>
+                    </ul>
+                    <button class="btn-plan" data-plan="1">QUERO TESTAR GRÁTIS</button>
+                </div>
+
+                <!-- Plano Professional - POPULAR -->
+                <div class="pricing-card popular">
+                    <div class="popular-badge">MAIS POPULAR</div>
+                    <h3 class="plan-name">Professional</h3>
+                    <div class="plan-price">
+                        <span class="price-value">R$ 997</span>
+                        <span class="price-period">/mês</span>
+                    </div>
+                    <p class="plan-description">Economize R$ 14.000/mês vs 3 CLTs</p>
+                    <ul class="plan-features">
+                        <li>✓ 3 Equipes de IA Completas</li>
+                        <li>✓ Conversas Ilimitadas</li>
+                        <li>✓ Todos os Canais Integrados</li>
+                        <li>✓ Analytics e BI Avançado</li>
+                        <li>✓ Zero encargos trabalhistas</li>
+                        <li>✓ Zero processos judiciais</li>
+                        <li>✓ Suporte Prioritário 24/7</li>
+                        <li>✓ Integrações Premium</li>
+                        <li>✓ API Completa</li>
+                    </ul>
+                    <button class="btn-plan popular-btn" data-plan="2">QUERO TESTAR GRÁTIS</button>
+                </div>
+
+                <!-- Plano Enterprise -->
+                <div class="pricing-card">
+                    <h3 class="plan-name">Enterprise</h3>
+                    <div class="plan-price">
+                        <span class="price-value">Custom</span>
+                    </div>
+                    <p class="plan-description">Substitua toda equipe de vendas</p>
+                    <ul class="plan-features">
+                        <li>✓ Equipes de IA Ilimitadas</li>
+                        <li>✓ Tudo do Professional</li>
+                        <li>✓ White Label Completo</li>
+                        <li>✓ Gerente de Sucesso Dedicado</li>
+                        <li>✓ SLA Garantido 99.9%</li>
+                        <li>✓ Customizações Sob Medida</li>
+                        <li>✓ Treinamento Presencial</li>
+                        <li>✓ Integração ERP/CRM</li>
+                    </ul>
+                    <button class="btn-plan" data-plan="3">FALAR COM ESPECIALISTA</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== RESULTADOS ========== -->
+        <div class="container">
+            <div class="results-content">
+                <div class="results-text">
+                    <h2>Aumente Suas Vendas Sem Esforço</h2>
+                    <p>Deixe a IA da AIRA fazer o trabalho pesado. Com atendimento automatizado no WhatsApp, sua equipe foca no que importa: fechar vendas.</p>
+                    <ul class="results-list">
+                        <li>✓ +47% em taxa de conversão comprovado</li>
+                        <li>✓ R$ 1,2 milhão vendido por mês (média clientes)</li>
+                        <li>✓ Economia de 35% no tempo da equipe</li>
+                        <li>✓ Zero leads perdidos fora do horário</li>
+                    </ul>
+                    <button class="btn-primary">QUERO ESSES RESULTADOS →</button>
+                </div>
+                <div class="results-visual">
+                    <div class="dashboard-mockup">
+                        <div class="dashboard-header">
+                            <span>Dashboard AIRA</span>
+                        </div>
+                        <div class="dashboard-content">
+                            <div class="metric-card">
+                                <div class="metric-value">+47%</div>
+                                <div class="metric-label">Conversão</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">R$ 1,2M</div>
+                                <div class="metric-label">Vendido/Mês</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">147</div>
+                                <div class="metric-label">Atendimentos</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== PAIN POINTS ========== -->
+    <section class="pain-points">
+        <div class="container">
+            <h2 class="pain-title">SE SUA LOJA SE ENCAIXA EM ALGUM DESSES PONTOS, VOCÊ PRECISA AGIR AGORA:</h2>
+            <div class="pain-list">
+                <div class="pain-item">
+                    <div class="pain-icon">👊</div>
+                    <div class="pain-text">Recepcionistas sobrecarregadas com volume de mensagens</div>
+                </div>
+                <div class="pain-item">
+                    <div class="pain-icon">👊</div>
+                    <div class="pain-text">Atendimento limitado ao horário comercial</div>
+                </div>
+                <div class="pain-item">
+                    <div class="pain-icon">👊</div>
+                    <div class="pain-text">Falta de automação no atendimento</div>
+                </div>
+                <div class="pain-item">
+                    <div class="pain-icon">👊</div>
+                    <div class="pain-text">Oportunidades perdidas por falta de resposta rápida</div>
+                </div>
+            </div>
+            <p class="pain-subtitle">Percebeu? A AIRA pode ser a solução que você está buscando há muito tempo.</p>
+            <div class="pain-cta">
+                <button class="btn-primary">QUERO A AIRA NA MINHA LOJA →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FAQ ========== -->
+    <section id="faq" class="faq">
+        <div class="container">
+            <h2 class="section-title">DÚVIDAS FREQUENTES</h2>
+            <div class="faq-list">
+
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span>Qual é o objetivo da AIRA?</span>
+                        <span class="faq-toggle">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>O objetivo da AIRA é atuar como um BDR (pré-vendedor) que atende os clientes 24/7 no WhatsApp, qualificando leads e encaminhando apenas clientes realmente interessados para sua equipe de vendas.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span>A AIRA funciona com áudios?</span>
+                        <span class="faq-toggle">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Sim! A AIRA pode enviar mensagens de áudio com voz natural humanizada, tornando o atendimento ainda mais pessoal e próximo do cliente.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span>Posso acessar e controlar as conversas realizadas pela IA?</span>
+                        <span class="faq-toggle">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Sim! Você tem acesso total a todas as conversas através de um dashboard completo, podendo monitorar, intervir ou assumir o atendimento a qualquer momento.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span>O suporte técnico é realmente personalizado?</span>
+                        <span class="faq-toggle">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Sim! Nossa equipe está disponível via WhatsApp para auxiliar você em qualquer momento, garantindo que sua AIRA funcione perfeitamente.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <img src="../LogotipoCinza.png" alt="AIRA Logo" class="logo-image-footer">
+                    <p>Assistente de Vendas com Inteligência Artificial</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Links Úteis</h4>
+                    <a href="#funcionalidades">Funcionalidades</a>
+                    <a href="#resultados">Resultados</a>
+                    <a href="#faq">FAQ</a>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contato</h4>
+                    <p>📧 contato@aira.com.br</p>
+                    <p>📱 WhatsApp: (67) 9999-9999</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 AIRA - Todos os direitos reservados | Desenvolvido por Helix AI</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

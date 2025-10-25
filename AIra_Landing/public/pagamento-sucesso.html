@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagamento Aprovado - AIra</title>
+    <link rel="icon" href="https://img.icons8.com/fluency/48/robot.png" type="image/png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #000000;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Grid pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background-image:
+                linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+            background-size: 4rem 4rem;
+            mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, #000 70%, transparent 110%);
+            pointer-events: none;
+        }
+
+        /* Stars */
+        .star {
+            position: fixed;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.5); }
+        }
+
+        .success-container {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            border-radius: 24px;
+            max-width: 600px;
+            width: 100%;
+            padding: 60px 40px;
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 30px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: scaleIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4);
+        }
+
+        .checkmark {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 4;
+            stroke: white;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        @keyframes stroke {
+            to { stroke-dashoffset: 0; }
+        }
+
+        h1 {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 32px;
+            margin-bottom: 15px;
+            font-weight: 800;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .next-step {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 16px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+
+        .next-step h2 {
+            color: #10b981;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .next-step p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #10b981;
+            font-weight: 600;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #10b981;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .manual-link {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .manual-link p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #059669, #10b981, #34d399);
+            color: white;
+            padding: 14px 30px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 60px rgba(16, 185, 129, 0.6);
+        }
+
+        .countdown {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 15px;
+        }
+
+        .countdown strong {
+            color: #10b981;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Stars -->
+    <script>
+        for (let i = 0; i < 100; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = `${Math.random() * 100}%`;
+            star.style.top = `${Math.random() * 100}%`;
+            star.style.animationDelay = `${Math.random() * 3}s`;
+            document.body.appendChild(star);
+        }
+    </script>
+
+    <div class="success-container">
+        <div class="success-icon">
+            <svg width="60" height="60" viewBox="0 0 52 52">
+                <circle class="checkmark" cx="26" cy="26" r="25"/>
+                <path class="checkmark" fill="none" d="M14,27 L22,35 L38,17"/>
+            </svg>
+        </div>
+
+        <h1>Pagamento Aprovado!</h1>
+        <p class="subtitle">Sua assinatura foi confirmada com sucesso</p>
+
+        <div class="next-step">
+            <h2>Próximo Passo: Defina Sua Senha</h2>
+            <p>Para acessar o painel de controle, você precisa criar uma senha de acesso segura.</p>
+        </div>
+
+        <div class="loading" id="loadingMessage">
+            <div class="spinner"></div>
+            <span>Redirecionando para criar sua senha...</span>
+        </div>
+
+        <div class="countdown">
+            Redirecionando em <strong id="counter">3</strong> segundos
+        </div>
+
+        <div class="manual-link">
+            <p>Não foi redirecionado automaticamente?</p>
+            <a href="#" id="manualLink" class="btn" style="display: none;">Definir Senha Agora</a>
+        </div>
+    </div>
+
+    <script>
+        // Obter dados da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+        const token = urlParams.get('token');
+
+        // Verificar se tem email e token
+        if (!email || !token) {
+            console.error('Email ou token não fornecidos');
+            document.getElementById('loadingMessage').innerHTML = '<span style="color: #EF4444;">Erro: Informações de acesso não encontradas</span>';
+            document.getElementById('counter').parentElement.style.display = 'none';
+        } else {
+            // Link de redirecionamento para o CRM Client
+            const redirectUrl = `http://localhost:5177?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
+
+            // Mostrar link manual
+            const manualLink = document.getElementById('manualLink');
+            manualLink.href = redirectUrl;
+            manualLink.style.display = 'inline-block';
+
+            // Contador regressivo
+            let count = 3;
+            const counterElement = document.getElementById('counter');
+
+            const countdown = setInterval(() => {
+                count--;
+                counterElement.textContent = count;
+
+                if (count <= 0) {
+                    clearInterval(countdown);
+                    window.location.href = redirectUrl;
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

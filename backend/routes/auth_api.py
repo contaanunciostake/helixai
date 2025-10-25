@@ -4,6 +4,7 @@ Sistema de login com JWT para React frontend
 """
 
 from flask import Blueprint, request, jsonify
+from flask_cors import cross_origin
 from datetime import datetime, timedelta
 import jwt
 import sys
@@ -144,6 +145,7 @@ def login():
 
 
 @bp.route('/definir-senha', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=['http://localhost:5177'], methods=['POST', 'OPTIONS'], allow_headers=['Content-Type', 'Authorization'], supports_credentials=True)
 def definir_senha():
     """
     Define senha para usuário após pagamento
@@ -157,9 +159,17 @@ def definir_senha():
     Returns:
         JSON: {success: bool, message: str}
     """
-    # Handle OPTIONS for CORS
+    # Handle OPTIONS for CORS preflight
     if request.method == 'OPTIONS':
-        return jsonify({'success': True}), 200
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        print(f"[AUTH-API] OPTIONS request from origin: {request.headers.get('Origin')}")
+        return response, 200
+
+    print(f"[AUTH-API] POST /definir-senha from origin: {request.headers.get('Origin')}")
 
     try:
         data = request.get_json()

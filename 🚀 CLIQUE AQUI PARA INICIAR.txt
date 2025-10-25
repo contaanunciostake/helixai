@@ -1,0 +1,35 @@
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║          🚀 PARA INICIAR O SISTEMA HELIXAI                     ║
+║                                                                ║
+║             ESCOLHA UMA OPÇÃO:                                 ║
+║                                                                ║
+║     OPÇÃO 1 (RECOMENDADO):                                     ║
+║     ➜ INICIAR_TUDO_V3.bat                                      ║
+║       PowerShell como Administrador                            ║
+║       (Mais completo e confiável)                              ║
+║                                                                ║
+║     OPÇÃO 2 (RÁPIDO):                                          ║
+║     ➜ INICIAR_SISTEMA.bat                                      ║
+║       CMD Normal                                               ║
+║       (Mais rápido, funcionando!)                              ║
+║                                                                ║
+║                                                                ║
+║          ⚡ É TUDO AUTOMÁTICO! ⚡                               ║
+║                                                                ║
+║     O script faz tudo sozinho:                                 ║
+║                                                                ║
+║     ✅ Limpa cache                                             ║
+║     ✅ Inicia MySQL                                            ║
+║     ✅ Instala dependências                                    ║
+║     ✅ Configura banco de dados                                ║
+║     ✅ Inicia todos os 7 serviços                              ║
+║     ✅ Mostra os links corretos!                               ║
+║                                                                ║
+║                                                                ║
+║     Após iniciar, acesse:                                      ║
+║     🌐 http://localhost:5176/  (Landing Page)                  ║
+║     👤 http://localhost:5177/  (CRM Cliente)                   ║
+║     👨‍💼 http://localhost:5175/  (CRM Admin)                    ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝

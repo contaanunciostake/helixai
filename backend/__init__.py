@@ -90,7 +90,20 @@ def load_user(user_id):
 
 
 # Importar rotas
-from backend.routes import auth, dashboard, leads, conversas, campanhas, admin, api, auth_api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos
+from backend.routes import auth, dashboard, leads, conversas, campanhas, admin, api, auth_api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos, afiliados, tracking, admin_api
+
+# Importar produtos_api separadamente para capturar erros
+try:
+    from backend.routes import produtos_api
+    print("[INIT] OK produtos_api importado com sucesso!")
+except Exception as e:
+    print(f"[INIT] ERRO ao importar produtos_api: {e}")
+    import traceback
+    traceback.print_exc()
+    produtos_api = None
+
+# Importar API temporária de veículos
+from backend.routes import veiculos_temp_api
 
 # Registrar blueprints
 app.register_blueprint(auth.bp)
@@ -103,8 +116,19 @@ app.register_blueprint(api.bp)
 app.register_blueprint(auth_api.bp)  # ✅ API REST de autenticação
 app.register_blueprint(bot_api.bp)
 app.register_blueprint(produtos.produtos_bp)
+if produtos_api is not None:
+    app.register_blueprint(produtos_api.produtos_api_bp)  # OK API REST de produtos
+    print("[INIT] OK produtos_api_bp registrado!")
+else:
+    print("[INIT] AVISO produtos_api nao foi importado, blueprint nao registrado")
 app.register_blueprint(whatsapp.whatsapp_bp)
 app.register_blueprint(configuracoes.configuracoes_bp)
 app.register_blueprint(webhook.webhook_bp)
 app.register_blueprint(robo_disparador.robo_bp)
 app.register_blueprint(veiculos.veiculos_bp)
+app.register_blueprint(afiliados.bp)  # ✅ Sistema de afiliados
+app.register_blueprint(tracking.bp)  # ✅ Rastreamento de links de afiliados
+app.register_blueprint(admin_api.bp)  # ✅ API REST Admin CRM (React)
+app.register_blueprint(veiculos_temp_api.veiculos_temp_bp)  # ✅ API temporária de veículos (SQLite direto)
+print("[INIT] OK veiculos_temp_api_bp registrado!")
+

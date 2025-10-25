@@ -348,6 +348,271 @@ class MercadoPagoService:
             session.close()
 
 
+    def processar_pagamento_direto(self, plano_id: int, usuario_id: int, email: str,
+                                   payment_method_id: str, token: str = None,
+                                   installments: int = 1, issuer_id: str = None,
+                                   payer: dict = None):
+        """
+        Processa pagamento direto via Checkout Transparente (PIX ou Cartão)
+
+        Documentação: https://www.mercadopago.com.br/developers/pt/docs/checkout-api-v2
+
+        Args:
+            plano_id: ID do plano escolhido
+            usuario_id: ID do usuário (0 se ainda não criado)
+            email: Email do pagador
+            payment_method_id: 'pix' ou 'credit_card', 'debit_card', etc
+            token: Token do cartão (obrigatório para cartão, None para PIX)
+            installments: Número de parcelas (padrão 1)
+            issuer_id: ID do banco emissor (opcional para cartão)
+            payer: Dados do pagador (email, nome, CPF)
+
+        Returns:
+            dict com resultado do pagamento
+        """
+        session = self.db_manager.get_session()
+
+        try:
+            # Buscar plano
+            plano_query = text("SELECT * FROM planos WHERE id = :id AND ativo = 1")
+            plano = session.execute(plano_query, {'id': plano_id}).fetchone()
+
+            if not plano:
+                return {
+                    'success': False,
+                    'error': 'Plano não encontrado'
+                }
+
+            # Preparar dados do pagador
+            if not payer:
+                payer = {
+                    'email': email,
+                    'first_name': email.split('@')[0],
+                    'last_name': ''
+                }
+
+            # Dados base do pagamento
+            payment_data = {
+                "transaction_amount": float(plano.preco),
+                "description": f"VendeAI - Plano {plano.nome}",
+                "payment_method_id": payment_method_id,
+                "payer": {
+                    "email": payer.get('email', email),
+                    "first_name": payer.get('first_name', ''),
+                    "last_name": payer.get('last_name', ''),
+                }
+            }
+
+            # Adicionar identificação se fornecida
+            if payer.get('identification'):
+                payment_data['payer']['identification'] = payer['identification']
+
+            # Configuração específica por método de pagamento
+            if payment_method_id == 'pix':
+                # PIX: Não precisa de token nem parcelas
+                print(f"[MercadoPago] Criando pagamento PIX - R$ {plano.preco}")
+
+            else:
+                # Cartão: Precisa de token
+                if not token:
+                    return {
+                        'success': False,
+                        'error': 'Token do cartão é obrigatório para pagamento com cartão'
+                    }
+
+                payment_data['token'] = token
+                payment_data['installments'] = installments
+
+                if issuer_id:
+                    payment_data['issuer_id'] = issuer_id
+
+                print(f"[MercadoPago] Criando pagamento Cartão - R$ {plano.preco} em {installments}x")
+
+            # Adicionar metadados
+            payment_data['metadata'] = {
+                'plano_id': plano_id,
+                'usuario_email': email,
+                'tipo': 'assinatura'
+            }
+
+            # Criar pagamento via SDK
+            print(f"[MercadoPago] Enviando pagamento para API...")
+            payment_response = self.sdk.payment().create(payment_data)
+            payment = payment_response.get('response', {})
+
+            if not payment or 'id' not in payment:
+                error_msg = payment_response.get('response', {}).get('message', 'Erro desconhecido')
+                print(f"[MercadoPago] Erro ao criar pagamento: {error_msg}")
+                return {
+                    'success': False,
+                    'error': f'Erro ao processar pagamento: {error_msg}'
+                }
+
+            payment_id = payment['id']
+            status = payment.get('status')
+            status_detail = payment.get('status_detail')
+
+            print(f"[MercadoPago] Pagamento criado - ID: {payment_id}, Status: {status}")
+
+            # Criar ou buscar usuário temporário se não existir
+            final_usuario_id = usuario_id
+            token_definir_senha = None  # Token para definir senha (apenas para novos usuários)
+
+            if not usuario_id or usuario_id == 0:
+                # Verificar se já existe usuário com esse email
+                usuario_query = text("SELECT id, senha_hash FROM usuarios WHERE email = :email LIMIT 1")
+                usuario_existente = session.execute(usuario_query, {'email': email}).fetchone()
+
+                if usuario_existente:
+                    final_usuario_id = usuario_existente.id
+                    # Se senha ainda é temporária, gerar token para redefinir
+                    if usuario_existente.senha_hash and usuario_existente.senha_hash.startswith('temp_'):
+                        import secrets
+                        token_definir_senha = secrets.token_urlsafe(32)
+                        print(f"[MercadoPago] Usuário existente com senha temporária - gerando token")
+                else:
+                    # Criar usuário temporário
+                    import secrets
+                    token_definir_senha = secrets.token_urlsafe(32)  # Gerar token seguro
+
+                    insert_usuario = text("""
+                        INSERT INTO usuarios (nome, email, senha_hash, tipo, ativo, empresa_id, criado_em)
+                        VALUES (:nome, :email, :senha_hash, :tipo, :ativo, :empresa_id, :criado_em)
+                    """)
+
+                    nome_temp = payer.get('first_name', email.split('@')[0])
+                    session.execute(insert_usuario, {
+                        'nome': nome_temp,
+                        'email': email,
+                        'senha_hash': 'temp_' + str(datetime.now().timestamp()),  # Senha temporária
+                        'tipo': 'cliente',  # Tipo de usuário
+                        'ativo': True,  # Usuário ativo
+                        'empresa_id': 1,  # Empresa padrão (pode ser ajustado depois)
+                        'criado_em': datetime.now()
+                    })
+                    session.flush()  # Flush para obter o ID
+
+                    # Buscar o ID do usuário recém criado
+                    usuario_novo_query = text("SELECT id FROM usuarios WHERE email = :email LIMIT 1")
+                    usuario_novo = session.execute(usuario_novo_query, {'email': email}).fetchone()
+                    final_usuario_id = usuario_novo.id
+
+                    print(f"[MercadoPago] Usuário temporário criado - ID: {final_usuario_id}, Email: {email}, Token: {token_definir_senha[:20]}...")
+
+            # Salvar pagamento no banco
+            insert_pagamento = text("""
+                INSERT INTO pagamentos
+                (usuario_id, mercadopago_payment_id, tipo, status, valor, metodo_pagamento,
+                 descricao, webhook_data, criado_em)
+                VALUES (:usuario_id, :payment_id, 'subscription', :status, :valor, :metodo,
+                        :descricao, :webhook_data, :criado_em)
+            """)
+
+            session.execute(insert_pagamento, {
+                'usuario_id': final_usuario_id,
+                'payment_id': str(payment_id),
+                'status': status,
+                'valor': plano.preco,
+                'metodo': payment_method_id,
+                'descricao': f"Plano {plano.nome}",
+                'webhook_data': json.dumps(payment),
+                'criado_em': datetime.now()
+            })
+            session.commit()
+
+            # Preparar resposta baseada no método de pagamento
+            if payment_method_id == 'pix':
+                # PIX: Retornar QR Code
+                qr_code = payment.get('point_of_interaction', {}).get('transaction_data', {}).get('qr_code')
+                qr_code_base64 = payment.get('point_of_interaction', {}).get('transaction_data', {}).get('qr_code_base64')
+                ticket_url = payment.get('point_of_interaction', {}).get('transaction_data', {}).get('ticket_url')
+
+                response = {
+                    'success': True,
+                    'payment_id': str(payment_id),
+                    'status': status,
+                    'status_detail': status_detail,
+                    'qr_code': qr_code,
+                    'qr_code_base64': qr_code_base64,
+                    'ticket_url': ticket_url,
+                    'payment_method': 'pix',
+                    'transaction_amount': float(plano.preco)
+                }
+
+                # Adicionar token se for novo usuário
+                if token_definir_senha:
+                    response['token_definir_senha'] = token_definir_senha
+
+                return response
+
+            else:
+                # Cartão: Retornar status
+                response = {
+                    'success': True,
+                    'payment_id': str(payment_id),
+                    'status': status,
+                    'status_detail': status_detail,
+                    'payment_method': payment_method_id,
+                    'installments': installments,
+                    'transaction_amount': float(plano.preco),
+                    'approved': status == 'approved',
+                    'message': self._get_status_message(status, status_detail)
+                }
+
+                # Adicionar token se for novo usuário
+                if token_definir_senha:
+                    response['token_definir_senha'] = token_definir_senha
+
+                return response
+
+        except Exception as e:
+            session.rollback()
+            print(f"[MercadoPago] Erro ao processar pagamento direto: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': str(e)
+            }
+        finally:
+            session.close()
+
+
+    def _get_status_message(self, status: str, status_detail: str) -> str:
+        """
+        Retorna mensagem amigável baseada no status do pagamento
+
+        Documentação: https://www.mercadopago.com.br/developers/pt/docs/checkout-api/payment-status
+        """
+        messages = {
+            'approved': 'Pagamento aprovado!',
+            'pending': 'Pagamento pendente de aprovação',
+            'in_process': 'Pagamento em processamento',
+            'rejected': 'Pagamento rejeitado',
+            'cancelled': 'Pagamento cancelado',
+            'refunded': 'Pagamento estornado',
+            'charged_back': 'Pagamento com chargeback'
+        }
+
+        detail_messages = {
+            'cc_rejected_bad_filled_card_number': 'Número do cartão inválido',
+            'cc_rejected_bad_filled_date': 'Data de validade inválida',
+            'cc_rejected_bad_filled_security_code': 'Código de segurança inválido',
+            'cc_rejected_insufficient_amount': 'Saldo insuficiente',
+            'cc_rejected_other_reason': 'Cartão rejeitado',
+            'cc_rejected_call_for_authorize': 'Entre em contato com o banco',
+            'cc_rejected_card_disabled': 'Cartão desabilitado',
+            'cc_rejected_duplicated_payment': 'Pagamento duplicado',
+            'cc_rejected_high_risk': 'Pagamento de alto risco',
+            'cc_rejected_max_attempts': 'Limite de tentativas excedido'
+        }
+
+        if status_detail in detail_messages:
+            return detail_messages[status_detail]
+
+        return messages.get(status, 'Status desconhecido')
+
+
     def processar_webhook_pagamento(self, payment_data: dict):
         """
         Processa webhook de pagamento do Mercado Pago

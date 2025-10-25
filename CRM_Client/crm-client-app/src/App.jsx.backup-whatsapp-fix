@@ -1,0 +1,1586 @@
+import { useState, useEffect } from 'react'
+import { io } from 'socket.io-client'
+import { ClientLayout } from './components/layout/ClientLayout'
+import { Button } from '@/components/ui/button.jsx'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx'
+import {
+  Building2, Car, MessageSquare, Calendar, Heart, Bot, Send, MapPin, Bed, Bath, Square,
+  User, Phone, CheckCircle, TrendingUp, DollarSign, Users, Activity, Power, QrCode,
+  Smartphone, RefreshCw, Settings as SettingsIcon, Download, XCircle, Clock, ArrowUpRight,
+  BarChart3, Filter, Search, Plus, Eye, Edit, Trash2, Mail
+} from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+import './App.css'
+
+// Configuração da API do VendeAI Backend
+const VENDEAI_API_URL = 'http://localhost:5000'
+const WHATSAPP_SERVICE_URL = 'http://localhost:3001'
+const EMPRESA_ID = 1 // TODO: Substituir pelo ID real da empresa logada
+
+function App() {
+  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [selectedType, setSelectedType] = useState('imoveis')
+
+  // Nicho da empresa (veiculos ou imoveis)
+  const [empresaNicho, setEmpresaNicho] = useState('veiculos') // Definir padrão para evitar null
+  const [nichoLoading, setNichoLoading] = useState(false) // Iniciar como false
+
+  // Socket.io connection
+  const [socket, setSocket] = useState(null)
+
+  // Bot States
+  const [botStatus, setBotStatus] = useState('disconnected') // disconnected, connecting, connected
+  const [showQRCode, setShowQRCode] = useState(false)
+  const [botActive, setBotActive] = useState(false)
+  const [showNotification, setShowNotification] = useState(false)
+  const [notificationMessage, setNotificationMessage] = useState('')
+  const [qrCodeValue, setQrCodeValue] = useState('')
+  const [whatsappNumber, setWhatsappNumber] = useState(null)
+  const [isConnecting, setIsConnecting] = useState(false) // Prevenir múltiplas chamadas
+
+  // Stats
+  const [stats] = useState({
+    conversasAtivas: 47,
+    leadsQualificados: 156,
+    agendamentosHoje: 12,
+    taxaConversao: 34.5,
+    vendasMes: 23,
+    ticketMedio: 145900,
+    respostaMedia: '1.8s',
+    satisfacao: 94.5
+  })
+
+  // Conversas Kanban - COM MAIS ITENS E ARRASTÁVEL
+  const [conversas, setConversas] = useState({
+    novo: [
+      { id: '1', nome: 'Ricardo Mendes', mensagem: 'Interesse em apartamento 3 quartos', hora: '10min', origem: 'WhatsApp', telefone: '+55 11 98765-4321' },
+      { id: '2', nome: 'Patricia Souza', mensagem: 'Pergunta sobre financiamento', hora: '25min', origem: 'Site', telefone: '+55 11 98765-1234' },
+      { id: '3', nome: 'Roberto Lima', mensagem: 'Quero agendar uma visita', hora: '35min', origem: 'WhatsApp', telefone: '+55 11 98765-5678' },
+      { id: '4', nome: 'Sandra Costa', mensagem: 'Informações sobre cobertura', hora: '1h', origem: 'Site', telefone: '+55 11 98765-9012' },
+      { id: '5', nome: 'Paulo Oliveira', mensagem: 'Busco apartamento no centro', hora: '2h', origem: 'Telefone', telefone: '+55 11 98765-3456' },
+    ],
+    emAtendimento: [
+      { id: '6', nome: 'Fernando Costa', mensagem: 'Agendando visita ao imóvel', hora: '1h', origem: 'WhatsApp', telefone: '+55 11 98765-7890' },
+      { id: '7', nome: 'Camila Ribeiro', mensagem: 'Negociação de valores', hora: '2h', origem: 'Telefone', telefone: '+55 11 98765-2345' },
+      { id: '8', nome: 'Marcos Silva', mensagem: 'Interessado em casa no jardim', hora: '3h', origem: 'WhatsApp', telefone: '+55 11 98765-6789' },
+      { id: '9', nome: 'Julia Santos', mensagem: 'Dúvidas sobre documentação', hora: '4h', origem: 'Site', telefone: '+55 11 98765-0123' },
+    ],
+    proposta: [
+      { id: '10', nome: 'Lucas Martins', mensagem: 'Aguardando análise de crédito', hora: '1d', origem: 'WhatsApp', telefone: '+55 11 98765-4567' },
+      { id: '11', nome: 'Fernanda Alves', mensagem: 'Proposta para apartamento 301', hora: '1d', origem: 'Site', telefone: '+55 11 98765-8901' },
+      { id: '12', nome: 'Carlos Eduardo', mensagem: 'Negociação de entrada', hora: '2d', origem: 'WhatsApp', telefone: '+55 11 98765-2109' },
+    ],
+    fechado: [
+      { id: '13', nome: 'Ana Silva', mensagem: 'Venda concluída - Ap 301', hora: '2d', origem: 'WhatsApp', telefone: '+55 11 98765-5432' },
+      { id: '14', nome: 'José Carlos', mensagem: 'Contrato assinado - Casa Jardim', hora: '3d', origem: 'Telefone', telefone: '+55 11 98765-9876' },
+      { id: '15', nome: 'Maria Fernanda', mensagem: 'Venda concluída - Cobertura', hora: '5d', origem: 'WhatsApp', telefone: '+55 11 98765-6543' },
+    ]
+  })
+
+  // Vendas/Negócios
+  const [deals] = useState([
+    {
+      id: 1,
+      cliente: 'João Silva',
+      imovel: 'Apartamento 3 Quartos - Centro',
+      valor: 450000,
+      status: 'Negociação',
+      probabilidade: 75,
+      proximaAcao: 'Visita agendada 18/10',
+      vendedor: 'Você'
+    },
+    {
+      id: 2,
+      cliente: 'Maria Santos',
+      imovel: 'Casa 4 Quartos - Jardim',
+      valor: 850000,
+      status: 'Proposta Enviada',
+      probabilidade: 60,
+      proximaAcao: 'Aguardando resposta',
+      vendedor: 'Você'
+    },
+    {
+      id: 3,
+      cliente: 'Carlos Mendes',
+      imovel: 'Corolla XEI 2023',
+      valor: 145900,
+      status: 'Ganho',
+      probabilidade: 100,
+      proximaAcao: 'Assinatura de contrato',
+      vendedor: 'Você'
+    },
+  ])
+
+  // Dados com MUITO MAIS IMÓVEIS
+  const [imoveis] = useState([
+    { id: 1, tipo: 'Apartamento', titulo: 'Apartamento 3 Quartos - Centro', cidade: 'São Paulo', preco: 450000, area: 85, quartos: 3, banheiros: 2, favorito: false, views: 234, leads: 12 },
+    { id: 2, tipo: 'Casa', titulo: 'Casa 4 Quartos - Jardim América', cidade: 'São Paulo', preco: 850000, area: 180, quartos: 4, banheiros: 3, favorito: false, views: 189, leads: 8 },
+    { id: 3, tipo: 'Cobertura', titulo: 'Cobertura Duplex - Beira Mar', cidade: 'Rio de Janeiro', preco: 1200000, area: 220, quartos: 5, banheiros: 4, favorito: true, views: 567, leads: 23 },
+    { id: 4, tipo: 'Apartamento', titulo: 'Apartamento 2 Quartos - Vila Mariana', cidade: 'São Paulo', preco: 380000, area: 65, quartos: 2, banheiros: 1, favorito: false, views: 156, leads: 7 },
+    { id: 5, tipo: 'Casa', titulo: 'Casa 3 Quartos - Morumbi', cidade: 'São Paulo', preco: 680000, area: 150, quartos: 3, banheiros: 2, favorito: true, views: 298, leads: 15 },
+    { id: 6, tipo: 'Apartamento', titulo: 'Apartamento 1 Quarto - Brooklin', cidade: 'São Paulo', preco: 320000, area: 45, quartos: 1, banheiros: 1, favorito: false, views: 145, leads: 5 },
+    { id: 7, tipo: 'Cobertura', titulo: 'Cobertura 4 Quartos - Itaim Bibi', cidade: 'São Paulo', preco: 1500000, area: 250, quartos: 4, banheiros: 4, favorito: false, views: 423, leads: 18 },
+    { id: 8, tipo: 'Casa', titulo: 'Casa 5 Quartos - Alto de Pinheiros', cidade: 'São Paulo', preco: 2200000, area: 350, quartos: 5, banheiros: 5, favorito: false, views: 567, leads: 21 },
+    { id: 9, tipo: 'Apartamento', titulo: 'Apartamento 2 Quartos - Pinheiros', cidade: 'São Paulo', preco: 420000, area: 70, quartos: 2, banheiros: 2, favorito: false, views: 201, leads: 9 },
+    { id: 10, tipo: 'Casa', titulo: 'Casa 3 Quartos - Tatuapé', cidade: 'São Paulo', preco: 590000, area: 140, quartos: 3, banheiros: 2, favorito: false, views: 176, leads: 10 },
+    { id: 11, tipo: 'Apartamento', titulo: 'Apartamento 3 Quartos - Moema', cidade: 'São Paulo', preco: 520000, area: 90, quartos: 3, banheiros: 2, favorito: true, views: 312, leads: 14 },
+    { id: 12, tipo: 'Cobertura', titulo: 'Cobertura 3 Quartos - Leblon', cidade: 'Rio de Janeiro', preco: 2800000, area: 280, quartos: 3, banheiros: 3, favorito: false, views: 678, leads: 29 },
+    { id: 13, tipo: 'Casa', titulo: 'Casa 4 Quartos - Perdizes', cidade: 'São Paulo', preco: 890000, area: 190, quartos: 4, banheiros: 3, favorito: false, views: 234, leads: 11 },
+    { id: 14, tipo: 'Apartamento', titulo: 'Apartamento 2 Quartos - Santana', cidade: 'São Paulo', preco: 340000, area: 60, quartos: 2, banheiros: 1, favorito: false, views: 123, leads: 6 },
+    { id: 15, tipo: 'Casa', titulo: 'Casa 3 Quartos - Campo Belo', cidade: 'São Paulo', preco: 720000, area: 160, quartos: 3, banheiros: 2, favorito: false, views: 189, leads: 8 },
+    { id: 16, tipo: 'Apartamento', titulo: 'Apartamento 4 Quartos - Ipanema', cidade: 'Rio de Janeiro', preco: 1800000, area: 150, quartos: 4, banheiros: 3, favorito: true, views: 489, leads: 22 },
+    { id: 17, tipo: 'Casa', titulo: 'Casa 2 Quartos - Vila Madalena', cidade: 'São Paulo', preco: 550000, area: 110, quartos: 2, banheiros: 2, favorito: false, views: 167, leads: 7 },
+    { id: 18, tipo: 'Cobertura', titulo: 'Cobertura 5 Quartos - Barra da Tijuca', cidade: 'Rio de Janeiro', preco: 3200000, area: 320, quartos: 5, banheiros: 5, favorito: false, views: 789, leads: 34 },
+    { id: 19, tipo: 'Apartamento', titulo: 'Apartamento 1 Quarto - Consolação', cidade: 'São Paulo', preco: 290000, area: 40, quartos: 1, banheiros: 1, favorito: false, views: 98, leads: 4 },
+    { id: 20, tipo: 'Casa', titulo: 'Casa 4 Quartos - Granja Viana', cidade: 'Cotia', preco: 980000, area: 210, quartos: 4, banheiros: 3, favorito: false, views: 256, leads: 13 },
+  ])
+
+  // Dados com MUITO MAIS VEÍCULOS
+  const [veiculos] = useState([
+    { id: 1, marca: 'Toyota', modelo: 'Corolla XEI 2023', ano: 2023, km: 15000, preco: 145900, combustivel: 'Flex', cor: 'Prata', favorito: false, views: 345, leads: 15 },
+    { id: 2, marca: 'Honda', modelo: 'Civic Touring 2023', ano: 2023, km: 8000, preco: 189900, combustivel: 'Gasolina', cor: 'Preto', favorito: true, views: 456, leads: 19 },
+    { id: 3, marca: 'Jeep', modelo: 'Compass Limited 2024', ano: 2024, km: 0, preco: 165000, combustivel: 'Flex', cor: 'Branco', favorito: false, views: 289, leads: 11 },
+    { id: 4, marca: 'Volkswagen', modelo: 'T-Cross Highline 2023', ano: 2023, km: 12000, preco: 135000, combustivel: 'Flex', cor: 'Azul', favorito: false, views: 234, leads: 9 },
+    { id: 5, marca: 'Chevrolet', modelo: 'Onix Plus Premier 2023', ano: 2023, km: 18000, preco: 89900, combustivel: 'Flex', cor: 'Vermelho', favorito: true, views: 312, leads: 14 },
+    { id: 6, marca: 'Hyundai', modelo: 'Creta Ultimate 2024', ano: 2024, km: 5000, preco: 148900, combustivel: 'Flex', cor: 'Cinza', favorito: false, views: 278, leads: 12 },
+    { id: 7, marca: 'Toyota', modelo: 'Hilux SRX 2023', ano: 2023, km: 22000, preco: 289900, combustivel: 'Diesel', cor: 'Branco', favorito: false, views: 567, leads: 23 },
+    { id: 8, marca: 'Fiat', modelo: 'Toro Ultra 2023', ano: 2023, km: 16000, preco: 178900, combustivel: 'Diesel', cor: 'Preto', favorito: false, views: 198, leads: 8 },
+    { id: 9, marca: 'Nissan', modelo: 'Kicks Exclusive 2023', ano: 2023, km: 14000, preco: 119900, combustivel: 'Flex', cor: 'Laranja', favorito: false, views: 245, leads: 10 },
+    { id: 10, marca: 'Renault', modelo: 'Duster Iconic 2024', ano: 2024, km: 3000, preco: 125900, combustivel: 'Flex', cor: 'Verde', favorito: false, views: 189, leads: 7 },
+    { id: 11, marca: 'Honda', modelo: 'HR-V Touring 2023', ano: 2023, km: 10000, preco: 156900, combustivel: 'Gasolina', cor: 'Prata', favorito: true, views: 334, leads: 16 },
+    { id: 12, marca: 'Volkswagen', modelo: 'Nivus Highline 2023', ano: 2023, km: 19000, preco: 118900, combustivel: 'Flex', cor: 'Branco', favorito: false, views: 223, leads: 9 },
+    { id: 13, marca: 'Chevrolet', modelo: 'Tracker Premier 2024', ano: 2024, km: 7000, preco: 154900, combustivel: 'Flex', cor: 'Azul', favorito: false, views: 267, leads: 11 },
+    { id: 14, marca: 'Peugeot', modelo: '2008 Griffe 2023', ano: 2023, km: 13000, preco: 129900, combustivel: 'Flex', cor: 'Cinza', favorito: false, views: 201, leads: 8 },
+    { id: 15, marca: 'Jeep', modelo: 'Renegade Longitude 2023', ano: 2023, km: 20000, preco: 139900, combustivel: 'Flex', cor: 'Verde', favorito: false, views: 178, leads: 7 },
+    { id: 16, marca: 'Toyota', modelo: 'SW4 SRX 2023', ano: 2023, km: 25000, preco: 389900, combustivel: 'Diesel', cor: 'Prata', favorito: true, views: 489, leads: 21 },
+    { id: 17, marca: 'BMW', modelo: 'X1 sDrive20i 2023', ano: 2023, km: 12000, preco: 289900, combustivel: 'Gasolina', cor: 'Preto', favorito: false, views: 456, leads: 19 },
+    { id: 18, marca: 'Audi', modelo: 'Q3 Prestige Plus 2023', ano: 2023, km: 9000, preco: 279900, combustivel: 'Gasolina', cor: 'Branco', favorito: false, views: 423, leads: 18 },
+    { id: 19, marca: 'Mercedes-Benz', modelo: 'GLA 200 2023', ano: 2023, km: 11000, preco: 298900, combustivel: 'Gasolina', cor: 'Prata', favorito: false, views: 512, leads: 22 },
+    { id: 20, marca: 'Volvo', modelo: 'XC60 T5 2023', ano: 2023, km: 15000, preco: 349900, combustivel: 'Gasolina', cor: 'Azul', favorito: true, views: 589, leads: 25 },
+  ])
+
+  const [agendamentos] = useState([
+    { id: 1, tipo: 'Visita ao Imóvel', titulo: 'Apartamento 3 Quartos - Centro', data: '2025-10-18', hora: '14:30', cliente: 'João Silva', telefone: '+55 11 99999-9999', email: 'joao@email.com', status: 'Confirmado' },
+    { id: 2, tipo: 'Test Drive', titulo: 'Honda Civic Touring', data: '2025-10-20', hora: '10:00', cliente: 'Maria Santos', telefone: '+55 11 98888-8888', email: 'maria@email.com', status: 'Pendente' },
+    { id: 3, tipo: 'Visita ao Imóvel', titulo: 'Casa 4 Quartos - Jardim', data: '2025-10-19', hora: '16:00', cliente: 'Carlos Mendes', telefone: '+55 11 97777-7777', email: 'carlos@email.com', status: 'Confirmado' },
+  ])
+
+  // Buscar nicho da empresa ao carregar componente
+  useEffect(() => {
+    const fetchEmpresaNicho = async () => {
+      try {
+        console.log('[CRM Client] Buscando nicho da empresa...')
+        const response = await fetch(`${VENDEAI_API_URL}/api/crm/nicho`, {
+          credentials: 'include' // Incluir cookies de autenticação
+        })
+
+        console.log('[CRM Client] Resposta recebida:', response.status)
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log('[CRM Client] Dados recebidos:', data)
+
+          if (data.success && data.nicho) {
+            setEmpresaNicho(data.nicho)
+            // Atualizar selectedType baseado no nicho
+            setSelectedType(data.nicho === 'veiculos' ? 'veiculos' : 'imoveis')
+            console.log('[CRM Client] Nicho da empresa:', data.nicho)
+          } else {
+            console.warn('[CRM Client] Nicho não definido nos dados, mantendo padrão')
+          }
+        } else {
+          console.error('[CRM Client] Erro HTTP ao buscar nicho:', response.status, response.statusText)
+        }
+      } catch (error) {
+        console.error('[CRM Client] Erro ao buscar nicho da empresa:', error)
+        // Manter o padrão 'veiculos' já definido no useState
+      }
+    }
+
+    fetchEmpresaNicho()
+  }, [])
+
+  // Buscar estado do bot ao carregar componente
+  useEffect(() => {
+    const fetchBotStatus = async () => {
+      try {
+        console.log('[CRM Client] Buscando status do bot...')
+        const response = await fetch(`${VENDEAI_API_URL}/api/crm/info`, {
+          credentials: 'include' // Incluir cookies de autenticação
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log('[CRM Client] Dados da empresa recebidos:', data)
+
+          if (data.success && data.empresa) {
+            setBotActive(data.empresa.bot_ativo)
+            setBotStatus(data.empresa.whatsapp_conectado ? 'connected' : 'disconnected')
+            setWhatsappNumber(data.empresa.whatsapp_numero)
+            console.log('[CRM Client] Bot ativo:', data.empresa.bot_ativo)
+            console.log('[CRM Client] WhatsApp conectado:', data.empresa.whatsapp_conectado)
+          }
+        } else {
+          console.error('[CRM Client] Erro HTTP ao buscar status do bot:', response.status)
+        }
+      } catch (error) {
+        console.error('[CRM Client] Erro ao buscar status do bot:', error)
+      }
+    }
+
+    fetchBotStatus()
+  }, [])
+
+  // Conectar ao WhatsApp Service via Socket.io
+  useEffect(() => {
+    console.log('[CRM] Conectando ao WhatsApp Service...')
+    const socketConnection = io(WHATSAPP_SERVICE_URL, {
+      transports: ['websocket', 'polling']
+    })
+
+    socketConnection.on('connect', () => {
+      console.log('[CRM] Conectado ao WhatsApp Service')
+      socketConnection.emit('join-empresa', EMPRESA_ID)
+    })
+
+    socketConnection.on('current-status', (data) => {
+      console.log('[CRM] Status atual:', data)
+      if (data.connected) {
+        setBotStatus('connected')
+        setWhatsappNumber(data.numero)
+        setShowQRCode(false)
+        showNotificationMsg('WhatsApp já conectado!')
+      } else if (data.qr) {
+        setBotStatus('connecting')
+        setQrCodeValue(data.qr)
+        setShowQRCode(true)
+      }
+    })
+
+    socketConnection.on('qr-generated', (data) => {
+      console.log('[CRM] QR Code recebido')
+      setBotStatus('connecting')
+      setQrCodeValue(data.qr)
+      setShowQRCode(true)
+      showNotificationMsg(data.message)
+    })
+
+    socketConnection.on('connection-success', (data) => {
+      console.log('[CRM] WhatsApp conectado!', data)
+      setBotStatus('connected')
+      setWhatsappNumber(data.numero)
+      setShowQRCode(false)
+      showNotificationMsg(data.message)
+    })
+
+    socketConnection.on('connection-lost', (data) => {
+      console.log('[CRM] Conexão perdida:', data)
+      setBotStatus('disconnected')
+      setWhatsappNumber(null)
+      setShowQRCode(false)
+      setBotActive(false)
+      showNotificationMsg(data.message)
+    })
+
+    socketConnection.on('disconnect', () => {
+      console.log('[CRM] Desconectado do WhatsApp Service')
+    })
+
+    setSocket(socketConnection)
+
+    // Cleanup
+    return () => {
+      socketConnection.disconnect()
+    }
+  }, [])
+
+  // Handler para arrastar e soltar no Kanban
+  const onDragEnd = (result) => {
+    const { source, destination } = result
+
+    // Se não houver destino, cancelar
+    if (!destination) return
+
+    // Se soltou no mesmo lugar, cancelar
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return
+
+    const sourceColumn = conversas[source.droppableId]
+    const destColumn = conversas[destination.droppableId]
+
+    // Se mover dentro da mesma coluna
+    if (source.droppableId === destination.droppableId) {
+      const newColumn = Array.from(sourceColumn)
+      const [removed] = newColumn.splice(source.index, 1)
+      newColumn.splice(destination.index, 0, removed)
+
+      setConversas({
+        ...conversas,
+        [source.droppableId]: newColumn
+      })
+    } else {
+      // Se mover entre colunas
+      const sourceItems = Array.from(sourceColumn)
+      const destItems = Array.from(destColumn)
+      const [removed] = sourceItems.splice(source.index, 1)
+      destItems.splice(destination.index, 0, removed)
+
+      setConversas({
+        ...conversas,
+        [source.droppableId]: sourceItems,
+        [destination.droppableId]: destItems
+      })
+    }
+  }
+
+  // Funções do Bot com QR Code REAL
+  const generateQRCode = async () => {
+    // Prevenir múltiplas chamadas simultâneas
+    if (isConnecting) {
+      console.log('[CRM] Já está conectando, ignorando clique duplicado')
+      return
+    }
+
+    try {
+      setIsConnecting(true)
+      setBotStatus('connecting')
+      showNotificationMsg('Iniciando conexão WhatsApp...')
+
+      // Usar CRM Bridge API
+      const response = await fetch(`${VENDEAI_API_URL}/api/crm/whatsapp/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Incluir cookies de autenticação
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        console.log('[CRM] Sessão WhatsApp iniciada:', data.message)
+
+        // Se a sessão já existe mas não tem QR e não está conectada, limpar e tentar novamente
+        if (data.message === 'Sessão já existe' && !data.qr && !data.connected) {
+          console.log('[CRM] Sessão travada detectada, limpando...')
+          showNotificationMsg('Sessão travada detectada, limpando...')
+          setIsConnecting(false)
+          await clearSession()
+          // Aguardar 1 segundo e tentar novamente
+          setTimeout(() => generateQRCode(), 1000)
+          return
+        }
+
+        if (data.qr) {
+          setQrCodeValue(data.qr)
+          setShowQRCode(true)
+          showNotificationMsg('QR Code gerado! Escaneie com seu WhatsApp')
+        }
+        if (data.connected) {
+          setBotStatus('connected')
+          setWhatsappNumber(data.numero)
+          setShowQRCode(false)
+          showNotificationMsg('WhatsApp já conectado!')
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao iniciar sessão')
+      }
+    } catch (error) {
+      console.error('[CRM] Erro ao gerar QR Code:', error)
+      setBotStatus('disconnected')
+      showNotificationMsg('Erro ao conectar WhatsApp: ' + error.message)
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const disconnectBot = async () => {
+    try {
+      const response = await fetch(`${VENDEAI_API_URL}/api/crm/whatsapp/disconnect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setBotStatus('disconnected')
+        setBotActive(false)
+        setShowQRCode(false)
+        setQrCodeValue('')
+        setWhatsappNumber(null)
+        showNotificationMsg('WhatsApp desconectado')
+      }
+    } catch (error) {
+      console.error('[CRM] Erro ao desconectar:', error)
+      showNotificationMsg('Erro ao desconectar WhatsApp')
+    }
+  }
+
+  const clearSession = async () => {
+    try {
+      showNotificationMsg('Limpando sessão...')
+      const response = await fetch(`${VENDEAI_API_URL}/api/crm/whatsapp/clear`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setBotStatus('disconnected')
+        setBotActive(false)
+        setShowQRCode(false)
+        setQrCodeValue('')
+        setWhatsappNumber(null)
+        showNotificationMsg(data.message)
+      }
+    } catch (error) {
+      console.error('[CRM] Erro ao limpar sessão:', error)
+      showNotificationMsg('Erro ao limpar sessão')
+    }
+  }
+
+  const toggleBot = async () => {
+    if (botStatus !== 'connected') {
+      showNotificationMsg('Conecte o WhatsApp primeiro!')
+      return
+    }
+
+    try {
+      const response = await fetch(`${VENDEAI_API_URL}/api/crm/bot/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Incluir cookies de autenticação
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setBotActive(data.bot_ativo)
+        showNotificationMsg(data.message)
+        console.log('[CRM] Bot status atualizado no banco:', data.bot_ativo)
+      } else {
+        throw new Error(data.error || 'Erro ao atualizar status do bot')
+      }
+    } catch (error) {
+      console.error('[CRM] Erro ao alternar bot:', error)
+      showNotificationMsg('Erro ao atualizar status do bot: ' + error.message)
+    }
+  }
+
+  const showNotificationMsg = (message) => {
+    setNotificationMessage(message)
+    setShowNotification(true)
+    setTimeout(() => {
+      setShowNotification(false)
+    }, 3000)
+  }
+
+  // Funções dos botões de ação
+  const handleCall = (telefone, nome) => {
+    showNotificationMsg(`Ligando para ${nome}...`)
+    // Em uma aplicação real, isso poderia abrir o aplicativo de telefone
+    window.open(`tel:${telefone}`, '_self')
+  }
+
+  const handleWhatsApp = (telefone, nome) => {
+    showNotificationMsg(`Abrindo WhatsApp de ${nome}...`)
+    // Formatar o número removendo caracteres especiais
+    const cleanPhone = telefone.replace(/\D/g, '')
+    window.open(`https://wa.me/${cleanPhone}`, '_blank')
+  }
+
+  const handleEmail = (email, nome) => {
+    showNotificationMsg(`Abrindo email para ${nome}...`)
+    window.open(`mailto:${email}`, '_blank')
+  }
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0
+    }).format(price)
+  }
+
+  // Renderização das páginas
+  const renderPage = () => {
+    console.log('[CRM] Renderizando página:', currentPage)
+    console.log('[CRM] Nicho da empresa:', empresaNicho)
+    console.log('[CRM] Bot status:', botStatus)
+
+    switch (currentPage) {
+      case 'dashboard':
+        return (
+          <div className="p-6 space-y-6">
+            {/* Notificação */}
+            {showNotification && (
+              <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4 flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-400" />
+                <p className="text-green-400 font-medium">{notificationMessage}</p>
+              </div>
+            )}
+
+            {/* Estatísticas Principais */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="bg-[#1e293b] border-[#334155]">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">Conversas Ativas</p>
+                      <h3 className="text-3xl font-bold text-white mt-1">{stats.conversasAtivas}</h3>
+                      <p className="text-xs text-green-400 mt-1">+12% esta semana</p>
+                    </div>
+                    <MessageSquare className="h-12 w-12 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1e293b] border-[#334155]">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">Leads Qualificados</p>
+                      <h3 className="text-3xl font-bold text-white mt-1">{stats.leadsQualificados}</h3>
+                      <p className="text-xs text-green-400 mt-1">+18 esta semana</p>
+                    </div>
+                    <Users className="h-12 w-12 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1e293b] border-[#334155]">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">Vendas Este Mês</p>
+                      <h3 className="text-3xl font-bold text-white mt-1">{stats.vendasMes}</h3>
+                      <p className="text-xs text-gray-400 mt-1">{formatPrice(stats.ticketMedio)} médio</p>
+                    </div>
+                    <TrendingUp className="h-12 w-12 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1e293b] border-[#334155]">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">Taxa de Conversão</p>
+                      <h3 className="text-3xl font-bold text-white mt-1">{stats.taxaConversao}%</h3>
+                      <p className="text-xs text-green-400 mt-1">+2.5% este mês</p>
+                    </div>
+                    <Activity className="h-12 w-12 text-orange-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Status do Bot */}
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white">
+                  Status do Bot {empresaNicho === 'veiculos' ? 'AIra Auto 🚗' : 'AIra Imob 🏢'}
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  {empresaNicho === 'veiculos' ? 'Bot especializado em vendas de veículos' : 'Bot especializado em vendas de imóveis'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`h-16 w-16 rounded-full flex items-center justify-center ${
+                      botStatus === 'connected' && botActive ? 'bg-green-500/20' : 'bg-gray-500/20'
+                    }`}>
+                      <Bot className={`h-8 w-8 ${
+                        botStatus === 'connected' && botActive ? 'text-green-500' : 'text-gray-500'
+                      }`} />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold">
+                        {botStatus === 'connected'
+                          ? (botActive ? 'Bot Ativo' : 'Bot Conectado (Pausado)')
+                          : 'Bot Desconectado'}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        {botStatus === 'connected'
+                          ? `${stats.conversasAtivas} conversas em andamento`
+                          : 'Configure o bot para começar'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button onClick={() => setCurrentPage('bot')} className="bg-blue-600 hover:bg-blue-700">
+                    Gerenciar Bot
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Próximos Agendamentos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-[#1e293b] border-[#334155]">
+                <CardHeader>
+                  <CardTitle className="text-white">Próximos Agendamentos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {agendamentos.slice(0, 3).map((agendamento) => (
+                      <div key={agendamento.id} className="bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-white font-medium text-sm">{agendamento.cliente}</h4>
+                            <p className="text-xs text-gray-400">{agendamento.titulo}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-blue-400 font-medium">
+                              {new Date(agendamento.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                            </p>
+                            <p className="text-xs text-gray-400">{agendamento.hora}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1e293b] border-[#334155]">
+                <CardHeader>
+                  <CardTitle className="text-white">Negócios em Andamento</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {deals.filter(d => d.status !== 'Ganho').slice(0, 3).map((deal) => (
+                      <div key={deal.id} className="bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-white font-medium text-sm">{deal.cliente}</h4>
+                            <p className="text-xs text-gray-400">{deal.imovel}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-green-400 font-medium">{formatPrice(deal.valor)}</p>
+                            <p className="text-xs text-blue-400">{deal.probabilidade}% prob.</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )
+
+      case 'bot':
+        return (
+          <div className="p-6 space-y-6">
+            {/* Notificação */}
+            {showNotification && (
+              <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4 flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-400" />
+                <p className="text-green-400 font-medium">{notificationMessage}</p>
+              </div>
+            )}
+
+            {/* Loading do Nicho */}
+            {nichoLoading && (
+              <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 flex items-center gap-3">
+                <RefreshCw className="h-5 w-5 text-blue-400 animate-spin" />
+                <p className="text-blue-400 font-medium">Carregando configurações...</p>
+              </div>
+            )}
+
+            {/* Status e Controle do Bot */}
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  Gerenciamento do Bot {empresaNicho === 'veiculos' ? 'AIra Auto 🚗' : empresaNicho === 'imoveis' ? 'AIra Imob 🏢' : 'AIra'}
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  {empresaNicho === 'veiculos'
+                    ? 'Bot especializado em vendas de veículos com integração FIPE e simulador de financiamento'
+                    : empresaNicho === 'imoveis'
+                    ? 'Bot especializado em vendas de imóveis com agendamento de visitas e simulação de financiamento'
+                    : 'Bot de atendimento inteligente'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Controles Principais */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Status Conexão */}
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4">Status da Conexão</h3>
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={`h-3 w-3 rounded-full ${
+                        botStatus === 'connected' ? 'bg-green-500' :
+                        botStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                        'bg-red-500'
+                      }`}></div>
+                      <span className="text-white font-medium">
+                        {botStatus === 'connected' ? 'Conectado' :
+                         botStatus === 'connecting' ? 'Conectando...' :
+                         'Desconectado'}
+                      </span>
+                    </div>
+
+                    {botStatus === 'disconnected' && (
+                      <div className="space-y-2">
+                        <Button
+                          onClick={generateQRCode}
+                          disabled={isConnecting}
+                          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isConnecting ? (
+                            <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Conectando...</>
+                          ) : (
+                            <><QrCode className="h-4 w-4 mr-2" />Conectar WhatsApp</>
+                          )}
+                        </Button>
+                        <Button onClick={clearSession} variant="outline" className="w-full border-gray-500 text-gray-400 hover:bg-gray-500/10 text-xs">
+                          <RefreshCw className="h-3 w-3 mr-2" />
+                          Limpar Sessão (se travar)
+                        </Button>
+                      </div>
+                    )}
+
+                    {botStatus === 'connected' && (
+                      <Button onClick={disconnectBot} variant="outline" className="w-full border-red-500 text-red-500 hover:bg-red-500/10">
+                        Desconectar
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Status Bot */}
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4">Status do Bot</h3>
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={`h-3 w-3 rounded-full ${botActive ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                      <span className="text-white font-medium">
+                        {botActive ? 'Ativo (Respondendo)' : 'Pausado'}
+                      </span>
+                    </div>
+
+                    <Button
+                      onClick={toggleBot}
+                      disabled={botStatus !== 'connected'}
+                      className={`w-full ${botActive ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    >
+                      <Power className="h-4 w-4 mr-2" />
+                      {botActive ? 'Pausar Bot' : 'Ativar Bot'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* QR Code REAL */}
+                {showQRCode && qrCodeValue && (
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4 text-center">Escaneie o QR Code</h3>
+                    <div className="bg-white p-4 rounded-lg mx-auto w-fit mb-4">
+                      {/* Usar img diretamente pois o QR já vem como base64 do whatsapp-web.js */}
+                      <img
+                        src={qrCodeValue}
+                        alt="QR Code WhatsApp"
+                        className="w-64 h-64"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-400 space-y-2">
+                      <p className="font-medium text-white">Como conectar:</p>
+                      <ol className="space-y-1 list-decimal list-inside">
+                        <li>Abra o WhatsApp no seu celular</li>
+                        <li>Toque em Menu e selecione "Aparelhos conectados"</li>
+                        <li>Toque em "Conectar um aparelho"</li>
+                        <li>Aponte para este código</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
+                {/* Estatísticas do Bot */}
+                {botStatus === 'connected' && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4 text-center">
+                      <MessageSquare className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-white">{stats.conversasAtivas}</div>
+                      <p className="text-xs text-gray-400">Conversas Hoje</p>
+                    </div>
+                    <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4 text-center">
+                      <Activity className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-white">{stats.respostaMedia}</div>
+                      <p className="text-xs text-gray-400">Tempo Resposta</p>
+                    </div>
+                    <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4 text-center">
+                      <Users className="h-8 w-8 text-purple-500 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-white">{stats.leadsQualificados}</div>
+                      <p className="text-xs text-gray-400">Leads Gerados</p>
+                    </div>
+                    <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4 text-center">
+                      <CheckCircle className="h-8 w-8 text-orange-500 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-white">{stats.satisfacao}%</div>
+                      <p className="text-xs text-gray-400">Satisfação</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Configurações do Bot */}
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white">Configurações do Bot</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
+                    <label className="text-sm text-gray-400 block mb-2">Mensagem de Boas-Vindas</label>
+                    <textarea
+                      className="w-full bg-[#1e293b] border border-[#334155] rounded-lg p-3 text-white text-sm"
+                      rows="3"
+                      defaultValue="Olá! Sou a AIra, assistente virtual. Como posso ajudá-lo?"
+                    />
+                  </div>
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
+                    <label className="text-sm text-gray-400 block mb-2">Horário de Atendimento</label>
+                    <select className="w-full bg-[#1e293b] border border-[#334155] rounded-lg p-3 text-white text-sm">
+                      <option>24/7 (24 horas)</option>
+                      <option>Horário Comercial (9h-18h)</option>
+                      <option>Personalizado</option>
+                    </select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'conversations':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white">Conversas - Visão Kanban (Arrastável)</CardTitle>
+                <CardDescription className="text-gray-400">Gerencie o funil de vendas das conversas - Arraste os cards entre as colunas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Coluna Novo */}
+                    <div>
+                      <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-3 mb-3">
+                        <h3 className="text-white font-semibold text-sm">Novo ({conversas.novo.length})</h3>
+                      </div>
+                      <Droppable droppableId="novo">
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`space-y-3 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-blue-500/10 rounded-lg p-2' : ''}`}
+                          >
+                            {conversas.novo.map((conv, index) => (
+                              <Draggable key={conv.id} draggableId={conv.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`bg-[#0f172a] border border-[#334155] rounded-lg p-3 hover:border-blue-500 cursor-grab transition-all ${
+                                      snapshot.isDragging ? 'shadow-lg rotate-2 opacity-90' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="text-white font-medium text-sm">{conv.nome}</h4>
+                                      <span className="text-xs text-gray-500">{conv.hora}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mb-2">{conv.mensagem}</p>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">{conv.origem}</span>
+                                      <button
+                                        onClick={() => handleWhatsApp(conv.telefone, conv.nome)}
+                                        className="text-green-400 hover:text-green-300"
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+
+                    {/* Coluna Em Atendimento */}
+                    <div>
+                      <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-3 mb-3">
+                        <h3 className="text-white font-semibold text-sm">Em Atendimento ({conversas.emAtendimento.length})</h3>
+                      </div>
+                      <Droppable droppableId="emAtendimento">
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`space-y-3 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-yellow-500/10 rounded-lg p-2' : ''}`}
+                          >
+                            {conversas.emAtendimento.map((conv, index) => (
+                              <Draggable key={conv.id} draggableId={conv.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`bg-[#0f172a] border border-[#334155] rounded-lg p-3 hover:border-yellow-500 cursor-grab transition-all ${
+                                      snapshot.isDragging ? 'shadow-lg rotate-2 opacity-90' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="text-white font-medium text-sm">{conv.nome}</h4>
+                                      <span className="text-xs text-gray-500">{conv.hora}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mb-2">{conv.mensagem}</p>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">{conv.origem}</span>
+                                      <button
+                                        onClick={() => handleWhatsApp(conv.telefone, conv.nome)}
+                                        className="text-green-400 hover:text-green-300"
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+
+                    {/* Coluna Proposta */}
+                    <div>
+                      <div className="bg-purple-500/20 border border-purple-500/50 rounded-lg p-3 mb-3">
+                        <h3 className="text-white font-semibold text-sm">Proposta ({conversas.proposta.length})</h3>
+                      </div>
+                      <Droppable droppableId="proposta">
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`space-y-3 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-purple-500/10 rounded-lg p-2' : ''}`}
+                          >
+                            {conversas.proposta.map((conv, index) => (
+                              <Draggable key={conv.id} draggableId={conv.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`bg-[#0f172a] border border-[#334155] rounded-lg p-3 hover:border-purple-500 cursor-grab transition-all ${
+                                      snapshot.isDragging ? 'shadow-lg rotate-2 opacity-90' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="text-white font-medium text-sm">{conv.nome}</h4>
+                                      <span className="text-xs text-gray-500">{conv.hora}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mb-2">{conv.mensagem}</p>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">{conv.origem}</span>
+                                      <button
+                                        onClick={() => handleWhatsApp(conv.telefone, conv.nome)}
+                                        className="text-green-400 hover:text-green-300"
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+
+                    {/* Coluna Fechado */}
+                    <div>
+                      <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-3 mb-3">
+                        <h3 className="text-white font-semibold text-sm">Fechado ({conversas.fechado.length})</h3>
+                      </div>
+                      <Droppable droppableId="fechado">
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`space-y-3 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-green-500/10 rounded-lg p-2' : ''}`}
+                          >
+                            {conversas.fechado.map((conv, index) => (
+                              <Draggable key={conv.id} draggableId={conv.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`bg-[#0f172a] border border-[#334155] rounded-lg p-3 hover:border-green-500 cursor-grab transition-all ${
+                                      snapshot.isDragging ? 'shadow-lg rotate-2 opacity-90' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="text-white font-medium text-sm">{conv.nome}</h4>
+                                      <span className="text-xs text-gray-500">{conv.hora}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mb-2">{conv.mensagem}</p>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">{conv.origem}</span>
+                                      <button
+                                        onClick={() => handleWhatsApp(conv.telefone, conv.nome)}
+                                        className="text-green-400 hover:text-green-300"
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+                  </div>
+                </DragDropContext>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'deals':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-white">Vendas e Negócios</CardTitle>
+                    <CardDescription className="text-gray-400">Pipeline completo de vendas</CardDescription>
+                  </div>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Negócio
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {deals.map((deal) => (
+                    <div key={deal.id} className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-white font-semibold">{deal.cliente}</h3>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              deal.status === 'Ganho' ? 'bg-green-500/20 text-green-400' :
+                              deal.status === 'Proposta Enviada' ? 'bg-purple-500/20 text-purple-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {deal.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-400 mb-2">{deal.imovel}</p>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-green-400 font-semibold">{formatPrice(deal.valor)}</span>
+                            <span className="text-gray-400">• Probabilidade: {deal.probabilidade}%</span>
+                            <span className="text-gray-400">• {deal.proximaAcao}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="bg-[#1e293b] border-[#334155] text-white hover:bg-[#334155]">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" className="bg-[#1e293b] border-[#334155] text-white hover:bg-[#334155]">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'appointments':
+        return (
+          <div className="p-6">
+            {/* Notificação */}
+            {showNotification && (
+              <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4 flex items-center gap-3 mb-6">
+                <CheckCircle className="h-5 w-5 text-green-400" />
+                <p className="text-green-400 font-medium">{notificationMessage}</p>
+              </div>
+            )}
+
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-white">Agendamentos</CardTitle>
+                    <CardDescription className="text-gray-400">Visitas e test drives agendados</CardDescription>
+                  </div>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Agendamento
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {agendamentos.map((agendamento) => (
+                    <div key={agendamento.id} className="bg-[#0f172a] border border-[#334155] rounded-lg p-4 hover:border-blue-500 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Calendar className="h-4 w-4 text-blue-400" />
+                            <span className="text-sm font-semibold text-blue-400">{agendamento.tipo}</span>
+                          </div>
+                          <h3 className="text-white font-semibold text-lg mb-2">{agendamento.titulo}</h3>
+                          <div className="grid grid-cols-3 gap-4 text-sm text-gray-400">
+                            <div>
+                              <span className="block text-xs text-gray-500">Cliente</span>
+                              <span className="text-white font-medium">{agendamento.cliente}</span>
+                            </div>
+                            <div>
+                              <span className="block text-xs text-gray-500">Data e Hora</span>
+                              <span className="text-white font-medium">
+                                {new Date(agendamento.data).toLocaleDateString('pt-BR')} às {agendamento.hora}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="block text-xs text-gray-500">Telefone</span>
+                              <span className="text-white font-medium">{agendamento.telefone}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          agendamento.status === 'Confirmado'
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {agendamento.status}
+                        </span>
+                      </div>
+                      <div className="flex gap-2 mt-4 pt-4 border-t border-[#334155]">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-[#0f172a] border-[#334155] text-white hover:bg-[#334155]"
+                          onClick={() => handleCall(agendamento.telefone, agendamento.cliente)}
+                        >
+                          <Phone className="h-4 w-4 mr-2" />
+                          Ligar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-[#0f172a] border-[#334155] text-white hover:bg-[#334155]"
+                          onClick={() => handleWhatsApp(agendamento.telefone, agendamento.cliente)}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          WhatsApp
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-[#0f172a] border-[#334155] text-white hover:bg-[#334155]"
+                          onClick={() => handleEmail(agendamento.email, agendamento.cliente)}
+                        >
+                          <Mail className="h-4 w-4 mr-2" />
+                          Email
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'imoveis':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-white">Meus Imóveis</CardTitle>
+                    <CardDescription className="text-gray-400">Gerencie seu portfólio de {imoveis.length} imóveis</CardDescription>
+                  </div>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Imóvel
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {imoveis.map((imovel) => (
+                    <Card key={imovel.id} className="bg-[#0f172a] border-[#334155] hover:border-blue-500 transition-colors">
+                      <CardContent className="p-0">
+                        <div className="bg-gradient-to-br from-blue-900 to-purple-900 h-48 flex items-center justify-center text-6xl">
+                          🏢
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">
+                                {imovel.tipo}
+                              </span>
+                              <h3 className="text-white font-semibold mt-2">{imovel.titulo}</h3>
+                            </div>
+                            <button className="text-gray-400 hover:text-red-500">
+                              <Heart className={`h-5 w-5 ${imovel.favorito ? 'fill-red-500 text-red-500' : ''}`} />
+                            </button>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-400">
+                            <MapPin className="h-4 w-4 mr-1" />
+                            {imovel.cidade}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-400">
+                            <div className="flex items-center">
+                              <Bed className="h-4 w-4 mr-1" />
+                              {imovel.quartos}
+                            </div>
+                            <div className="flex items-center">
+                              <Bath className="h-4 w-4 mr-1" />
+                              {imovel.banheiros}
+                            </div>
+                            <div className="flex items-center">
+                              <Square className="h-4 w-4 mr-1" />
+                              {imovel.area}m²
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <div className="flex items-center">
+                              <Eye className="h-3 w-3 mr-1" />
+                              {imovel.views} views
+                            </div>
+                            <div className="flex items-center">
+                              <Users className="h-3 w-3 mr-1" />
+                              {imovel.leads} leads
+                            </div>
+                          </div>
+                          <div className="border-t border-[#334155] pt-3">
+                            <div className="text-2xl font-bold text-blue-400">
+                              {formatPrice(imovel.preco)}
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <Button className="flex-1 bg-blue-600 hover:bg-blue-700" size="sm">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar
+                              </Button>
+                              <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-white hover:bg-[#334155]" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'veiculos':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-white">Meus Veículos</CardTitle>
+                    <CardDescription className="text-gray-400">Gerencie seu estoque de {veiculos.length} veículos</CardDescription>
+                  </div>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Veículo
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {veiculos.map((veiculo) => (
+                    <Card key={veiculo.id} className="bg-[#0f172a] border-[#334155] hover:border-blue-500 transition-colors">
+                      <CardContent className="p-0">
+                        <div className="bg-gradient-to-br from-gray-800 to-gray-900 h-48 flex items-center justify-center text-6xl">
+                          🚗
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">
+                                {veiculo.marca}
+                              </span>
+                              <h3 className="text-white font-semibold mt-2">{veiculo.modelo}</h3>
+                            </div>
+                            <button className="text-gray-400 hover:text-red-500">
+                              <Heart className={`h-5 w-5 ${veiculo.favorito ? 'fill-red-500 text-red-500' : ''}`} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-400">
+                            <div>{veiculo.ano}</div>
+                            <div>•</div>
+                            <div>{veiculo.km.toLocaleString('pt-BR')} km</div>
+                            <div>•</div>
+                            <div>{veiculo.combustivel}</div>
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Cor: {veiculo.cor}
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <div className="flex items-center">
+                              <Eye className="h-3 w-3 mr-1" />
+                              {veiculo.views} views
+                            </div>
+                            <div className="flex items-center">
+                              <Users className="h-3 w-3 mr-1" />
+                              {veiculo.leads} leads
+                            </div>
+                          </div>
+                          <div className="border-t border-[#334155] pt-3">
+                            <div className="text-2xl font-bold text-blue-400">
+                              {formatPrice(veiculo.preco)}
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <Button className="flex-1 bg-blue-600 hover:bg-blue-700" size="sm">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar
+                              </Button>
+                              <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-white hover:bg-[#334155]" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'favorites':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white">Favoritos</CardTitle>
+                <CardDescription className="text-gray-400">Itens salvos e marcados como favoritos</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[...imoveis.filter(i => i.favorito), ...veiculos.filter(v => v.favorito)].map((item) => (
+                    <Card key={item.id} className="bg-[#0f172a] border-[#334155]">
+                      <CardContent className="p-4">
+                        <div className="flex gap-4">
+                          <div className="bg-gradient-to-br from-blue-900 to-purple-900 w-32 h-32 flex-shrink-0 rounded-lg flex items-center justify-center text-4xl">
+                            {item.tipo ? '🏢' : '🚗'}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">
+                                  {item.tipo || item.marca}
+                                </span>
+                                <h3 className="text-white font-semibold mt-1">{item.titulo || item.modelo}</h3>
+                              </div>
+                              <Heart className="h-5 w-5 fill-red-500 text-red-500" />
+                            </div>
+                            <div className="text-lg font-bold text-blue-400 mb-2">
+                              {formatPrice(item.preco)}
+                            </div>
+                            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700">
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Ver Detalhes
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'reports':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white">Relatórios e Análises</CardTitle>
+                <CardDescription className="text-gray-400">Métricas e performance do seu negócio</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
+                    <h3 className="text-gray-400 text-sm mb-2">Vendas Este Mês</h3>
+                    <div className="text-3xl font-bold text-white mb-1">{stats.vendasMes}</div>
+                    <p className="text-xs text-green-400">+15% vs mês anterior</p>
+                  </div>
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
+                    <h3 className="text-gray-400 text-sm mb-2">Ticket Médio</h3>
+                    <div className="text-3xl font-bold text-white mb-1">{formatPrice(stats.ticketMedio)}</div>
+                    <p className="text-xs text-green-400">+8% vs mês anterior</p>
+                  </div>
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
+                    <h3 className="text-gray-400 text-sm mb-2">Taxa de Conversão</h3>
+                    <div className="text-3xl font-bold text-white mb-1">{stats.taxaConversao}%</div>
+                    <p className="text-xs text-green-400">+2.5% vs mês anterior</p>
+                  </div>
+                </div>
+                <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-6">
+                  <h3 className="text-white font-semibold mb-4">Performance por Origem</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-400">WhatsApp</span>
+                        <span className="text-white">65%</span>
+                      </div>
+                      <div className="h-2 bg-[#334155] rounded-full">
+                        <div className="h-2 bg-green-500 rounded-full" style={{ width: '65%' }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-400">Site</span>
+                        <span className="text-white">25%</span>
+                      </div>
+                      <div className="h-2 bg-[#334155] rounded-full">
+                        <div className="h-2 bg-blue-500 rounded-full" style={{ width: '25%' }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-400">Telefone</span>
+                        <span className="text-white">10%</span>
+                      </div>
+                      <div className="h-2 bg-[#334155] rounded-full">
+                        <div className="h-2 bg-purple-500 rounded-full" style={{ width: '10%' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case 'settings':
+        return (
+          <div className="p-6">
+            <Card className="bg-[#1e293b] border-[#334155]">
+              <CardHeader>
+                <CardTitle className="text-white">Configurações</CardTitle>
+                <CardDescription className="text-gray-400">Gerencie as preferências do sistema</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="text-white font-semibold mb-4">Dados da Empresa</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-2">Nome da Empresa</label>
+                      <input
+                        type="text"
+                        defaultValue="Imobiliária XYZ"
+                        className="w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-2">CNPJ</label>
+                      <input
+                        type="text"
+                        defaultValue="12.345.678/0001-90"
+                        className="w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-2">Telefone</label>
+                      <input
+                        type="text"
+                        defaultValue="+55 11 99999-9999"
+                        className="w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-2">E-mail</label>
+                      <input
+                        type="email"
+                        defaultValue="contato@imobiliariaxyz.com"
+                        className="w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-[#334155] pt-6">
+                  <h3 className="text-white font-semibold mb-4">Notificações</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-[#0f172a] border border-[#334155] rounded-lg">
+                      <span className="text-white">Notificar novos leads</span>
+                      <div className="w-12 h-6 bg-blue-600 rounded-full cursor-pointer"></div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-[#0f172a] border border-[#334155] rounded-lg">
+                      <span className="text-white">Notificar agendamentos</span>
+                      <div className="w-12 h-6 bg-blue-600 rounded-full cursor-pointer"></div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-[#0f172a] border border-[#334155] rounded-lg">
+                      <span className="text-white">Notificar mensagens do bot</span>
+                      <div className="w-12 h-6 bg-gray-600 rounded-full cursor-pointer"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-[#334155] pt-6">
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    Salvar Configurações
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      default:
+        return <div className="p-6 text-white">Página não encontrada</div>
+    }
+  }
+
+  return (
+    <ClientLayout currentPage={currentPage} onPageChange={setCurrentPage}>
+      {renderPage()}
+    </ClientLayout>
+  )
+}
+
+export default App

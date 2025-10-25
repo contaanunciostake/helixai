@@ -89,6 +89,45 @@ class StatusDisparo(enum.Enum):
     RESPONDIDO = "respondido"
 
 
+class StatusAfiliado(enum.Enum):
+    """Status do afiliado no programa"""
+    PENDENTE = "pendente"       # Aguardando aprovação
+    ATIVO = "ativo"             # Aprovado e ativo
+    SUSPENSO = "suspenso"       # Temporariamente suspenso
+    BLOQUEADO = "bloqueado"     # Bloqueado permanentemente
+
+
+class StatusReferencia(enum.Enum):
+    """Status da referência/conversão"""
+    CLICK = "click"             # Apenas clicou no link
+    CADASTRO = "cadastro"       # Completou cadastro
+    VENDA = "venda"             # Realizou compra
+    CANCELADO = "cancelado"     # Cancelou após conversão
+
+
+class TipoComissao(enum.Enum):
+    """Tipos de comissão"""
+    CADASTRO = "cadastro"               # Comissão por cadastro
+    VENDA_DIRETA = "venda_direta"       # Comissão por venda única
+    VENDA_RECORRENTE = "venda_recorrente"  # Comissão mensal recorrente
+
+
+class StatusComissao(enum.Enum):
+    """Status da comissão"""
+    PENDENTE = "pendente"       # Aguardando aprovação
+    APROVADA = "aprovada"       # Aprovada, disponível para saque
+    PAGA = "paga"              # Já foi paga ao afiliado
+    CANCELADA = "cancelada"     # Cancelada (ex: reembolso)
+
+
+class StatusSaque(enum.Enum):
+    """Status do saque"""
+    PENDENTE = "pendente"       # Aguardando processamento
+    PROCESSANDO = "processando"  # Em processamento
+    PAGO = "pago"              # Pago com sucesso
+    CANCELADO = "cancelado"     # Cancelado
+
+
 # ==================== MODELOS ====================
 
 class Usuario(UserMixin, Base):
@@ -785,6 +824,202 @@ class Veiculo(Base):
             'destaque': self.destaque,
             'descricao': self.descricao
         }
+
+
+# ==================== SISTEMA DE AFILIADOS ====================
+
+class Afiliado(Base):
+    """Afiliados do programa"""
+    __tablename__ = 'afiliados'
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey('usuarios.id'), unique=True, nullable=False)
+
+    # Chave de referência única
+    chave_referencia = Column(String(50), unique=True, nullable=False, index=True)
+
+    # Status
+    status = Column(SQLEnum(StatusAfiliado), default=StatusAfiliado.PENDENTE)
+
+    # Informações pessoais
+    nome_completo = Column(String(200))
+    cpf_cnpj = Column(String(18))
+    telefone = Column(String(20))
+
+    # Dados bancários
+    banco = Column(String(100))
+    agencia = Column(String(10))
+    conta = Column(String(20))
+    tipo_conta = Column(String(20))  # corrente, poupanca
+    pix_tipo = Column(String(20))  # cpf, cnpj, email, telefone, chave
+    pix_chave = Column(String(200))
+
+    # Métricas
+    total_clicks = Column(Integer, default=0)
+    total_cadastros = Column(Integer, default=0)
+    total_vendas = Column(Integer, default=0)
+    total_comissoes_geradas = Column(Float, default=0.0)
+    total_comissoes_pagas = Column(Float, default=0.0)
+    saldo_disponivel = Column(Float, default=0.0)
+
+    # Configurações personalizadas
+    comissao_primeira_venda = Column(Float)  # Percentual
+    comissao_recorrente = Column(Float)  # Percentual
+
+    # Timestamps
+    data_inscricao = Column(DateTime, default=datetime.utcnow)
+    data_aprovacao = Column(DateTime)
+    data_ultimo_saque = Column(DateTime)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+    referencias = relationship("Referencia", back_populates="afiliado", cascade="all, delete-orphan")
+    comissoes = relationship("Comissao", back_populates="afiliado", cascade="all, delete-orphan")
+    saques = relationship("SaqueAfiliado", back_populates="afiliado", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<Afiliado {self.nome_completo} - {self.chave_referencia}>'
+
+
+class Referencia(Base):
+    """Rastreamento de cliques e conversões"""
+    __tablename__ = 'referencias'
+
+    id = Column(Integer, primary_key=True)
+    afiliado_id = Column(Integer, ForeignKey('afiliados.id'), nullable=False, index=True)
+
+    # Rastreamento
+    ip_origem = Column(String(50))
+    user_agent = Column(String(500))
+    url_origem = Column(String(500))
+    url_destino = Column(String(500))
+
+    # Dados do lead/cliente
+    cliente_novo_id = Column(Integer, ForeignKey('usuarios.id'))
+    lead_id = Column(Integer, ForeignKey('leads.id'))
+
+    # Status
+    status = Column(SQLEnum(StatusReferencia), default=StatusReferencia.CLICK)
+
+    # Informações de conversão
+    valor_primeira_compra = Column(Float)
+    plano_contratado = Column(String(50))
+
+    # Timestamps
+    data_clique = Column(DateTime, default=datetime.utcnow)
+    data_cadastro = Column(DateTime)
+    data_conversao = Column(DateTime)
+    data_expiracao = Column(DateTime)
+
+    # Relacionamentos
+    afiliado = relationship("Afiliado", back_populates="referencias")
+    cliente_novo = relationship("Usuario", foreign_keys=[cliente_novo_id])
+    lead = relationship("Lead", foreign_keys=[lead_id])
+
+    def __repr__(self):
+        return f'<Referencia {self.status.value} - Afiliado:{self.afiliado_id}>'
+
+
+class Comissao(Base):
+    """Comissões geradas para afiliados"""
+    __tablename__ = 'comissoes'
+
+    id = Column(Integer, primary_key=True)
+    afiliado_id = Column(Integer, ForeignKey('afiliados.id'), nullable=False, index=True)
+    referencia_id = Column(Integer, ForeignKey('referencias.id'))
+
+    # Tipo e valor
+    tipo = Column(SQLEnum(TipoComissao), nullable=False)
+    valor = Column(Float, nullable=False)
+    percentual = Column(Float)  # Percentual usado
+    valor_base = Column(Float)  # Valor base para cálculo
+
+    # Status
+    status = Column(SQLEnum(StatusComissao), default=StatusComissao.PENDENTE)
+
+    # Informações
+    descricao = Column(Text)
+    observacoes = Column(Text)
+
+    # Timestamps
+    data_geracao = Column(DateTime, default=datetime.utcnow, index=True)
+    data_aprovacao = Column(DateTime)
+    data_pagamento = Column(DateTime)
+
+    # Relacionamentos
+    afiliado = relationship("Afiliado", back_populates="comissoes")
+    referencia = relationship("Referencia")
+
+    def __repr__(self):
+        return f'<Comissao R$ {self.valor} - {self.status.value}>'
+
+
+class SaqueAfiliado(Base):
+    """Saques solicitados por afiliados"""
+    __tablename__ = 'saques_afiliados'
+
+    id = Column(Integer, primary_key=True)
+    afiliado_id = Column(Integer, ForeignKey('afiliados.id'), nullable=False, index=True)
+
+    # Valor
+    valor_solicitado = Column(Float, nullable=False)
+    valor_pago = Column(Float)
+    taxa = Column(Float, default=0.0)
+
+    # Status
+    status = Column(SQLEnum(StatusSaque), default=StatusSaque.PENDENTE)
+
+    # Método de pagamento
+    metodo_pagamento = Column(String(50))  # pix, transferencia, boleto
+
+    # Informações
+    observacoes = Column(Text)
+    comprovante_url = Column(String(500))
+
+    # Timestamps
+    data_solicitacao = Column(DateTime, default=datetime.utcnow, index=True)
+    data_aprovacao = Column(DateTime)
+    data_pagamento = Column(DateTime)
+
+    # Relacionamentos
+    afiliado = relationship("Afiliado", back_populates="saques")
+
+    def __repr__(self):
+        return f'<SaqueAfiliado R$ {self.valor_solicitado} - {self.status}>'
+
+
+class ConfiguracaoAfiliados(Base):
+    """Configurações globais do programa de afiliados"""
+    __tablename__ = 'configuracoes_afiliados'
+
+    id = Column(Integer, primary_key=True)
+
+    # Comissões padrão (%)
+    comissao_primeira_venda_padrao = Column(Float, default=30.0)
+    comissao_recorrente_padrao = Column(Float, default=20.0)
+
+    # Configurações
+    prazo_cookie_dias = Column(Integer, default=30)  # Prazo do cookie de rastreamento
+    minimo_saque = Column(Float, default=50.0)  # Valor mínimo para saque
+    prazo_aprovacao_comissao_dias = Column(Integer, default=7)  # Dias para aprovar comissão
+
+    # Bônus por metas
+    bonus_meta_5_vendas = Column(Float, default=100.0)
+    bonus_meta_10_vendas = Column(Float, default=300.0)
+    bonus_meta_20_vendas = Column(Float, default=1000.0)
+
+    # Status do programa
+    programa_ativo = Column(Boolean, default=True)
+    aceitar_novos_afiliados = Column(Boolean, default=True)
+
+    # Termos
+    termos_uso = Column(Text)
+    politica_pagamento = Column(Text)
+
+    def __repr__(self):
+        return f'<ConfiguracaoAfiliados - Comissão Padrão: {self.comissao_primeira_venda_padrao}%>'
 
 
 # ==================== DATABASE MANAGER ====================

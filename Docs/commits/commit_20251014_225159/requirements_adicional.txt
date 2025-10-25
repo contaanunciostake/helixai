@@ -1,0 +1,4 @@
+# Dependências adicionadas para integração ElevenLabs + Claude API
+# Instalar com: pip install -r requirements_adicional.txt
+
+anthropic>=0.18.0

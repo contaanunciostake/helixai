@@ -1,0 +1,118 @@
+=======================================================
+  COMANDOS RÁPIDOS - Webhook ElevenLabs + Claude API
+=======================================================
+
+📋 INSTALAÇÃO
+-------------
+pip install anthropic
+
+
+⚙️ CONFIGURAR .ENV
+------------------
+Adicione estas linhas ao arquivo .env:
+
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxx
+ELEVENLABS_API_KEY=xi_xxxxxxxxxxxxxxxxxxxxxxxx
+
+
+🚀 INICIAR SERVIDOR
+-------------------
+python run.py
+
+
+🧪 TESTAR WEBHOOK (WINDOWS)
+---------------------------
+# Teste 1: Verificar se está online
+curl http://localhost:5000/api/webhook/elevenlabs
+
+# Teste 2: Simular conversa iniciada
+curl -X POST http://localhost:5000/api/webhook/elevenlabs -H "Content-Type: application/json" -d "{\"event_type\": \"conversation.started\", \"conversation_id\": \"test_123\"}"
+
+# Teste 3: Simular mensagem do usuário
+curl -X POST http://localhost:5000/api/webhook/elevenlabs -H "Content-Type: application/json" -d "{\"event_type\": \"conversation.transcript\", \"conversation_id\": \"test_123\", \"transcript\": \"Quero comprar um carro SUV\"}"
+
+# Teste 4: Simular fim da conversa
+curl -X POST http://localhost:5000/api/webhook/elevenlabs -H "Content-Type: application/json" -d "{\"event_type\": \"conversation.ended\", \"conversation_id\": \"test_123\", \"duration\": 120}"
+
+
+🔙 RESTAURAR VERSÃO ORIGINAL
+-----------------------------
+cp commits\commit_20251014_225159\webhook.py.backup backend\routes\webhook.py
+
+
+📊 VERIFICAR LOGS
+-----------------
+# Durante execução do servidor, os logs aparecem no terminal
+# Procure por:
+# - [CLAUDE-API] para ver processamento Claude
+# - [ELEVENLABS-API] para ver envio de respostas
+# - [HISTÓRICO] para ver gestão de contexto
+# - [ELEVENLABS-WEBHOOK] para eventos recebidos
+
+
+🔍 VERIFICAR INSTALAÇÃO
+-----------------------
+# Verificar se anthropic está instalado
+pip show anthropic
+
+# Verificar sintaxe Python
+python -m py_compile backend\routes\webhook.py
+
+
+📁 ARQUIVOS DO COMMIT
+---------------------
+commits\commit_20251014_225159\
+├── README.md                      # Visão geral
+├── CHANGELOG.md                   # Detalhes técnicos completos
+├── DIFF_SUMMARY.md               # Diff visual antes/depois
+├── GUIA_TESTE.md                 # Guia completo de testes
+├── RESUMO_FINAL.md               # Resumo executivo
+├── COMANDOS_RAPIDOS.txt          # Este arquivo
+├── requirements_adicional.txt     # Dependências
+├── webhook.py.backup             # Versão original
+└── webhook.py.new                # Nova versão
+
+
+⚡ TROUBLESHOOTING RÁPIDO
+-------------------------
+
+Erro: "ModuleNotFoundError: No module named 'anthropic'"
+Solução: pip install anthropic
+
+Erro: "ANTHROPIC_API_KEY não configurada"
+Solução: Adicionar no .env: ANTHROPIC_API_KEY=sk-ant-...
+
+Erro: "ELEVENLABS_API_KEY não configurada"
+Nota: NÃO impede funcionamento do Claude! Apenas não envia resposta.
+
+Webhook não responde:
+1. Verificar se servidor está rodando (python run.py)
+2. Verificar porta: http://localhost:5000
+3. Ver logs no terminal para erros
+
+
+🎯 CONFIGURAR NO ELEVENLABS
+----------------------------
+1. Acesse: https://elevenlabs.io/app/conversational-ai
+2. Configure webhook:
+   - URL: https://seu-dominio.com/api/webhook/elevenlabs
+   - Secret: wsec_af7d8eef98f77d60679a19ad289a53a873a31a0f19ae33ed3173fb3e21234e82
+3. Ative eventos:
+   - conversation.started
+   - conversation.transcript
+   - conversation.ended
+
+
+📞 SUPORTE
+----------
+Ver documentação completa em:
+- GUIA_TESTE.md (testes passo a passo)
+- CHANGELOG.md (detalhes técnicos)
+- DIFF_SUMMARY.md (visualização das mudanças)
+
+
+=======================================================
+Data: 2025-10-14
+Commit: commit_20251014_225159
+Status: ✅ PRONTO PARA USO
+=======================================================

@@ -1,0 +1,113 @@
+================================================================================
+🎯 RESOLVER ERRO 401 - LOGIN DE AFILIADO
+================================================================================
+
+❌ PROBLEMA: Login retorna 401 (Unauthorized) ou 404 (Not Found)
+
+✅ SOLUÇÃO: Reiniciar o backend para carregar o código novo
+
+
+================================================================================
+🚀 OPÇÃO 1: MODO AUTOMÁTICO (RECOMENDADO)
+================================================================================
+
+1. Clique duas vezes em:
+
+   📁 REINICIAR_E_TESTAR.bat
+
+   Este script vai:
+   ✅ Parar o backend antigo
+   ✅ Verificar se o código está correto
+   ✅ Iniciar o backend novo
+   ✅ Testar o login automaticamente
+
+
+================================================================================
+🔧 OPÇÃO 2: MODO MANUAL
+================================================================================
+
+PASSO 1 - Parar Backend:
+   - Vá para o terminal onde o backend está rodando
+   - Pressione Ctrl+C
+   - Ou feche o terminal
+
+PASSO 2 - Reiniciar Backend:
+   Abra PowerShell ou CMD e execute:
+
+   cd D:\Helix\HelixAI\backend
+   python app.py
+
+   AGUARDE aparecer: "Running on http://127.0.0.1:5000"
+
+PASSO 3 - Testar:
+   Em OUTRO terminal:
+
+   cd D:\Helix\HelixAI
+   python testar_login_afiliado.py
+
+   RESULTADO ESPERADO: Status Code 200 ✅
+
+
+================================================================================
+📋 SE AINDA NÃO FUNCIONAR
+================================================================================
+
+1. Abra PowerShell
+2. Execute este comando único (copie e cole):
+
+   Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 2; cd D:\Helix\HelixAI; Start-Process powershell -ArgumentList "-NoExit -Command cd D:\Helix\HelixAI\backend; python app.py"; Start-Sleep 10; python testar_login_afiliado.py
+
+3. Aguarde 10 segundos
+4. Veja o resultado
+
+
+================================================================================
+🎓 O QUE FOI FEITO
+================================================================================
+
+✅ Criado endpoint específico: /api/afiliados/login
+✅ Atualizado frontend para usar novo endpoint
+✅ Adicionada validação de status de afiliado
+✅ Token JWT inclui dados do afiliado
+
+ARQUIVOS MODIFICADOS:
+- backend/routes/afiliados.py (adicionado login)
+- Afiliados_Panel/src/pages/Login.jsx (usa novo endpoint)
+
+
+================================================================================
+✅ RESULTADO ESPERADO
+================================================================================
+
+Quando funcionar, você verá:
+
+============================================================
+TESTANDO LOGIN DE AFILIADO
+============================================================
+[2] Status Code: 200
+✅ [3] LOGIN BEM-SUCEDIDO!
+
+DADOS DO AFILIADO
+Nome: João Silva - Afiliado
+Email: afiliado@teste.com
+Chave: teste2025
+Status: ativo
+
+💰 FINANCEIRO:
+  Saldo Disponível: R$ 149.10
+
+
+================================================================================
+📞 PRECISA DE AJUDA?
+================================================================================
+
+Leia o arquivo detalhado:
+📄 REINICIAR_BACKEND_AGORA.md
+
+Ou me envie a saída completa de:
+python testar_login_afiliado.py
+
+
+================================================================================
+🎉 BOA SORTE!
+================================================================================

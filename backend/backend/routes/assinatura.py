@@ -222,6 +222,216 @@ def historico_pagamentos():
         session.close()
 
 
+@assinatura_bp.route('/processar-pagamento', methods=['POST', 'OPTIONS'])
+def processar_pagamento():
+    """
+    Processa pagamento (PIX ou Cartão) via Checkout Transparente
+
+    Detecta automaticamente o método de pagamento e processa adequadamente
+
+    Body JSON:
+        plano_id: ID do plano escolhido
+        usuario_email: Email do usuário
+        payment_method_id: Método de pagamento (pix, credit_card, etc)
+        payer: Dados do pagador (email, first_name, last_name, identification)
+        token: Token do cartão (obrigatório para cartão, null para PIX)
+        installments: Parcelas (padrão 1)
+        issuer_id: Banco emissor (opcional para cartão, null para PIX)
+        transaction_amount: Valor da transação
+
+    Returns:
+        JSON com resultado do pagamento (QR Code para PIX, status para cartão)
+    """
+    # Handle OPTIONS request for CORS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'success': True}), 200
+
+    try:
+        data = request.get_json()
+
+        print(f"\n[PROCESSAR-PAGAMENTO] Requisição recebida")
+        print(f"[PROCESSAR-PAGAMENTO] Dados: {data}")
+
+        # Extrair dados
+        plano_id = data.get('plano_id')
+        email = data.get('usuario_email') or data.get('payer', {}).get('email')
+        payment_method_id = data.get('payment_method_id')
+        payer = data.get('payer', {})
+        token = data.get('token')
+        installments = data.get('installments', 1)
+        issuer_id = data.get('issuer_id')
+
+        print(f"[PROCESSAR-PAGAMENTO] Plano ID: {plano_id}")
+        print(f"[PROCESSAR-PAGAMENTO] Email: {email}")
+        print(f"[PROCESSAR-PAGAMENTO] Método: {payment_method_id}")
+
+        if not plano_id or not email or not payment_method_id:
+            return jsonify({
+                'success': False,
+                'error': 'plano_id, email e payment_method_id são obrigatórios'
+            }), 400
+
+        # Processar pagamento via serviço
+        result = mp_service.processar_pagamento_direto(
+            plano_id=plano_id,
+            usuario_id=0,  # Temporário - será criado após aprovação
+            email=email,
+            payment_method_id=payment_method_id,
+            token=token,
+            installments=installments,
+            issuer_id=issuer_id,
+            payer=payer
+        )
+
+        if not result.get('success'):
+            print(f"[PROCESSAR-PAGAMENTO] Erro: {result.get('error')}")
+            return jsonify(result), 400
+
+        print(f"[PROCESSAR-PAGAMENTO] Sucesso! Status: {result.get('status')}")
+        print(f"[PROCESSAR-PAGAMENTO] Payment ID: {result.get('payment_id')}")
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[PROCESSAR-PAGAMENTO] Exceção: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assinatura_bp.route('/verificar-pagamento/<payment_id>', methods=['GET'])
+def verificar_pagamento(payment_id):
+    """
+    Verifica o status de um pagamento (alias para /status/pagamento/<id>)
+
+    Returns:
+        JSON com status atual do pagamento
+    """
+    return verificar_status_pagamento(payment_id)
+
+
+@assinatura_bp.route('/pagar/pix', methods=['POST', 'OPTIONS'])
+def pagar_com_pix():
+    """
+    Cria um pagamento PIX via Checkout Transparente
+
+    Body JSON:
+        plano_id: ID do plano escolhido
+        email: Email do pagador
+        nome: Nome do pagador (opcional)
+        cpf: CPF do pagador
+
+    Returns:
+        JSON com QR Code PIX e dados do pagamento
+    """
+    # Handle OPTIONS request for CORS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'success': True}), 200
+
+    try:
+        data = request.get_json()
+        plano_id = data.get('plano_id')
+        email = data.get('email')
+        nome = data.get('nome', '')
+        cpf = data.get('cpf', '')
+
+        print(f"\n[PIX] Criando pagamento PIX...")
+        print(f"[PIX] Plano ID: {plano_id}")
+        print(f"[PIX] Email: {email}")
+
+        if not plano_id or not email:
+            return jsonify({
+                'success': False,
+                'error': 'plano_id e email são obrigatórios'
+            }), 400
+
+        # Processar pagamento PIX
+        result = mp_service.processar_pagamento_direto(
+            plano_id=plano_id,
+            usuario_id=0,  # Temporário - será criado após aprovação
+            email=email,
+            payment_method_id='pix',
+            token=None,  # PIX não precisa de token de cartão
+            installments=1,
+            issuer_id=None,
+            payer={
+                'email': email,
+                'first_name': nome.split()[0] if nome else email.split('@')[0],
+                'last_name': nome.split()[-1] if nome and len(nome.split()) > 1 else '',
+                'identification': {
+                    'type': 'CPF',
+                    'number': cpf
+                } if cpf else {}
+            }
+        )
+
+        if not result.get('success'):
+            print(f"[PIX] Erro ao criar pagamento: {result.get('error')}")
+            return jsonify(result), 400
+
+        print(f"[PIX] Pagamento criado com sucesso!")
+        print(f"[PIX] Status: {result.get('status')}")
+        print(f"[PIX] Payment ID: {result.get('payment_id')}")
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[PIX] Erro: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assinatura_bp.route('/status/pagamento/<payment_id>', methods=['GET'])
+def verificar_status_pagamento(payment_id):
+    """
+    Verifica o status de um pagamento específico
+
+    Returns:
+        JSON com status atual do pagamento
+    """
+    try:
+        print(f"\n[STATUS] Verificando status do pagamento: {payment_id}")
+
+        if not mp_service.sdk:
+            return jsonify({
+                'success': False,
+                'error': 'SDK do Mercado Pago não disponível'
+            }), 503
+
+        # Buscar informações do pagamento na API do Mercado Pago
+        payment_info = mp_service.sdk.payment().get(payment_id)
+        payment = payment_info.get('response', {})
+
+        if not payment:
+            return jsonify({
+                'success': False,
+                'error': 'Pagamento não encontrado'
+            }), 404
+
+        print(f"[STATUS] Payment ID: {payment_id}")
+        print(f"[STATUS] Status: {payment.get('status')}")
+        print(f"[STATUS] Status Detail: {payment.get('status_detail')}")
+
+        return jsonify({
+            'success': True,
+            'payment_id': payment_id,
+            'status': payment.get('status'),
+            'status_detail': payment.get('status_detail'),
+            'transaction_amount': payment.get('transaction_amount'),
+            'payment_method_id': payment.get('payment_method_id'),
+            'date_created': payment.get('date_created'),
+            'date_approved': payment.get('date_approved')
+        })
+
+    except Exception as e:
+        print(f"[STATUS] Erro: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @assinatura_bp.route('/test', methods=['GET'])
 def test_integracao():
     """
