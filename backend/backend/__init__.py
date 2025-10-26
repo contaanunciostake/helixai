@@ -119,13 +119,6 @@ def after_request(response):
     return response
 
 
-# Health check route para Render.com
-@app.route('/health')
-def health_check():
-    """Health check endpoint para monitoramento do Render"""
-    return {'status': 'healthy', 'service': 'helixai-backend'}, 200
-
-
 # Importar rotas
 from backend.routes import auth, dashboard, leads, conversas, campanhas, admin, api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos, dashboard_api, assinatura
 
@@ -146,3 +139,10 @@ app.register_blueprint(webhook.webhook_bp)
 app.register_blueprint(robo_disparador.robo_bp)
 app.register_blueprint(veiculos.veiculos_bp)
 app.register_blueprint(assinatura.assinatura_bp)  # Sistema de Assinaturas
+
+
+# Health check route para Render.com (DEPOIS dos blueprints)
+@app.route('/health')
+def health_check():
+    """Health check endpoint para monitoramento do Render"""
+    return {'status': 'healthy', 'service': 'helixai-backend'}, 200
