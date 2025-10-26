@@ -30,19 +30,26 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///../
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # CORS - Configuração completa para suportar credentials
+allowed_origins = [
+    # Local development
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:5177",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:4000",
+    # Production domains
+    "https://helixai-landing.onrender.com",
+    "https://helixai-admin.onrender.com",
+    "https://helixai-client.onrender.com",
+]
+
 CORS(app,
      resources={
          r"/*": {
-             "origins": [
-                 "http://localhost:5173",
-                 "http://localhost:5174",
-                 "http://localhost:5175",
-                 "http://localhost:5176",
-                 "http://localhost:5177",
-                 "http://localhost:3000",
-                 "http://localhost:3001",
-                 "http://localhost:4000"
-             ],
+             "origins": allowed_origins,
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
              "allow_headers": ["Content-Type", "Authorization", "X-API-Key"],
              "supports_credentials": True
