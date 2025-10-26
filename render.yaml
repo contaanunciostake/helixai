@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: helixai-landing
+    env: static
+    buildCommand: cd AIra_Landing && npm install && npm run build
+    staticPublishPath: AIra_Landing/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
