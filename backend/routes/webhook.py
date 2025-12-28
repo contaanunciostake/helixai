@@ -1350,3 +1350,375 @@ def agendar_visita():
         }), 200
     finally:
         session.close()
+
+
+# ==========================================
+# WEBHOOK MERCADO PAGO
+# ==========================================
+
+@webhook_bp.route('/mercadopago', methods=['GET', 'POST'])
+def webhook_mercadopago():
+    """
+    Webhook para notificações do Mercado Pago
+
+    Eventos processados:
+    - payment (pagamento aprovado/rejeitado/pendente)
+    - subscription_preapproval (assinatura)
+    - subscription_authorized_payment (cobrança recorrente)
+
+    Documentação: https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks
+
+    IMPORTANTE: Sempre retorna 200 para evitar reenvios infinitos do MP
+    """
+    # GET = Health check do Mercado Pago
+    if request.method == 'GET':
+        return jsonify({
+            'status': 'online',
+            'service': 'MercadoPago Webhook VendeFacil',
+            'message': 'Webhook ativo e pronto para receber notificações',
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+
+    session = db_manager.get_session()
+
+    try:
+        # Pegar dados do webhook
+        data = request.get_json() or {}
+        query_params = request.args.to_dict()
+
+        print(f"\n{'='*60}")
+        print(f"[MERCADOPAGO WEBHOOK] Notificação recebida")
+        print(f"{'='*60}")
+        print(f"Query Params: {query_params}")
+        print(f"Body: {json.dumps(data, indent=2)}")
+        print(f"Headers: {dict(request.headers)}")
+
+        # Tipo de notificação (pode vir de query param ou body)
+        topic = query_params.get('topic') or query_params.get('type') or data.get('type') or data.get('action')
+        resource_id = query_params.get('id') or data.get('data', {}).get('id')
+
+        # Para notificações v2 do MP
+        if data.get('action'):
+            topic = data.get('action')  # Ex: payment.updated, payment.created
+            resource_id = data.get('data', {}).get('id')
+
+        print(f"[MERCADOPAGO WEBHOOK] Topic/Action: {topic}")
+        print(f"[MERCADOPAGO WEBHOOK] Resource ID: {resource_id}")
+
+        # Se não tiver resource_id, retornar OK (pode ser teste do MP)
+        if not resource_id:
+            print(f"[MERCADOPAGO WEBHOOK] Sem resource_id - provavelmente teste de conexão")
+            return jsonify({
+                'success': True,
+                'message': 'Webhook recebido (sem resource_id)',
+                'topic': topic
+            }), 200
+
+        # Processar baseado no tipo de evento
+        if topic in ['payment', 'payment.created', 'payment.updated']:
+            processar_pagamento_mercadopago(resource_id, session)
+
+        elif topic == 'merchant_order':
+            print(f"[MERCADOPAGO WEBHOOK] Merchant Order recebida: {resource_id}")
+            # Merchant orders podem conter múltiplos pagamentos
+            processar_merchant_order_mercadopago(resource_id, session)
+
+        elif topic == 'subscription_preapproval':
+            print(f"[MERCADOPAGO WEBHOOK] Assinatura recorrente: {resource_id}")
+            # TODO: Implementar lógica de assinatura recorrente
+
+        elif topic == 'subscription_authorized_payment':
+            print(f"[MERCADOPAGO WEBHOOK] Cobrança recorrente autorizada: {resource_id}")
+            # TODO: Implementar lógica de renovação automática
+
+        else:
+            print(f"[MERCADOPAGO WEBHOOK] Evento não tratado: {topic}")
+
+        session.commit()
+
+        # SEMPRE retornar 200 (mesmo com erros internos para evitar reenvios)
+        return jsonify({
+            'success': True,
+            'message': 'Webhook processado com sucesso',
+            'topic': topic,
+            'resource_id': resource_id
+        }), 200
+
+    except Exception as e:
+        session.rollback()
+        print(f"[MERCADOPAGO WEBHOOK] ERRO: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+        # IMPORTANTE: Retornar 200 mesmo com erro (evita reenvios infinitos do MP)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Erro ao processar, mas retornando 200 para evitar reenvio'
+        }), 200
+
+    finally:
+        session.close()
+
+
+def processar_pagamento_mercadopago(payment_id: str, session):
+    """
+    Processa notificação de pagamento do Mercado Pago
+
+    Args:
+        payment_id: ID do pagamento no Mercado Pago
+        session: Sessão do banco de dados
+    """
+    try:
+        import mercadopago
+
+        # Inicializar SDK do Mercado Pago
+        access_token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
+        if not access_token:
+            print(f"[MERCADOPAGO] ERRO: MERCADOPAGO_ACCESS_TOKEN não configurado!")
+            return
+
+        sdk = mercadopago.SDK(access_token)
+
+        # Buscar detalhes do pagamento na API do Mercado Pago
+        print(f"[MERCADOPAGO] Buscando detalhes do pagamento {payment_id}...")
+        payment_info = sdk.payment().get(payment_id)
+        payment = payment_info.get('response', {})
+
+        if not payment:
+            print(f"[MERCADOPAGO] Pagamento {payment_id} não encontrado na API")
+            return
+
+        # Extrair informações do pagamento
+        status = payment.get('status')
+        status_detail = payment.get('status_detail')
+        transaction_amount = payment.get('transaction_amount', 0)
+        payment_method_id = payment.get('payment_method_id')
+        payer_email = payment.get('payer', {}).get('email')
+        external_reference = payment.get('external_reference', '')
+        metadata = payment.get('metadata', {})
+        date_approved = payment.get('date_approved')
+
+        print(f"[MERCADOPAGO] Pagamento {payment_id}:")
+        print(f"  Status: {status}")
+        print(f"  Status Detail: {status_detail}")
+        print(f"  Valor: R$ {transaction_amount}")
+        print(f"  Método: {payment_method_id}")
+        print(f"  Email: {payer_email}")
+        print(f"  External Reference: {external_reference}")
+        print(f"  Metadata: {metadata}")
+
+        # Tentar identificar usuário/plano pelos metadados ou external_reference
+        usuario_id = metadata.get('usuario_id')
+        plano_id = metadata.get('plano_id')
+
+        # Se não tiver nos metadados, tentar extrair do external_reference
+        # Formato esperado: "usuario_123_plano_456"
+        if not usuario_id and external_reference:
+            import re
+            match = re.search(r'usuario_(\d+)', external_reference)
+            if match:
+                usuario_id = int(match.group(1))
+            match = re.search(r'plano_(\d+)', external_reference)
+            if match:
+                plano_id = int(match.group(1))
+
+        # Verificar se já existe registro deste pagamento
+        from sqlalchemy import text
+
+        pagamento_existente = session.execute(text("""
+            SELECT id FROM pagamentos WHERE mercadopago_payment_id = :payment_id
+        """), {'payment_id': str(payment_id)}).fetchone()
+
+        if pagamento_existente:
+            # Atualizar pagamento existente
+            print(f"[MERCADOPAGO] Atualizando pagamento existente...")
+            session.execute(text("""
+                UPDATE pagamentos
+                SET status = :status,
+                    data_pagamento = :data_pagamento,
+                    webhook_data = :webhook_data,
+                    atualizado_em = :agora
+                WHERE mercadopago_payment_id = :payment_id
+            """), {
+                'status': status,
+                'data_pagamento': date_approved,
+                'webhook_data': json.dumps(payment),
+                'agora': datetime.utcnow(),
+                'payment_id': str(payment_id)
+            })
+        else:
+            # Criar novo registro de pagamento
+            print(f"[MERCADOPAGO] Criando novo registro de pagamento...")
+            session.execute(text("""
+                INSERT INTO pagamentos
+                (usuario_id, mercadopago_payment_id, tipo, status, valor,
+                 metodo_pagamento, descricao, data_pagamento, webhook_data, criado_em)
+                VALUES
+                (:usuario_id, :payment_id, 'subscription', :status, :valor,
+                 :metodo, :descricao, :data_pagamento, :webhook_data, :criado_em)
+            """), {
+                'usuario_id': usuario_id or 0,
+                'payment_id': str(payment_id),
+                'status': status,
+                'valor': transaction_amount,
+                'metodo': payment_method_id,
+                'descricao': f"Pagamento via {payment_method_id}",
+                'data_pagamento': date_approved,
+                'webhook_data': json.dumps(payment),
+                'criado_em': datetime.utcnow()
+            })
+
+        # Se pagamento aprovado, ativar/atualizar assinatura
+        if status == 'approved':
+            print(f"[MERCADOPAGO] Pagamento APROVADO! Ativando assinatura...")
+            ativar_assinatura_usuario(usuario_id, plano_id, payment_id, session)
+
+        elif status == 'pending':
+            print(f"[MERCADOPAGO] Pagamento PENDENTE - aguardando confirmação")
+
+        elif status == 'rejected':
+            print(f"[MERCADOPAGO] Pagamento REJEITADO - motivo: {status_detail}")
+
+        elif status == 'cancelled':
+            print(f"[MERCADOPAGO] Pagamento CANCELADO")
+
+        print(f"[MERCADOPAGO] Processamento concluído para pagamento {payment_id}")
+
+    except Exception as e:
+        print(f"[MERCADOPAGO] Erro ao processar pagamento: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
+def processar_merchant_order_mercadopago(order_id: str, session):
+    """
+    Processa notificação de merchant order do Mercado Pago
+    Merchant orders podem conter múltiplos pagamentos
+
+    Args:
+        order_id: ID da merchant order
+        session: Sessão do banco de dados
+    """
+    try:
+        import mercadopago
+
+        access_token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
+        if not access_token:
+            print(f"[MERCADOPAGO] ERRO: MERCADOPAGO_ACCESS_TOKEN não configurado!")
+            return
+
+        sdk = mercadopago.SDK(access_token)
+
+        # Buscar detalhes da merchant order
+        print(f"[MERCADOPAGO] Buscando detalhes da merchant order {order_id}...")
+        order_info = sdk.merchant_order().get(order_id)
+        order = order_info.get('response', {})
+
+        if not order:
+            print(f"[MERCADOPAGO] Merchant Order {order_id} não encontrada")
+            return
+
+        # Processar cada pagamento da ordem
+        payments = order.get('payments', [])
+        print(f"[MERCADOPAGO] Merchant Order {order_id} contém {len(payments)} pagamento(s)")
+
+        for payment in payments:
+            payment_id = payment.get('id')
+            if payment_id:
+                processar_pagamento_mercadopago(str(payment_id), session)
+
+    except Exception as e:
+        print(f"[MERCADOPAGO] Erro ao processar merchant order: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
+def ativar_assinatura_usuario(usuario_id: int, plano_id: int, payment_id: str, session):
+    """
+    Ativa ou atualiza a assinatura do usuário após pagamento aprovado
+
+    Args:
+        usuario_id: ID do usuário
+        plano_id: ID do plano
+        payment_id: ID do pagamento no Mercado Pago
+        session: Sessão do banco de dados
+    """
+    try:
+        from sqlalchemy import text
+        from dateutil.relativedelta import relativedelta
+
+        if not usuario_id:
+            print(f"[MERCADOPAGO] Não foi possível identificar o usuário para ativar assinatura")
+            return
+
+        # Calcular datas
+        data_inicio = datetime.utcnow()
+        data_fim = data_inicio + relativedelta(months=1)
+        proximo_pagamento = data_fim
+
+        # Verificar se existe assinatura pendente
+        assinatura_pendente = session.execute(text("""
+            SELECT id FROM assinaturas
+            WHERE usuario_id = :usuario_id AND status = 'pending'
+            ORDER BY criado_em DESC LIMIT 1
+        """), {'usuario_id': usuario_id}).fetchone()
+
+        if assinatura_pendente:
+            # Atualizar assinatura pendente para ativa
+            print(f"[MERCADOPAGO] Ativando assinatura pendente ID {assinatura_pendente.id}")
+            session.execute(text("""
+                UPDATE assinaturas
+                SET status = 'active',
+                    data_inicio = :data_inicio,
+                    data_fim = :data_fim,
+                    proximo_pagamento = :proximo_pagamento,
+                    mercadopago_subscription_id = :payment_id,
+                    atualizado_em = :agora
+                WHERE id = :id
+            """), {
+                'data_inicio': data_inicio,
+                'data_fim': data_fim,
+                'proximo_pagamento': proximo_pagamento,
+                'payment_id': str(payment_id),
+                'agora': datetime.utcnow(),
+                'id': assinatura_pendente.id
+            })
+        else:
+            # Criar nova assinatura ativa
+            print(f"[MERCADOPAGO] Criando nova assinatura ativa para usuário {usuario_id}")
+            session.execute(text("""
+                INSERT INTO assinaturas
+                (usuario_id, plano_id, status, data_inicio, data_fim,
+                 proximo_pagamento, mercadopago_subscription_id, criado_em)
+                VALUES
+                (:usuario_id, :plano_id, 'active', :data_inicio, :data_fim,
+                 :proximo_pagamento, :payment_id, :criado_em)
+            """), {
+                'usuario_id': usuario_id,
+                'plano_id': plano_id or 1,  # Plano padrão se não especificado
+                'data_inicio': data_inicio,
+                'data_fim': data_fim,
+                'proximo_pagamento': proximo_pagamento,
+                'payment_id': str(payment_id),
+                'criado_em': datetime.utcnow()
+            })
+
+        # Atualizar empresa do usuário (se existir)
+        session.execute(text("""
+            UPDATE empresas e
+            SET plano_ativo = true,
+                atualizado_em = :agora
+            FROM usuarios u
+            WHERE u.empresa_id = e.id AND u.id = :usuario_id
+        """), {
+            'agora': datetime.utcnow(),
+            'usuario_id': usuario_id
+        })
+
+        print(f"[MERCADOPAGO] Assinatura ativada com sucesso para usuário {usuario_id}!")
+
+    except Exception as e:
+        print(f"[MERCADOPAGO] Erro ao ativar assinatura: {str(e)}")
+        import traceback
+        traceback.print_exc()
