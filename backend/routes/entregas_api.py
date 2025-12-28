@@ -1,11 +1,21 @@
 """
 API REST para Gestao de Entregas - CRM Cliente
 Endpoints JSON para CRUD de entregas e entregadores
+Compativel com SQLite (dev) e PostgreSQL (producao)
 """
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
+from sqlalchemy import text
 import json
+import os
+
+# Importar db_manager do backend
+try:
+    from backend import db_manager
+except ImportError:
+    from database.models import DatabaseManager
+    db_manager = DatabaseManager('sqlite:///vendeai.db')
 
 entregas_api_bp = Blueprint('entregas_api', __name__, url_prefix='/api/entregas')
 
@@ -24,20 +34,20 @@ print('[ENTREGAS API]   POST /api/entregas/entregadores')
 print('============================================================\n')
 
 
-def get_db_connection():
-    """Obter conexao SQLite"""
-    import sqlite3
-    from pathlib import Path
-    db_path = Path(__file__).parent.parent / 'vendeai.db'
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
 def get_empresa_id():
     """Obter ID da empresa do request"""
     empresa_id = request.headers.get('X-Empresa-ID') or request.args.get('empresa_id')
     return int(empresa_id) if empresa_id else None
+
+
+def row_to_dict(row, keys):
+    """Converter Row para dicionario"""
+    if hasattr(row, '_mapping'):
+        return dict(row._mapping)
+    elif hasattr(row, 'keys'):
+        return dict(row)
+    else:
+        return dict(zip(keys, row))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -49,15 +59,13 @@ def get_empresa_id():
 def listar_entregas():
     """
     GET /api/entregas?empresa_id=X&status=pendente&page=1&limit=20
-    Lista entregas com filtros e paginacao (SQLite)
+    Lista entregas com filtros e paginacao
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa nao identificada'}), 400
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
 
         # Parametros de filtro
         status = request.args.get('status', '').strip()
@@ -68,61 +76,51 @@ def listar_entregas():
         limit = int(request.args.get('limit', 20))
         offset = (page - 1) * limit
 
-        # Query base (SQLite usa ? como placeholder)
-        query = '''
-            SELECT e.*
-            FROM entregas e
-            WHERE e.empresa_id = ?
-        '''
-        params = [empresa_id]
+        # Query base
+        query = "SELECT * FROM entregas WHERE empresa_id = :empresa_id"
+        params = {'empresa_id': empresa_id}
 
         # Filtros
         if status:
-            query += ' AND e.status = ?'
-            params.append(status)
+            query += ' AND status = :status'
+            params['status'] = status
 
         if entregador_id:
-            query += ' AND e.entregador_id = ?'
-            params.append(int(entregador_id))
+            query += ' AND entregador_id = :entregador_id'
+            params['entregador_id'] = int(entregador_id)
 
         if data_inicio:
-            query += ' AND DATE(e.criado_em) >= ?'
-            params.append(data_inicio)
+            query += ' AND DATE(criado_em) >= :data_inicio'
+            params['data_inicio'] = data_inicio
 
         if data_fim:
-            query += ' AND DATE(e.criado_em) <= ?'
-            params.append(data_fim)
+            query += ' AND DATE(criado_em) <= :data_fim'
+            params['data_fim'] = data_fim
 
         # Contar total
-        count_query = f"SELECT COUNT(*) as total FROM entregas e WHERE e.empresa_id = ?"
-        count_params = [empresa_id]
+        count_query = "SELECT COUNT(*) as total FROM entregas WHERE empresa_id = :empresa_id"
+        count_params = {'empresa_id': empresa_id}
         if status:
-            count_query += ' AND e.status = ?'
-            count_params.append(status)
-        cursor.execute(count_query, count_params)
-        row = cursor.fetchone()
-        total = row['total'] if row else 0
+            count_query += ' AND status = :status'
+            count_params['status'] = status
+        result = session.execute(text(count_query), count_params)
+        total = result.fetchone()[0]
 
         # Ordenar e paginar
-        query += ' ORDER BY e.criado_em DESC LIMIT ? OFFSET ?'
-        params.extend([limit, offset])
+        query += ' ORDER BY criado_em DESC LIMIT :limit OFFSET :offset'
+        params['limit'] = limit
+        params['offset'] = offset
 
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
+        result = session.execute(text(query), params)
+        rows = result.fetchall()
 
         # Converter rows para lista de dicts
         entregas = []
-        for row in rows:
-            entrega = dict(row)
-            # Formatar datas para JSON
-            for key, value in entrega.items():
-                if isinstance(value, datetime):
-                    entrega[key] = value.isoformat()
-                elif value and key.endswith('_em') and isinstance(value, str):
-                    pass  # Ja e string
-            entregas.append(entrega)
-
-        conn.close()
+        if rows:
+            keys = result.keys()
+            for row in rows:
+                entrega = row_to_dict(row, keys)
+                entregas.append(entrega)
 
         return jsonify({
             'success': True,
@@ -132,7 +130,7 @@ def listar_entregas():
                     'page': page,
                     'limit': limit,
                     'total': total,
-                    'pages': (total + limit - 1) // limit
+                    'pages': (total + limit - 1) // limit if limit else 1
                 }
             }
         })
@@ -140,48 +138,48 @@ def listar_entregas():
     except Exception as e:
         print(f'[ENTREGAS-API] Erro ao listar entregas: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/<int:entrega_id>', methods=['GET'])
 def obter_entrega(entrega_id):
     """
     GET /api/entregas/:id
-    Obter detalhes de uma entrega (SQLite)
+    Obter detalhes de uma entrega
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa nao identificada'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        query = text('''
             SELECT e.*,
                    ent.nome as entregador_nome,
                    ent.telefone as entregador_telefone,
-                   ent.whatsapp as entregador_whatsapp,
                    ent.tipo_veiculo as entregador_veiculo,
                    ent.placa_veiculo as entregador_placa
             FROM entregas e
             LEFT JOIN entregadores ent ON e.entregador_id = ent.id
-            WHERE e.id = ? AND e.empresa_id = ?
-        ''', (entrega_id, empresa_id))
+            WHERE e.id = :entrega_id AND e.empresa_id = :empresa_id
+        ''')
 
-        row = cursor.fetchone()
+        result = session.execute(query, {'entrega_id': entrega_id, 'empresa_id': empresa_id})
+        row = result.fetchone()
 
         if not row:
-            conn.close()
             return jsonify({'success': False, 'error': 'Entrega nao encontrada'}), 404
 
-        entrega = dict(row)
-        conn.close()
+        entrega = row_to_dict(row, result.keys())
 
         return jsonify({'success': True, 'data': entrega})
 
     except Exception as e:
         print(f'[ENTREGAS-API] Erro ao obter entrega: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/', methods=['POST'])
@@ -189,8 +187,9 @@ def obter_entrega(entrega_id):
 def criar_entrega():
     """
     POST /api/entregas
-    Criar nova entrega (SQLite)
+    Criar nova entrega
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
@@ -200,60 +199,58 @@ def criar_entrega():
         if not data:
             return jsonify({'success': False, 'error': 'Dados nao fornecidos'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        query = text('''
             INSERT INTO entregas (
                 empresa_id, pedido_id, cliente_id, entregador_id,
                 cliente_nome, cliente_telefone, cliente_whatsapp,
-                endereco, numero, complemento, bairro, cidade, estado, cep, ponto_referencia,
-                descricao_itens, quantidade_volumes, peso_total, valor_pedido, valor_frete,
-                forma_pagamento, troco_para, status, prioridade, data_agendada, hora_agendada,
+                endereco_entrega, numero, complemento, bairro, cidade, estado, cep, ponto_referencia,
+                descricao_itens, valor_pedido, valor_frete,
+                forma_pagamento, status, prioridade, data_agendada, hora_agendada,
                 observacoes, origem, conversa_id
             ) VALUES (
-                ?, ?, ?, ?,
-                ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?,
-                ?, ?, ?
+                :empresa_id, :pedido_id, :cliente_id, :entregador_id,
+                :cliente_nome, :cliente_telefone, :cliente_whatsapp,
+                :endereco_entrega, :numero, :complemento, :bairro, :cidade, :estado, :cep, :ponto_referencia,
+                :descricao_itens, :valor_pedido, :valor_frete,
+                :forma_pagamento, :status, :prioridade, :data_agendada, :hora_agendada,
+                :observacoes, :origem, :conversa_id
             )
-        ''', (
-            empresa_id,
-            data.get('pedido_id'),
-            data.get('cliente_id'),
-            data.get('entregador_id'),
-            data.get('cliente_nome', ''),
-            data.get('cliente_telefone', ''),
-            data.get('cliente_whatsapp', ''),
-            data.get('endereco', ''),
-            data.get('numero', ''),
-            data.get('complemento', ''),
-            data.get('bairro', ''),
-            data.get('cidade', ''),
-            data.get('estado', ''),
-            data.get('cep', ''),
-            data.get('ponto_referencia', ''),
-            data.get('descricao_itens', ''),
-            data.get('quantidade_volumes', 1),
-            data.get('peso_total'),
-            data.get('valor_pedido'),
-            data.get('valor_frete', 0),
-            data.get('forma_pagamento', 'pago'),
-            data.get('troco_para'),
-            data.get('status', 'pendente'),
-            data.get('prioridade', 'normal'),
-            data.get('data_agendada'),
-            data.get('hora_agendada'),
-            data.get('observacoes', ''),
-            data.get('origem', 'manual'),
-            data.get('conversa_id')
-        ))
+        ''')
 
-        conn.commit()
-        entrega_id = cursor.lastrowid
-        conn.close()
+        session.execute(query, {
+            'empresa_id': empresa_id,
+            'pedido_id': data.get('pedido_id'),
+            'cliente_id': data.get('cliente_id'),
+            'entregador_id': data.get('entregador_id'),
+            'cliente_nome': data.get('cliente_nome', ''),
+            'cliente_telefone': data.get('cliente_telefone', ''),
+            'cliente_whatsapp': data.get('cliente_whatsapp', ''),
+            'endereco_entrega': data.get('endereco', data.get('endereco_entrega', '')),
+            'numero': data.get('numero', ''),
+            'complemento': data.get('complemento', ''),
+            'bairro': data.get('bairro', ''),
+            'cidade': data.get('cidade', ''),
+            'estado': data.get('estado', ''),
+            'cep': data.get('cep', ''),
+            'ponto_referencia': data.get('ponto_referencia', ''),
+            'descricao_itens': data.get('descricao_itens', ''),
+            'valor_pedido': data.get('valor_pedido'),
+            'valor_frete': data.get('valor_frete', 0),
+            'forma_pagamento': data.get('forma_pagamento', 'pago'),
+            'status': data.get('status', 'pendente'),
+            'prioridade': data.get('prioridade', 'normal'),
+            'data_agendada': data.get('data_agendada'),
+            'hora_agendada': data.get('hora_agendada'),
+            'observacoes': data.get('observacoes', ''),
+            'origem': data.get('origem', 'manual'),
+            'conversa_id': data.get('conversa_id')
+        })
+
+        session.commit()
+
+        # Obter ID inserido (PostgreSQL e SQLite tem sintaxes diferentes)
+        result = session.execute(text("SELECT lastval()")) if 'postgresql' in str(db_manager.engine.url) else session.execute(text("SELECT last_insert_rowid()"))
+        entrega_id = result.fetchone()[0]
 
         return jsonify({
             'success': True,
@@ -262,16 +259,20 @@ def criar_entrega():
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao criar entrega: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/<int:entrega_id>', methods=['PUT'])
 def atualizar_entrega(entrega_id):
     """
     PUT /api/entregas/:id
-    Atualizar entrega existente (SQLite)
+    Atualizar entrega existente
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
@@ -281,56 +282,39 @@ def atualizar_entrega(entrega_id):
         if not data:
             return jsonify({'success': False, 'error': 'Dados nao fornecidos'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
         # Construir query dinamica
         campos = []
-        valores = []
+        params = {'entrega_id': entrega_id, 'empresa_id': empresa_id}
 
         campos_permitidos = [
             'entregador_id', 'cliente_nome', 'cliente_telefone', 'cliente_whatsapp',
-            'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'estado', 'cep',
-            'ponto_referencia', 'descricao_itens', 'quantidade_volumes', 'peso_total',
-            'valor_pedido', 'valor_frete', 'forma_pagamento', 'troco_para',
+            'endereco_entrega', 'numero', 'complemento', 'bairro', 'cidade', 'estado', 'cep',
+            'ponto_referencia', 'descricao_itens',
+            'valor_pedido', 'valor_frete', 'forma_pagamento',
             'status', 'prioridade', 'data_agendada', 'hora_agendada',
-            'observacoes', 'motivo_cancelamento', 'foto_comprovante',
-            'avaliacao_cliente', 'comentario_cliente'
+            'observacoes'
         ]
 
         for campo in campos_permitidos:
             if campo in data:
-                campos.append(f'{campo} = ?')
-                valores.append(data[campo])
+                campos.append(f'{campo} = :{campo}')
+                params[campo] = data[campo]
 
         # Atualizar timestamps baseado no status
         if 'status' in data:
-            if data['status'] == 'aguardando_coleta':
-                campos.append('data_coleta = ?')
-                valores.append(datetime.now().isoformat())
-            elif data['status'] == 'em_transito':
-                campos.append('data_saida = ?')
-                valores.append(datetime.now().isoformat())
-            elif data['status'] == 'entregue':
-                campos.append('data_entrega = ?')
-                valores.append(datetime.now().isoformat())
-            elif data['status'] == 'cancelada':
-                campos.append('data_cancelamento = ?')
-                valores.append(datetime.now().isoformat())
+            if data['status'] == 'entregue':
+                campos.append('data_entrega = :data_entrega')
+                params['data_entrega'] = datetime.now()
 
         if not campos:
-            conn.close()
             return jsonify({'success': False, 'error': 'Nenhum campo para atualizar'}), 400
 
-        query = f"UPDATE entregas SET {', '.join(campos)} WHERE id = ? AND empresa_id = ?"
-        valores.extend([entrega_id, empresa_id])
+        query = text(f"UPDATE entregas SET {', '.join(campos)} WHERE id = :entrega_id AND empresa_id = :empresa_id")
 
-        cursor.execute(query, valores)
-        conn.commit()
-        rowcount = cursor.rowcount
-        conn.close()
+        result = session.execute(query, params)
+        session.commit()
 
-        if rowcount == 0:
+        if result.rowcount == 0:
             return jsonify({'success': False, 'error': 'Entrega nao encontrada'}), 404
 
         return jsonify({
@@ -339,33 +323,32 @@ def atualizar_entrega(entrega_id):
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao atualizar entrega: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/<int:entrega_id>', methods=['DELETE'])
 def deletar_entrega(entrega_id):
     """
     DELETE /api/entregas/:id
-    Deletar entrega (SQLite)
+    Deletar entrega
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa nao identificada'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            'DELETE FROM entregas WHERE id = ? AND empresa_id = ?',
-            (entrega_id, empresa_id)
+        result = session.execute(
+            text('DELETE FROM entregas WHERE id = :entrega_id AND empresa_id = :empresa_id'),
+            {'entrega_id': entrega_id, 'empresa_id': empresa_id}
         )
-        conn.commit()
-        rowcount = cursor.rowcount
-        conn.close()
+        session.commit()
 
-        if rowcount == 0:
+        if result.rowcount == 0:
             return jsonify({'success': False, 'error': 'Entrega nao encontrada'}), 404
 
         return jsonify({
@@ -374,8 +357,11 @@ def deletar_entrega(entrega_id):
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao deletar entrega: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -386,77 +372,57 @@ def deletar_entrega(entrega_id):
 def estatisticas_entregas():
     """
     GET /api/entregas/stats?empresa_id=X
-    Estatisticas de entregas (SQLite)
+    Estatisticas de entregas
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa nao identificada'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
         hoje = datetime.now().strftime('%Y-%m-%d')
-        mes_atual = datetime.now().strftime('%Y-%m')
 
         # Total por status
-        cursor.execute('''
+        result = session.execute(text('''
             SELECT status, COUNT(*) as quantidade
             FROM entregas
-            WHERE empresa_id = ?
+            WHERE empresa_id = :empresa_id
             GROUP BY status
-        ''', (empresa_id,))
-        rows = cursor.fetchall()
-        por_status = {row['status']: row['quantidade'] for row in rows if row['status']}
+        '''), {'empresa_id': empresa_id})
+        rows = result.fetchall()
+        por_status = {row[0]: row[1] for row in rows if row[0]}
 
         # Total de hoje
-        cursor.execute('''
+        result = session.execute(text('''
             SELECT COUNT(*) as total
             FROM entregas
-            WHERE empresa_id = ? AND DATE(criado_em) = ?
-        ''', (empresa_id, hoje))
-        row = cursor.fetchone()
-        hoje_total = row['total'] if row else 0
+            WHERE empresa_id = :empresa_id AND DATE(criado_em) = :hoje
+        '''), {'empresa_id': empresa_id, 'hoje': hoje})
+        hoje_total = result.fetchone()[0] or 0
 
         # Entregas pendentes
-        cursor.execute('''
+        result = session.execute(text('''
             SELECT COUNT(*) as total
             FROM entregas
-            WHERE empresa_id = ? AND status IN ('pendente', 'aguardando_coleta')
-        ''', (empresa_id,))
-        row = cursor.fetchone()
-        pendentes = row['total'] if row else 0
+            WHERE empresa_id = :empresa_id AND status IN ('pendente', 'aguardando_coleta')
+        '''), {'empresa_id': empresa_id})
+        pendentes = result.fetchone()[0] or 0
 
         # Em transito
-        cursor.execute('''
+        result = session.execute(text('''
             SELECT COUNT(*) as total
             FROM entregas
-            WHERE empresa_id = ? AND status = 'em_transito'
-        ''', (empresa_id,))
-        row = cursor.fetchone()
-        em_transito = row['total'] if row else 0
+            WHERE empresa_id = :empresa_id AND status = 'em_transito'
+        '''), {'empresa_id': empresa_id})
+        em_transito = result.fetchone()[0] or 0
 
         # Entregues hoje
-        cursor.execute('''
+        result = session.execute(text('''
             SELECT COUNT(*) as total
             FROM entregas
-            WHERE empresa_id = ? AND status = 'entregue' AND DATE(data_entrega) = ?
-        ''', (empresa_id, hoje))
-        row = cursor.fetchone()
-        entregues_hoje = row['total'] if row else 0
-
-        # Valor total do mes (SQLite: strftime para extrair ano-mes)
-        cursor.execute('''
-            SELECT COALESCE(SUM(valor_pedido), 0) as total
-            FROM entregas
-            WHERE empresa_id = ?
-            AND status = 'entregue'
-            AND strftime('%Y-%m', data_entrega) = ?
-        ''', (empresa_id, mes_atual))
-        row = cursor.fetchone()
-        valor_mes = float(row['total']) if row and row['total'] else 0.0
-
-        conn.close()
+            WHERE empresa_id = :empresa_id AND status = 'entregue' AND DATE(data_entrega) = :hoje
+        '''), {'empresa_id': empresa_id, 'hoje': hoje})
+        entregues_hoje = result.fetchone()[0] or 0
 
         return jsonify({
             'success': True,
@@ -465,14 +431,15 @@ def estatisticas_entregas():
                 'hoje_total': hoje_total,
                 'pendentes': pendentes,
                 'em_transito': em_transito,
-                'entregues_hoje': entregues_hoje,
-                'valor_mes': valor_mes
+                'entregues_hoje': entregues_hoje
             }
         })
 
     except Exception as e:
         print(f'[ENTREGAS-API] Erro ao obter estatisticas: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -483,25 +450,22 @@ def estatisticas_entregas():
 def listar_entregadores():
     """
     GET /api/entregas/entregadores?empresa_id=X
-    Lista entregadores da empresa (SQLite)
+    Lista entregadores da empresa
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa nao identificada'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        result = session.execute(text('''
             SELECT * FROM entregadores
-            WHERE empresa_id = ? AND ativo = 1
+            WHERE empresa_id = :empresa_id AND ativo = TRUE
             ORDER BY nome
-        ''', (empresa_id,))
+        '''), {'empresa_id': empresa_id})
 
-        rows = cursor.fetchall()
-        entregadores = [dict(row) for row in rows]
-        conn.close()
+        rows = result.fetchall()
+        entregadores = [row_to_dict(row, result.keys()) for row in rows] if rows else []
 
         return jsonify({
             'success': True,
@@ -511,14 +475,17 @@ def listar_entregadores():
     except Exception as e:
         print(f'[ENTREGAS-API] Erro ao listar entregadores: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/entregadores', methods=['POST'])
 def criar_entregador():
     """
     POST /api/entregas/entregadores
-    Criar novo entregador (SQLite)
+    Criar novo entregador
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
@@ -528,29 +495,26 @@ def criar_entregador():
         if not data or not data.get('nome'):
             return jsonify({'success': False, 'error': 'Nome e obrigatorio'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        session.execute(text('''
             INSERT INTO entregadores (
-                empresa_id, nome, telefone, whatsapp, email, documento,
-                tipo_veiculo, placa_veiculo, foto_url, ativo, disponivel
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
-        ''', (
-            empresa_id,
-            data.get('nome'),
-            data.get('telefone'),
-            data.get('whatsapp'),
-            data.get('email'),
-            data.get('documento'),
-            data.get('tipo_veiculo', 'moto'),
-            data.get('placa_veiculo'),
-            data.get('foto_url')
-        ))
+                empresa_id, nome, telefone, email,
+                tipo_veiculo, placa_veiculo, ativo, disponivel
+            ) VALUES (:empresa_id, :nome, :telefone, :email,
+                     :tipo_veiculo, :placa_veiculo, TRUE, TRUE)
+        '''), {
+            'empresa_id': empresa_id,
+            'nome': data.get('nome'),
+            'telefone': data.get('telefone'),
+            'email': data.get('email'),
+            'tipo_veiculo': data.get('tipo_veiculo', 'moto'),
+            'placa_veiculo': data.get('placa_veiculo')
+        })
 
-        conn.commit()
-        entregador_id = cursor.lastrowid
-        conn.close()
+        session.commit()
+
+        # Obter ID inserido
+        result = session.execute(text("SELECT lastval()")) if 'postgresql' in str(db_manager.engine.url) else session.execute(text("SELECT last_insert_rowid()"))
+        entregador_id = result.fetchone()[0]
 
         return jsonify({
             'success': True,
@@ -559,16 +523,20 @@ def criar_entregador():
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao criar entregador: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/entregadores/<int:entregador_id>', methods=['PUT'])
 def atualizar_entregador(entregador_id):
     """
     PUT /api/entregas/entregadores/:id
-    Atualizar entregador (SQLite)
+    Atualizar entregador
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
@@ -576,32 +544,26 @@ def atualizar_entregador(entregador_id):
 
         data = request.get_json()
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
         campos = []
-        valores = []
+        params = {'entregador_id': entregador_id, 'empresa_id': empresa_id}
 
         campos_permitidos = [
-            'nome', 'telefone', 'whatsapp', 'email', 'documento',
-            'tipo_veiculo', 'placa_veiculo', 'foto_url', 'ativo', 'disponivel'
+            'nome', 'telefone', 'email',
+            'tipo_veiculo', 'placa_veiculo', 'ativo', 'disponivel'
         ]
 
         for campo in campos_permitidos:
             if campo in data:
-                campos.append(f'{campo} = ?')
-                valores.append(data[campo])
+                campos.append(f'{campo} = :{campo}')
+                params[campo] = data[campo]
 
         if not campos:
-            conn.close()
             return jsonify({'success': False, 'error': 'Nenhum campo para atualizar'}), 400
 
-        query = f"UPDATE entregadores SET {', '.join(campos)} WHERE id = ? AND empresa_id = ?"
-        valores.extend([entregador_id, empresa_id])
+        query = text(f"UPDATE entregadores SET {', '.join(campos)} WHERE id = :entregador_id AND empresa_id = :empresa_id")
 
-        cursor.execute(query, valores)
-        conn.commit()
-        conn.close()
+        session.execute(query, params)
+        session.commit()
 
         return jsonify({
             'success': True,
@@ -609,30 +571,30 @@ def atualizar_entregador(entregador_id):
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao atualizar entregador: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @entregas_api_bp.route('/entregadores/<int:entregador_id>', methods=['DELETE'])
 def deletar_entregador(entregador_id):
     """
     DELETE /api/entregas/entregadores/:id
-    Desativar entregador - soft delete (SQLite)
+    Desativar entregador - soft delete
     """
+    session = db_manager.get_session()
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa nao identificada'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            'UPDATE entregadores SET ativo = 0 WHERE id = ? AND empresa_id = ?',
-            (entregador_id, empresa_id)
+        session.execute(
+            text('UPDATE entregadores SET ativo = FALSE WHERE id = :entregador_id AND empresa_id = :empresa_id'),
+            {'entregador_id': entregador_id, 'empresa_id': empresa_id}
         )
-        conn.commit()
-        conn.close()
+        session.commit()
 
         return jsonify({
             'success': True,
@@ -640,8 +602,11 @@ def deletar_entregador(entregador_id):
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao deletar entregador: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -652,8 +617,9 @@ def deletar_entregador(entregador_id):
 def registrar_entrega_bot():
     """
     POST /api/entregas/bot/registrar
-    Endpoint para o bot registrar entregas automaticamente (SQLite)
+    Endpoint para o bot registrar entregas automaticamente
     """
+    session = db_manager.get_session()
     try:
         data = request.get_json()
         if not data:
@@ -663,10 +629,7 @@ def registrar_entrega_bot():
         if not empresa_id:
             return jsonify({'success': False, 'error': 'empresa_id obrigatorio'}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        session.execute(text('''
             INSERT INTO entregas (
                 empresa_id, cliente_nome, cliente_telefone, cliente_whatsapp,
                 endereco_entrega, numero, complemento, bairro, cidade, estado, cep, ponto_referencia,
@@ -674,40 +637,41 @@ def registrar_entrega_bot():
                 status, prioridade, data_agendada, hora_agendada,
                 observacoes, origem, conversa_id
             ) VALUES (
-                ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, 'bot_whatsapp', ?
+                :empresa_id, :cliente_nome, :cliente_telefone, :cliente_whatsapp,
+                :endereco_entrega, :numero, :complemento, :bairro, :cidade, :estado, :cep, :ponto_referencia,
+                :descricao_itens, :valor_pedido, :valor_frete, :forma_pagamento,
+                'pendente', :prioridade, :data_agendada, :hora_agendada,
+                :observacoes, 'bot_whatsapp', :conversa_id
             )
-        ''', (
-            empresa_id,
-            data.get('cliente_nome', 'Cliente WhatsApp'),
-            data.get('cliente_telefone', ''),
-            data.get('cliente_whatsapp', data.get('telefone', '')),
-            data.get('endereco', ''),
-            data.get('numero', ''),
-            data.get('complemento', ''),
-            data.get('bairro', ''),
-            data.get('cidade', ''),
-            data.get('estado', ''),
-            data.get('cep', ''),
-            data.get('ponto_referencia', ''),
-            data.get('descricao_itens', data.get('produtos', '')),
-            data.get('valor_pedido', data.get('valor_total')),
-            data.get('valor_frete', 0),
-            data.get('forma_pagamento', 'a_combinar'),
-            'pendente',
-            data.get('prioridade', 'normal'),
-            data.get('data_agendada'),
-            data.get('hora_agendada'),
-            data.get('observacoes', ''),
-            data.get('conversa_id', data.get('telefone', ''))
-        ))
+        '''), {
+            'empresa_id': empresa_id,
+            'cliente_nome': data.get('cliente_nome', 'Cliente WhatsApp'),
+            'cliente_telefone': data.get('cliente_telefone', ''),
+            'cliente_whatsapp': data.get('cliente_whatsapp', data.get('telefone', '')),
+            'endereco_entrega': data.get('endereco', ''),
+            'numero': data.get('numero', ''),
+            'complemento': data.get('complemento', ''),
+            'bairro': data.get('bairro', ''),
+            'cidade': data.get('cidade', ''),
+            'estado': data.get('estado', ''),
+            'cep': data.get('cep', ''),
+            'ponto_referencia': data.get('ponto_referencia', ''),
+            'descricao_itens': data.get('descricao_itens', data.get('produtos', '')),
+            'valor_pedido': data.get('valor_pedido', data.get('valor_total')),
+            'valor_frete': data.get('valor_frete', 0),
+            'forma_pagamento': data.get('forma_pagamento', 'a_combinar'),
+            'prioridade': data.get('prioridade', 'normal'),
+            'data_agendada': data.get('data_agendada'),
+            'hora_agendada': data.get('hora_agendada'),
+            'observacoes': data.get('observacoes', ''),
+            'conversa_id': data.get('conversa_id', data.get('telefone', ''))
+        })
 
-        conn.commit()
-        entrega_id = cursor.lastrowid
-        conn.close()
+        session.commit()
+
+        # Obter ID inserido
+        result = session.execute(text("SELECT lastval()")) if 'postgresql' in str(db_manager.engine.url) else session.execute(text("SELECT last_insert_rowid()"))
+        entrega_id = result.fetchone()[0]
 
         print(f'[ENTREGAS-API] Entrega registrada pelo bot: ID={entrega_id}, Cliente={data.get("cliente_nome")}')
 
@@ -718,5 +682,8 @@ def registrar_entrega_bot():
         })
 
     except Exception as e:
+        session.rollback()
         print(f'[ENTREGAS-API] Erro ao registrar entrega do bot: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
