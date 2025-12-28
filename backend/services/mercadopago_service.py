@@ -15,6 +15,12 @@ from database.models import DatabaseManager
 from sqlalchemy import text
 import json
 
+# Importar db_manager global para usar PostgreSQL em producao
+try:
+    from backend import db_manager as global_db_manager
+except ImportError:
+    global_db_manager = None
+
 class MercadoPagoService:
     """
     Classe para gerenciar integrações com Mercado Pago
@@ -31,10 +37,15 @@ class MercadoPagoService:
         # Inicializar SDK
         self.sdk = mercadopago.SDK(self.access_token)
 
-        # Database manager - usar path absoluto para garantir consistência com Flask
-        # O Flask usa o db em backend/vendeai.db quando roda de HelixAI/
-        db_path = Path(__file__).parent.parent / 'vendeai.db'
-        self.db_manager = DatabaseManager(f'sqlite:///{db_path}')
+        # Usar db_manager global se disponivel (PostgreSQL em producao)
+        if global_db_manager:
+            self.db_manager = global_db_manager
+            print(f"[MercadoPago] Usando db_manager global (PostgreSQL)")
+        else:
+            # Fallback para SQLite local
+            db_path = Path(__file__).parent.parent / 'vendeai.db'
+            self.db_manager = DatabaseManager(f'sqlite:///{db_path}')
+            print(f"[MercadoPago] Usando SQLite local")
 
         print(f"[MercadoPago] SDK inicializado com sucesso")
 
@@ -61,7 +72,7 @@ class MercadoPagoService:
                 raise ValueError("Usuário não encontrado")
 
             # Buscar plano
-            plano_query = text("SELECT * FROM planos WHERE id = :id AND ativo = 1")
+            plano_query = text("SELECT * FROM planos WHERE id = :id AND ativo = TRUE")
             plano = session.execute(plano_query, {'id': plano_id}).fetchone()
 
             if not plano:
@@ -376,7 +387,7 @@ class MercadoPagoService:
 
         try:
             # Buscar plano
-            plano_query = text("SELECT * FROM planos WHERE id = :id AND ativo = 1")
+            plano_query = text("SELECT * FROM planos WHERE id = :id AND ativo = TRUE")
             plano = session.execute(plano_query, {'id': plano_id}).fetchone()
 
             if not plano:
