@@ -18,6 +18,12 @@ from datetime import datetime
 from pathlib import Path
 import io
 
+# Importar db_manager global para usar PostgreSQL em producao
+try:
+    from backend import db_manager
+except ImportError:
+    db_manager = DatabaseManager('sqlite:///vendeai.db')
+
 produtos_api_bp = Blueprint('produtos_api', __name__, url_prefix='/api/produtos')
 
 # ==================== DEBUG ====================
@@ -75,8 +81,7 @@ def listar_produtos():
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa não identificada'}), 400
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             # Parâmetros de paginação e busca
@@ -227,8 +232,7 @@ def estatisticas_produtos():
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa não identificada'}), 400
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
@@ -291,8 +295,7 @@ def obter_produto(produto_id):
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa não identificada'}), 400
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
@@ -383,8 +386,7 @@ def atualizar_produto(produto_id):
 
         data = request.get_json()
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
@@ -469,8 +471,7 @@ def deletar_produto(produto_id):
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa não identificada'}), 400
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
@@ -529,8 +530,7 @@ def criar_produto():
         if not data:
             return jsonify({'success': False, 'error': 'Dados não fornecidos'}), 400
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             produto = Produto(
@@ -602,8 +602,7 @@ def importar_csv():
         file.save(str(filepath))
 
         # Processar CSV
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
@@ -774,8 +773,7 @@ def listar_importacoes():
         if not empresa_id:
             return jsonify({'success': False, 'error': 'Empresa não identificada'}), 400
 
-        db = DatabaseManager()
-        session = db.get_session()
+        session = db_manager.get_session()
 
         try:
             importacoes = session.query(ArquivoImportacao).filter_by(
