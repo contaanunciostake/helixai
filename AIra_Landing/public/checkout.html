@@ -1587,7 +1587,7 @@
         async function initMercadoPago() {
             try {
                 // Tentar buscar chave do backend
-                const response = await fetch('http://localhost:5000/api/assinatura/config');
+                const response = await fetch('https://vendefacil-backend.onrender.com/api/assinatura/config');
                 const data = await response.json();
 
                 if (data.success && data.public_key) {
@@ -2432,7 +2432,7 @@
                 // Log do payload final
                 console.log('[Checkout] Payload final:', JSON.stringify(paymentPayload, null, 2));
 
-                const response = await fetch('http://localhost:5000/api/assinatura/processar-pagamento', {
+                const response = await fetch('https://vendefacil-backend.onrender.com/api/assinatura/processar-pagamento', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2594,7 +2594,7 @@
                         // Polling para verificar status do pagamento a cada 5 segundos
                         const pollInterval = setInterval(async () => {
                             try {
-                                const statusResponse = await fetch(`http://localhost:5000/api/assinatura/verificar-pagamento/${result.payment_id}`);
+                                const statusResponse = await fetch(`https://vendefacil-backend.onrender.com/api/assinatura/verificar-pagamento/${result.payment_id}`);
                                 const statusData = await statusResponse.json();
 
                                 if (statusData.status === 'approved') {
@@ -2823,7 +2823,7 @@
 
                 console.log('[Checkout] Payload completo:', JSON.stringify(paymentPayload, null, 2));
 
-                const response = await fetch('http://localhost:5000/api/assinatura/processar-pagamento', {
+                const response = await fetch('https://vendefacil-backend.onrender.com/api/assinatura/processar-pagamento', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
