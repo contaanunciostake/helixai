@@ -41,7 +41,7 @@ def listar_planos():
     session = db_manager.get_session()
 
     try:
-        planos_query = text("SELECT * FROM planos WHERE ativo = 1 ORDER BY preco ASC")
+        planos_query = text("SELECT * FROM planos WHERE ativo = TRUE ORDER BY preco ASC")
         planos = session.execute(planos_query).fetchall()
 
         planos_list = []
