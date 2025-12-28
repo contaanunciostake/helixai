@@ -59,8 +59,26 @@ yarn-error.log*
 auth_info_baileys/
 .wwebjs_auth/
 .wwebjs_cache/
+sessions/
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+
+# Build outputs
+dist/
+build/
+
+# Uploads (keep folder, ignore contents)
+uploads/*
+!uploads/.gitkeep
+
+# Migration files
+dados_exportados.sql
+
+# Secrets and credentials
+*.pem
+*.key
+credentials.json
+nul

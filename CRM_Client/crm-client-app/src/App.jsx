@@ -5,7 +5,6 @@ import { Login } from './components/Login'
 import Setup from './pages/Setup'
 import BotConfiguracoes from './components/BotConfiguracoes'
 import WhatsAppConnection from './components/WhatsAppConnection'
-import BotSettings from './components/BotSettings'
 import Dashboard from './components/Dashboard'
 import Conversations from './components/Conversations'
 import Products from './components/Products'
@@ -14,13 +13,42 @@ import Appointments from './components/Appointments'
 import AppointmentCalendar from './components/AppointmentCalendar'
 import { CRMVeiculos } from './components/crm/CRMVeiculos'
 import Reports from './components/Reports'
+// Novas páginas implementadas
+import BusinessPage from './features/business/BusinessPage'
+import IntegrationsPage from './features/integrations/IntegrationsPage'
+import TeamPage from './features/team/TeamPage'
+// Páginas do nicho Atacado/Varejo
+import {
+  EstoquePage,
+  PedidosPage,
+  EntregasPage,
+  NotasFiscaisPage,
+  ClientesPage,
+  FornecedoresPage,
+  OrcamentosPage,
+  ContasReceberPage,
+  ContasPagarPage,
+  MarcasPage,
+  ImportarProdutosPage,
+  ConfiguracoesEmpresaPage,
+  AgendamentosPage
+} from './components/varejo/VarejoPages'
+
+// Páginas do nicho Loja de Tintas
+import {
+  CatalogoTintasPage,
+  PaletaCoresPage,
+  CalculadoraRendimentoPage,
+  OrcamentosPage as OrcamentosTintasPage,
+  HistoricoCoresPage
+} from './components/tintas/TintasPages'
 import { Button } from '@/components/ui/button.jsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx'
 import {
   Building2, Car, MessageSquare, Calendar, Heart, Bot, Send, MapPin, Bed, Bath, Square,
   User, Phone, CheckCircle, TrendingUp, DollarSign, Users, Activity, Power, QrCode,
   Smartphone, RefreshCw, Settings as SettingsIcon, Download, XCircle, Clock, ArrowUpRight,
-  BarChart3, Filter, Search, Plus, Eye, Edit, Trash2, Mail, Upload
+  BarChart3, Filter, Search, Plus, Eye, Edit, Trash2, Mail, Upload, Package, Database
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
@@ -33,19 +61,36 @@ const BOTS_CONFIG = {
     name: 'VendeAI Auto',
     apiUrl: 'http://localhost:3010',
     wsUrl: 'ws://localhost:3010/ws',
-    icon: '🚗'
+    icon: '🚗',
+    description: 'Bot especializado em vendas de veículos com integração FIPE e simulador de financiamento'
   },
   imoveis: {
     name: 'AIra Imob',
     apiUrl: 'http://localhost:3011',
     wsUrl: 'ws://localhost:3011/ws',
-    icon: '🏢'
+    icon: '🏢',
+    description: 'Bot especializado em vendas de imóveis com agendamento de visitas e simulação de financiamento'
+  },
+  atacado_varejo: {
+    name: 'AIra Produtos',
+    apiUrl: 'http://localhost:3010',
+    wsUrl: 'ws://localhost:3010/ws',
+    icon: '📦',
+    description: 'Bot especializado em atacado/varejo de produtos (lubrificantes, filtros, aditivos, peças)'
+  },
+  loja_tintas: {
+    name: 'Laura Tintas',
+    apiUrl: 'http://localhost:3010',
+    wsUrl: 'ws://localhost:3010/ws',
+    icon: '🎨',
+    description: 'Bot especializado em loja de tintas com consultor de cores, calculadora de rendimento e orçamentos'
   },
   outros: {
     name: 'AIra CRM',
     apiUrl: 'http://localhost:3010', // Usar bot padrão
     wsUrl: 'ws://localhost:3010/ws',
-    icon: '🤖'
+    icon: '🤖',
+    description: 'Bot de atendimento inteligente'
   }
 }
 
@@ -67,9 +112,13 @@ function App() {
     if (authParam) {
       try {
         console.log('[CRM Cliente] 📨 Dados recebidos via URL da Landing Page')
-        // Decodificar dados da URL
-        const userData = JSON.parse(atob(authParam))
+        console.log('[CRM Cliente] 🔑 Auth param (encoded):', authParam.substring(0, 50) + '...')
+        // Decodificar dados da URL (primeiro decodeURIComponent, depois atob)
+        const decodedParam = decodeURIComponent(authParam)
+        const userData = JSON.parse(atob(decodedParam))
         console.log('[CRM Cliente] ✅ Dados decodificados:', userData)
+        console.log('[CRM Cliente] 🔑 empresa_id:', userData.empresa_id)
+        console.log('[CRM Cliente] 👤 tipo:', userData.tipo)
 
         // Salvar no localStorage DESTA porta (5177)
         localStorage.setItem('crm_user', JSON.stringify(userData))
@@ -116,8 +165,34 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(initialAuth.isLoggedIn)
   const [user, setUser] = useState(initialAuth.user)
 
-  const [currentPage, setCurrentPage] = useState('dashboard')
+  // ══════════════════════════════════════════════════════════════
+  // HASH-BASED ROUTING - Persistir página na URL
+  // ══════════════════════════════════════════════════════════════
+  const getInitialPage = () => {
+    const hash = window.location.hash.replace('#/', '').replace('#', '')
+    return hash || 'dashboard'
+  }
+
+  const [currentPage, setCurrentPage] = useState(getInitialPage())
   const [selectedType, setSelectedType] = useState('imoveis')
+
+  // Atualizar hash quando a página mudar
+  useEffect(() => {
+    window.location.hash = `#/${currentPage}`
+  }, [currentPage])
+
+  // Escutar mudanças no hash (botão voltar/avançar do navegador)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#/', '').replace('#', '')
+      if (hash && hash !== currentPage) {
+        setCurrentPage(hash)
+      }
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [currentPage])
 
   // Nicho da empresa (veiculos ou imoveis)
   const [empresaNicho, setEmpresaNicho] = useState('veiculos') // Definir padrão para evitar null
@@ -152,19 +227,14 @@ function App() {
         console.log('[CRM Cliente] 🔍 Verificando status do setup...')
         console.log('[CRM Cliente] empresa_id:', user.empresa_id)
 
-        const response = await fetch(`http://localhost:5000/api/empresa/check-setup/${user.empresa_id}`)
+        const response = await fetch(`/api/empresa/check-setup/${user.empresa_id}`)
         const data = await response.json()
 
         console.log('[CRM Cliente] Resposta completa da API:', JSON.stringify(data, null, 2))
         console.log('[CRM Cliente] data.success:', data.success)
 
-        // ✅ CORRIGIDO: API pode retornar em dois formatos:
-        // Formato 1: { success: true, data: { setup_completo: true } }
-        // Formato 2: { success: true, setup_completo: true }
-        const setupCompleto = data.success && (
-          (data.data && data.data.setup_completo === true) ||  // Formato 1
-          (data.setup_completo === true)                        // Formato 2
-        )
+        // ✅ Verificar campo setup_completo - API retorna em data.data.setup_completo
+        const setupCompleto = data.success && (data.data?.setup_completo === true || data.setup_completo === true)
 
         console.log('[CRM Cliente] setup_completo:', setupCompleto)
 
@@ -175,13 +245,20 @@ function App() {
           console.log('[CRM Cliente] ✅ Setup já concluído - indo para dashboard')
           setNeedsSetup(false)
 
-          // Carregar nicho da empresa
-          if (data.empresa && data.empresa.nicho) {
-            console.log('[CRM Cliente] 📊 Nicho da empresa:', data.empresa.nicho)
-            setEmpresaNicho(data.empresa.nicho)
-          } else if (data.data && data.data.nicho_configurado) {
-            console.log('[CRM Cliente] 📊 Nicho configurado, buscando detalhes...')
-            fetchEmpresaNicho()
+          // Carregar nicho da empresa - pode estar em data.data ou data.empresa
+          const nicho = data.data?.nicho || data.empresa?.nicho
+          if (nicho) {
+            console.log('[CRM Cliente] 📊 Nicho da empresa:', nicho)
+            // Converter para lowercase se necessário (banco pode ter ATACADO_VAREJO)
+            setEmpresaNicho(nicho.toLowerCase())
+          } else if (data.data?.nicho_configurado) {
+            // Se nicho está configurado mas não veio no response, buscar da API
+            console.log('[CRM Cliente] ⚠️ Nicho configurado mas não retornado, usando atacado_varejo')
+            setEmpresaNicho('atacado_varejo')
+          } else {
+            // Se não tiver nicho ainda, usar padrão
+            console.log('[CRM Cliente] ⚠️ Nicho não configurado, usando padrão: veiculos')
+            setEmpresaNicho('veiculos')
           }
         }
       } catch (error) {
@@ -201,7 +278,7 @@ function App() {
       if (!user || !user.empresa_id) return
 
       console.log('[CRM Cliente] Buscando nicho da empresa...')
-      const response = await fetch(`http://localhost:5000/api/empresa/nicho/${user.empresa_id}`)
+      const response = await fetch(`/api/empresa/nicho/${user.empresa_id}`)
       const data = await response.json()
 
       if (data.success && data.nicho) {
@@ -884,7 +961,7 @@ function App() {
       case 'dashboard':
         return (
           <Dashboard
-            user={user}
+            user={{ ...user, nicho: empresaNicho }}
             botConfig={getBotConfig()}
             onNavigate={setCurrentPage}
             showNotification={showNotificationMsg}
@@ -900,9 +977,25 @@ function App() {
           />
         )
 
-      case 'bot-settings':
+      case 'business':
         return (
-          <BotSettings
+          <BusinessPage
+            user={user}
+            showNotification={showNotificationMsg}
+          />
+        )
+
+      case 'integrations':
+        return (
+          <IntegrationsPage
+            user={user}
+            showNotification={showNotificationMsg}
+          />
+        )
+
+      case 'team':
+        return (
+          <TeamPage
             user={user}
             showNotification={showNotificationMsg}
           />
@@ -1080,12 +1173,39 @@ function App() {
         )
 
       case 'products':
+        // Para loja de tintas, usar CatalogoTintasPage
+        if (empresaNicho === 'loja_tintas') {
+          return <CatalogoTintasPage user={user} />
+        }
+        // Para atacado/varejo, usar EstoquePage
+        if (empresaNicho === 'atacado_varejo') {
+          return <EstoquePage user={user} />
+        }
+        // Para outros nichos (veículos, imóveis), usar Products original
         return (
           <Products
             user={user}
             nicho={empresaNicho}
           />
         )
+
+      // ══════════════════════════════════════════════════════════════
+      // PAGINAS ESPECIFICAS DE LOJA DE TINTAS
+      // ══════════════════════════════════════════════════════════════
+      case 'catalogo_tintas':
+        return <CatalogoTintasPage user={user} />
+
+      case 'paleta_cores':
+        return <PaletaCoresPage user={user} />
+
+      case 'calculadora':
+        return <CalculadoraRendimentoPage user={user} />
+
+      case 'orcamentos_tintas':
+        return <OrcamentosTintasPage user={user} />
+
+      case 'historico_cores':
+        return <HistoricoCoresPage user={user} />
 
       case 'deals':
         return (
@@ -1328,6 +1448,104 @@ function App() {
           </div>
         )
 
+      // ══════════════════════════════════════════════════════════════
+      // PÁGINAS DO NICHO ATACADO/VAREJO - Componentes Importados
+      // ══════════════════════════════════════════════════════════════
+      case 'estoque':
+        return <EstoquePage user={user} />
+
+      case 'pedidos':
+        return <PedidosPage user={user} />
+
+      case 'orcamentos':
+        return <OrcamentosPage user={user} />
+
+      case 'entregas':
+        return <EntregasPage user={user} />
+
+      case 'notas-fiscais':
+        return <NotasFiscaisPage user={user} />
+
+      case 'contas-receber':
+        return <ContasReceberPage user={user} />
+
+      case 'contas-pagar':
+        return <ContasPagarPage user={user} />
+
+      case 'clientes':
+        return <ClientesPage user={user} />
+
+      case 'fornecedores':
+        return <FornecedoresPage user={user} />
+
+      case 'marcas':
+        return <MarcasPage user={user} />
+
+      case 'importar-produtos':
+        return <ImportarProdutosPage user={user} />
+
+      case 'config-empresa':
+        return <ConfiguracoesEmpresaPage user={user} />
+
+      case 'agendamentos':
+        return <AgendamentosPage user={user} />
+
+      case 'categorias':
+        return (
+          <div className="min-h-screen bg-black p-6 space-y-6 relative">
+            <Card className="card-glass border-white/10">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                      <Database className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl font-bold text-white">Categorias de Produtos</CardTitle>
+                      <CardDescription className="text-white/60">Organize seus produtos por categoria</CardDescription>
+                    </div>
+                  </div>
+                  <Button className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nova Categoria
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    { nome: 'Lubrificantes', icon: '🛢️', subcategorias: ['Óleos de Motor', 'Fluidos', 'Graxas', 'Coolants'], cor: 'from-blue-500 to-cyan-600' },
+                    { nome: 'Filtros', icon: '🔧', subcategorias: ['Linha Leve', 'Linha Pesada', 'Industrial', 'Agrícola'], cor: 'from-green-500 to-emerald-600' },
+                    { nome: 'Aditivos', icon: '⚗️', subcategorias: ['Condicionadores de Metais', 'Combustível', 'Radiador'], cor: 'from-orange-500 to-red-600' },
+                    { nome: 'Limpeza Automotiva', icon: '✨', subcategorias: ['Shampoo', 'Cera', 'Limpa Vidros', 'Silicone'], cor: 'from-yellow-500 to-amber-600' },
+                    { nome: 'Câmaras de Ar', icon: '⭕', subcategorias: ['Moto', 'Carro', 'Caminhão', 'Bicicleta'], cor: 'from-purple-500 to-pink-600' },
+                    { nome: 'Peças', icon: '🔩', subcategorias: ['Motor', 'Suspensão', 'Freios', 'Elétrica'], cor: 'from-gray-500 to-slate-600' }
+                  ].map((cat, idx) => (
+                    <div key={idx} className="p-4 bg-white/5 rounded-xl border border-white/10 hover:border-white/20 transition-colors cursor-pointer">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${cat.cor} flex items-center justify-center text-2xl shadow-lg`}>
+                          {cat.icon}
+                        </div>
+                        <div>
+                          <h3 className="text-white font-semibold">{cat.nome}</h3>
+                          <p className="text-white/40 text-xs">{cat.subcategorias.length} subcategorias</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {cat.subcategorias.map((sub, sidx) => (
+                          <span key={sidx} className="text-xs bg-white/5 text-white/60 px-2 py-0.5 rounded-full border border-white/10">
+                            {sub}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
       case 'importar-estoque':
         return (
           <div className="p-6">
@@ -1354,7 +1572,7 @@ function App() {
                       formData.append('empresa_id', user.empresa_id)
 
                       try {
-                        const response = await fetch('http://localhost:5000/api/veiculos/importar', {
+                        const response = await fetch('/api/veiculos/importar', {
                           method: 'POST',
                           body: formData
                         })
@@ -1446,7 +1664,14 @@ function App() {
 
   // Mostrar Setup se precisar
   if (needsSetup) {
-    return <Setup onComplete={() => setNeedsSetup(false)} />
+    return <Setup onComplete={(nicho) => {
+      console.log('[CRM Cliente] ✅ Setup concluído com nicho:', nicho)
+      // Atualizar o nicho da empresa com o valor escolhido no wizard
+      if (nicho) {
+        setEmpresaNicho(nicho)
+      }
+      setNeedsSetup(false)
+    }} />
   }
 
   // Mostrar CRM com menu dinâmico baseado no nicho

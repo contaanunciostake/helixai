@@ -29,8 +29,16 @@ import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
 import QRCode from 'qrcode';
-import mysql from 'mysql2/promise';
+import sqlite3 from 'sqlite3';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import botSelector from './bot-selector-by-niche.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Path do banco SQLite (mesmo que o Flask usa)
+const SQLITE_DB_PATH = join(__dirname, '..', 'backend', 'vendeai.db');
 import VendeAIBotWrapper from './vendeai-bot-wrapper.js';
 
 class IntegratedSessionManager {
@@ -40,18 +48,29 @@ class IntegratedSessionManager {
     this.authBaseDir = 'auth_info_baileys';
     this.logger = pino({ level: 'silent' });
 
-    // Pool de banco de dados
-    this.dbPool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'helixai_db',
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
+    // Conexão SQLite
+    this.db = null;
 
     console.log('✅ [INTEGRATED-SESSION-MANAGER] Inicializado');
+  }
+
+  /**
+   * Inicializar conexão com banco de dados SQLite
+   */
+  async initDB() {
+    if (!this.db) {
+      return new Promise((resolve, reject) => {
+        this.db = new sqlite3.Database(SQLITE_DB_PATH, (err) => {
+          if (err) {
+            console.error('[SESSION-MANAGER] ❌ Erro ao conectar SQLite:', err);
+            reject(err);
+          } else {
+            console.log(`[SESSION-MANAGER] ✅ Conectado ao SQLite: ${SQLITE_DB_PATH}`);
+            resolve();
+          }
+        });
+      });
+    }
   }
 
   /**
@@ -156,12 +175,17 @@ class IntegratedSessionManager {
       const sock = makeWASocket({
         version,
         logger: this.logger,
-        printQRInTerminal: false,
+        printQRInTerminal: true, // Ativar para debug
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, this.logger)
         },
-        generateHighQualityLinkPreview: true
+        generateHighQualityLinkPreview: true,
+        // Configurações adicionais para evitar erros
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        browser: ['HelixAI CRM', 'Chrome', '110.0.0']
       });
 
       // Criar objeto de sessão
@@ -211,7 +235,7 @@ class IntegratedSessionManager {
     const session = this.sessions.get(empresaId);
     if (!session) return;
 
-    const { connection, lastDisconnect, qr } = update;
+    const { connection, lastDisconnect, qr, isNewLogin } = update;
 
     // QR Code recebido
     if (qr) {
@@ -235,6 +259,19 @@ class IntegratedSessionManager {
       } catch (error) {
         console.error(`❌ [SESSION-MANAGER] Erro ao gerar QR:`, error);
       }
+    }
+
+    // QR Code foi escaneado (detectado por update sem qr mas ainda connecting)
+    if (connection === 'connecting' && !qr && session.qrCode) {
+      console.log(`📱 [SESSION-MANAGER] QR Code escaneado! Aguardando autenticação - Empresa ${empresaId}`);
+
+      session.connectionStatus = 'authenticating';
+
+      // Notificar frontend que QR foi lido
+      this._broadcastToClients(empresaId, {
+        type: 'qr_scanned',
+        data: { message: 'QR Code lido! Autenticando...' }
+      });
     }
 
     // Conexão estabelecida
@@ -265,9 +302,12 @@ class IntegratedSessionManager {
 
     // Conexão fechada
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       console.log(`❌ [SESSION-MANAGER] Conexão fechada para empresa ${empresaId}`);
+      console.log(`📊 [SESSION-MANAGER] Status code: ${statusCode}`);
+      console.log(`📊 [SESSION-MANAGER] Erro:`, lastDisconnect?.error);
       console.log(`🔄 [SESSION-MANAGER] Deve reconectar? ${shouldReconnect}`);
 
       session.connected = false;
@@ -297,7 +337,7 @@ class IntegratedSessionManager {
   }
 
   /**
-   * Inicializar bot baseado no nicho
+   * Inicializar bot baseado no nicho usando Bot Selector
    * @private
    */
   async _initializeBot(empresaId) {
@@ -307,32 +347,78 @@ class IntegratedSessionManager {
 
       console.log(`[SESSION-MANAGER] 🤖 Inicializando bot para nicho: ${session.nicho || 'GENÉRICO'}`);
 
-      // Se for veículos, usar VendeAI Bot
-      if (session.nicho === 'veiculos') {
-        session.botInstance = new VendeAIBotWrapper(
-          empresaId,
-          session.config,
-          this.dbPool
-        );
-        console.log(`[SESSION-MANAGER] ✅ VendeAI Bot inicializado`);
-      } else {
-        // Bot genérico para outros nichos
-        session.botInstance = {
-          type: 'generic',
-          nicho: session.nicho || 'generic',
-          async processarMensagem(telefone, mensagem) {
-            return {
-              texto: 'Obrigado por entrar em contato! Em breve retornaremos.',
-              veiculos: [],
-              gerarAudio: false
-            };
-          }
-        };
-        console.log(`[SESSION-MANAGER] ✅ Bot Genérico inicializado`);
-      }
+      // Usar Bot Selector para carregar o bot correto
+      const botInstance = await botSelector.selectBot(
+        empresaId,
+        session.sock,
+        session.config
+      );
+
+      session.botInstance = botInstance;
+      console.log(`[SESSION-MANAGER] ✅ Bot ${botInstance.type} inicializado para empresa ${empresaId}`);
 
     } catch (error) {
       console.error(`[SESSION-MANAGER] ❌ Erro ao inicializar bot:`, error);
+
+      // Fallback para bot genérico em caso de erro
+      session.botInstance = {
+        type: 'generic_fallback',
+        nicho: session.nicho || 'generic',
+        async processMessage(message) {
+          return false;
+        },
+        async processarMensagem(telefone, mensagem) {
+          return {
+            texto: 'Desculpe, estamos com problemas técnicos. Tente novamente mais tarde.',
+            veiculos: [],
+            gerarAudio: false
+          };
+        }
+      };
+    }
+  }
+
+  /**
+   * Persistir conversa e mensagem no banco via API Flask
+   * @private
+   */
+  async _persistirMensagem(empresaId, telefone, conteudo, enviadaPorBot = false, nomeContato = null) {
+    const FLASK_API = 'http://localhost:5000';
+
+    try {
+      // Usar nova API unificada que cria conversa e mensagem
+      const response = await fetch(`${FLASK_API}/conversas/api/registrar-mensagem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empresa_id: empresaId,
+          telefone: telefone.replace('@s.whatsapp.net', ''),
+          nome_contato: nomeContato || telefone.replace('@s.whatsapp.net', ''),
+          mensagem: conteudo,
+          tipo: 'texto',
+          enviada_por_bot: enviadaPorBot
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('[SESSION-MANAGER] ❌ Erro HTTP ao persistir:', response.status, errorData);
+        return null;
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log(`[SESSION-MANAGER] 💾 Mensagem persistida (conversa: ${data.data.conversa_id}, msg: ${data.data.mensagem_id})`);
+        return { conversaId: data.data.conversa_id, mensagemId: data.data.mensagem_id };
+      } else {
+        console.error('[SESSION-MANAGER] ❌ Erro ao persistir:', data.error);
+        return null;
+      }
+
+    } catch (error) {
+      console.error('[SESSION-MANAGER] ❌ Erro ao persistir mensagem:', error.message);
+      return null;
     }
   }
 
@@ -357,41 +443,100 @@ class IntegratedSessionManager {
 
       if (!mensagemTexto.trim()) continue;
 
-      console.log(`\n[SESSION-MANAGER] 📨 Mensagem recebida de ${telefone}`);
+      // Extrair nome do contato se disponível
+      const nomeContato = message.pushName || telefone;
+
+      console.log(`\n[SESSION-MANAGER] 📨 Mensagem recebida de ${nomeContato} (${telefone})`);
 
       try {
-        // Processar com bot específico do nicho
-        const resposta = await session.botInstance.processarMensagem(
+        // ═══════════════════════════════════════════════════════════════
+        // PERSISTIR MENSAGEM RECEBIDA NO BANCO
+        // ═══════════════════════════════════════════════════════════════
+        const persistido = await this._persistirMensagem(
+          empresaId,
           telefone,
           mensagemTexto,
-          message.key
+          false,  // não foi enviada pelo bot
+          nomeContato
         );
 
-        // Enviar resposta
-        if (resposta.texto) {
-          await session.sock.sendMessage(message.key.remoteJid, {
-            text: resposta.texto
+        // Broadcast para CRM - nova mensagem recebida
+        if (persistido) {
+          this._broadcastToClients(empresaId, {
+            type: 'new_message',
+            data: {
+              conversa_id: persistido.conversaId,
+              telefone: telefone,
+              nome: nomeContato,
+              mensagem: mensagemTexto,
+              enviada_por_bot: false,
+              timestamp: new Date().toISOString()
+            }
           });
-
-          console.log(`[SESSION-MANAGER] ✅ Resposta enviada`);
         }
 
-        // Enviar informações dos veículos (se houver)
-        if (resposta.veiculos && resposta.veiculos.length > 0) {
-          for (const veiculo of resposta.veiculos) {
-            const textoVeiculo = this._formatarVeiculo(veiculo);
+        // ═══════════════════════════════════════════════════════════════
+        // PROCESSAR COM BOT
+        // ═══════════════════════════════════════════════════════════════
+        let processado = false;
+        let respostaTexto = null;
+
+        if (session.botInstance.processMessage) {
+          // Bot novo (VendeAI Integration)
+          processado = await session.botInstance.processMessage(message);
+
+          // O bot VendeAI já envia a resposta internamente
+          // Precisamos capturar a resposta para persistir
+          // (será feito via callback no bot)
+
+        } else if (session.botInstance.processarMensagem) {
+          // Bot antigo (compatibilidade)
+          const resposta = await session.botInstance.processarMensagem(
+            telefone,
+            mensagemTexto,
+            message.key
+          );
+
+          // Enviar resposta do bot antigo
+          if (resposta && resposta.texto) {
             await session.sock.sendMessage(message.key.remoteJid, {
-              text: textoVeiculo
+              text: resposta.texto
             });
+
+            respostaTexto = resposta.texto;
+            console.log(`[SESSION-MANAGER] ✅ Resposta enviada`);
+            processado = true;
+
+            // ═══════════════════════════════════════════════════════════
+            // PERSISTIR RESPOSTA DO BOT NO BANCO
+            // ═══════════════════════════════════════════════════════════
+            const persistidoResposta = await this._persistirMensagem(
+              empresaId,
+              telefone,
+              respostaTexto,
+              true,  // enviada pelo bot
+              nomeContato
+            );
+
+            // Broadcast para CRM - resposta do bot
+            if (persistidoResposta) {
+              this._broadcastToClients(empresaId, {
+                type: 'new_message',
+                data: {
+                  conversa_id: persistidoResposta.conversaId,
+                  telefone: telefone,
+                  nome: 'Bot',
+                  mensagem: respostaTexto,
+                  enviada_por_bot: true,
+                  timestamp: new Date().toISOString()
+                }
+              });
+            }
           }
         }
 
-        // Gerar e enviar áudio (se configurado)
-        if (resposta.gerarAudio && session.botInstance.gerarAudio) {
-          const audio = await session.botInstance.gerarAudio(resposta.texto);
-          if (audio) {
-            // TODO: Implementar envio de áudio
-          }
+        if (!processado) {
+          console.log(`[SESSION-MANAGER] ⚠️ Mensagem não processada pelo bot`);
         }
 
       } catch (error) {
@@ -514,29 +659,43 @@ ${veiculo.descricao || ''}`;
    */
   async _getEmpresaConfig(empresaId) {
     try {
-      const [rows] = await this.dbPool.query(`
-        SELECT e.*, c.*
-        FROM empresas e
-        LEFT JOIN configuracoes_bot c ON c.empresa_id = e.id
-        WHERE e.id = ?
-      `, [empresaId]);
+      await this.initDB();
 
-      if (rows.length === 0) return null;
+      return new Promise((resolve, reject) => {
+        this.db.get(`
+          SELECT e.*, c.*
+          FROM empresas e
+          LEFT JOIN configuracoes_bot c ON c.empresa_id = e.id
+          WHERE e.id = ?
+        `, [empresaId], (err, row) => {
+          if (err) {
+            console.error(`[SESSION-MANAGER] ❌ Erro ao buscar config:`, err);
+            resolve(null);
+            return;
+          }
 
-      const row = rows[0];
-      return {
-        empresa_id: row.id,
-        empresa_nome: row.nome,
-        nicho: row.nicho,
-        bot_ativo: row.bot_ativo,
-        auto_resposta_ativa: row.auto_resposta_ativa,
-        enviar_audio: row.enviar_audio,
-        usar_elevenlabs: row.usar_elevenlabs,
-        openai_api_key: row.openai_api_key,
-        anthropic_api_key: row.anthropic_api_key || process.env.ANTHROPIC_API_KEY,
-        elevenlabs_api_key: row.elevenlabs_api_key,
-        elevenlabs_voice_id: row.elevenlabs_voice_id
-      };
+          if (!row) {
+            console.warn(`[SESSION-MANAGER] ⚠️ Empresa ${empresaId} não encontrada`);
+            resolve(null);
+            return;
+          }
+
+          console.log(`[SESSION-MANAGER] ✅ Config empresa ${empresaId}: ${row.nome}, nicho: ${row.nicho}`);
+          resolve({
+            empresa_id: row.id,
+            empresa_nome: row.nome,
+            nicho: row.nicho,
+            bot_ativo: row.bot_ativo ?? 1,
+            auto_resposta_ativa: row.auto_resposta_ativa ?? 1,
+            enviar_audio: row.enviar_audio ?? 0,
+            usar_elevenlabs: row.usar_elevenlabs ?? 0,
+            openai_api_key: row.openai_api_key,
+            anthropic_api_key: row.anthropic_api_key || process.env.ANTHROPIC_API_KEY,
+            elevenlabs_api_key: row.elevenlabs_api_key,
+            elevenlabs_voice_id: row.elevenlabs_voice_id
+          });
+        });
+      });
     } catch (error) {
       console.error(`[SESSION-MANAGER] ❌ Erro ao buscar config:`, error);
       return null;
@@ -549,10 +708,20 @@ ${veiculo.descricao || ''}`;
    */
   async _saveQRCodeToDatabase(empresaId, qrCode) {
     try {
-      await this.dbPool.query(
-        'UPDATE empresas SET whatsapp_qr_code = ? WHERE id = ?',
-        [qrCode, empresaId]
-      );
+      await this.initDB();
+
+      return new Promise((resolve, reject) => {
+        this.db.run(
+          'UPDATE empresas SET whatsapp_qr_code = ? WHERE id = ?',
+          [qrCode, empresaId],
+          (err) => {
+            if (err) {
+              console.error(`[SESSION-MANAGER] ❌ Erro ao salvar QR:`, err);
+            }
+            resolve();
+          }
+        );
+      });
     } catch (error) {
       console.error(`[SESSION-MANAGER] ❌ Erro ao salvar QR:`, error);
     }
@@ -564,11 +733,20 @@ ${veiculo.descricao || ''}`;
    */
   async _updateConnectionStatus(empresaId, connected, phoneNumber) {
     try {
-      await this.dbPool.query(`
-        UPDATE empresas
-        SET whatsapp_conectado = ?, whatsapp_numero = ?
-        WHERE id = ?
-      `, [connected, phoneNumber, empresaId]);
+      await this.initDB();
+
+      return new Promise((resolve, reject) => {
+        this.db.run(`
+          UPDATE empresas
+          SET whatsapp_conectado = ?, whatsapp_numero = ?
+          WHERE id = ?
+        `, [connected ? 1 : 0, phoneNumber, empresaId], (err) => {
+          if (err) {
+            console.error(`[SESSION-MANAGER] ❌ Erro ao atualizar status:`, err);
+          }
+          resolve();
+        });
+      });
     } catch (error) {
       console.error(`[SESSION-MANAGER] ❌ Erro ao atualizar status:`, error);
     }

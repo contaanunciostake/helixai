@@ -45,7 +45,7 @@ def login():
                 next_page = request.args.get('next')
 
                 # Redirecionar admin para painel admin
-                if usuario.tipo == TipoUsuario.SUPER_ADMIN:
+                if usuario.tipo == 'super_admin':  # Comparar string diretamente
                     return redirect(next_page or url_for('admin.dashboard'))
 
                 return redirect(next_page or url_for('dashboard.index'))

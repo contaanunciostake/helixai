@@ -335,13 +335,23 @@ def check_setup(empresa_id):
         if not empresa:
             return jsonify({'success': False, 'message': 'Empresa não encontrada'}), 404
 
+        # Verificar setup_completo do banco ou calcular se nicho está configurado
+        setup_ok = getattr(empresa, 'setup_completo', False) or (empresa.nicho is not None)
+
+        # Obter nicho como string
+        nicho_str = None
+        if empresa.nicho:
+            nicho_str = empresa.nicho.value if hasattr(empresa.nicho, 'value') else str(empresa.nicho)
+            nicho_str = nicho_str.lower() if nicho_str else None
+
         return jsonify({
             'success': True,
             'data': {
                 'whatsapp_conectado': empresa.whatsapp_conectado,
                 'bot_ativo': empresa.bot_ativo,
                 'nicho_configurado': empresa.nicho is not None,
-                'setup_completo': empresa.whatsapp_conectado and empresa.nicho is not None
+                'nicho': nicho_str,
+                'setup_completo': setup_ok
             }
         })
 
@@ -365,8 +375,8 @@ def setup_empresa():
         if not empresa_id:
             return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
 
-        if not nicho or nicho not in ['veiculos', 'imoveis']:
-            return jsonify({'success': False, 'error': 'Nicho inválido. Use "veiculos" ou "imoveis"'}), 400
+        if not nicho or nicho not in ['veiculos', 'imoveis', 'atacado_varejo', 'loja_tintas']:
+            return jsonify({'success': False, 'error': 'Nicho inválido. Use "veiculos", "imoveis", "atacado_varejo" ou "loja_tintas"'}), 400
 
         # Buscar empresa
         empresa = session.query(Empresa).get(empresa_id)
@@ -389,6 +399,18 @@ def setup_empresa():
             setattr(empresa, 'nicho', 'VEICULOS')
         elif nicho == 'imoveis':
             setattr(empresa, 'nicho', 'IMOVEIS')
+        elif nicho == 'atacado_varejo':
+            setattr(empresa, 'nicho', 'ATACADO_VAREJO')
+        elif nicho == 'loja_tintas':
+            setattr(empresa, 'nicho', 'LOJA_TINTAS')
+
+        # Salvar tipo_negocio para identificar módulo do bot
+        if hasattr(empresa, 'tipo_negocio'):
+            empresa.tipo_negocio = nicho
+
+        # Marcar setup como completo
+        if hasattr(empresa, 'setup_completo'):
+            empresa.setup_completo = True
 
         session.commit()
         session.flush()  # Garantir que foi escrito no banco
@@ -563,6 +585,260 @@ def download_template_csv():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ==================== NOTIFICAÇÕES GERENTE VIA WHATSAPP ====================
+print("\n[API] Registrando rotas de notificações para gerente...")
+
+@bp.route('/empresa/notificacoes/<int:empresa_id>', methods=['GET'])
+def get_notificacoes_gerente(empresa_id):
+    """API: Obter configurações de notificação do gerente"""
+    import sqlite3
+    try:
+        db_path = Path(__file__).parent.parent / 'vendeai.db'
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT numero_gerente, notificar_vendas, notificar_leads,
+                   notificar_entregas, notificar_estoque
+            FROM empresas WHERE id = ?
+        ''', (empresa_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'numero_gerente': row[0],
+                'notificar_vendas': bool(row[1]) if row[1] is not None else True,
+                'notificar_leads': bool(row[2]) if row[2] is not None else True,
+                'notificar_entregas': bool(row[3]) if row[3] is not None else True,
+                'notificar_estoque': bool(row[4]) if row[4] is not None else False
+            }
+        })
+    except Exception as e:
+        print(f"[API] Erro ao obter notificações: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/empresa/notificacoes/<int:empresa_id>', methods=['POST'])
+def salvar_notificacoes_gerente(empresa_id):
+    """API: Salvar configurações de notificação do gerente"""
+    import sqlite3
+    try:
+        data = request.get_json()
+        db_path = Path(__file__).parent.parent / 'vendeai.db'
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Verificar se empresa existe
+        cursor.execute('SELECT id FROM empresas WHERE id = ?', (empresa_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        # Construir update dinâmico
+        updates = []
+        values = []
+
+        if 'numero_gerente' in data:
+            updates.append('numero_gerente = ?')
+            values.append(data['numero_gerente'])
+        if 'notificar_vendas' in data:
+            updates.append('notificar_vendas = ?')
+            values.append(1 if data['notificar_vendas'] else 0)
+        if 'notificar_leads' in data:
+            updates.append('notificar_leads = ?')
+            values.append(1 if data['notificar_leads'] else 0)
+        if 'notificar_entregas' in data:
+            updates.append('notificar_entregas = ?')
+            values.append(1 if data['notificar_entregas'] else 0)
+        if 'notificar_estoque' in data:
+            updates.append('notificar_estoque = ?')
+            values.append(1 if data['notificar_estoque'] else 0)
+
+        if updates:
+            values.append(empresa_id)
+            cursor.execute(f"UPDATE empresas SET {', '.join(updates)} WHERE id = ?", values)
+            conn.commit()
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Configurações de notificação salvas com sucesso!'
+        })
+    except Exception as e:
+        print(f"[API] Erro ao salvar notificações: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/empresa/notificacoes/enviar', methods=['POST'])
+def enviar_notificacao_gerente():
+    """API: Enviar notificação ao gerente via WhatsApp"""
+    import requests
+    import sqlite3
+    from datetime import datetime
+
+    try:
+        data = request.get_json()
+        empresa_id = data.get('empresa_id')
+        tipo = data.get('tipo')  # 'venda', 'lead', 'entrega', 'estoque'
+        dados = data.get('dados', {})
+
+        if not empresa_id or not tipo:
+            return jsonify({'success': False, 'error': 'empresa_id e tipo são obrigatórios'}), 400
+
+        # Buscar dados da empresa via SQLite
+        db_path = Path(__file__).parent.parent / 'vendeai.db'
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT nome, numero_gerente, notificar_vendas, notificar_leads,
+                   notificar_entregas, notificar_estoque
+            FROM empresas WHERE id = ?
+        ''', (empresa_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        empresa_nome = row[0]
+        numero_gerente = row[1]
+        notificar_vendas = bool(row[2]) if row[2] is not None else True
+        notificar_leads = bool(row[3]) if row[3] is not None else True
+        notificar_entregas = bool(row[4]) if row[4] is not None else True
+        notificar_estoque = bool(row[5]) if row[5] is not None else False
+
+        if not numero_gerente:
+            return jsonify({'success': False, 'error': 'Número do gerente não configurado'}), 400
+
+        # Verificar se notificação está habilitada para este tipo
+        tipo_check = {
+            'venda': notificar_vendas,
+            'lead': notificar_leads,
+            'entrega': notificar_entregas,
+            'estoque': notificar_estoque
+        }
+
+        if tipo in tipo_check and not tipo_check[tipo]:
+            return jsonify({'success': False, 'error': f'Notificações de {tipo} estão desabilitadas'}), 400
+
+        # Construir mensagem baseada no tipo
+        agora = datetime.now().strftime('%d/%m/%Y às %H:%M')
+
+        if tipo == 'venda':
+            mensagem = f"""🛒 *NOVA VENDA REALIZADA!*
+
+📅 {agora}
+👤 Cliente: {dados.get('cliente_nome', 'N/A')}
+📱 Telefone: {dados.get('cliente_telefone', 'N/A')}
+
+📦 Produtos:
+{dados.get('produtos_texto', 'N/A')}
+
+💰 *Total: R$ {dados.get('valor_total', '0,00')}*
+💳 Pagamento: {dados.get('forma_pagamento', 'N/A')}
+🚚 Entrega: {dados.get('tipo_entrega', 'N/A')}
+
+_Notificação automática - {empresa_nome}_"""
+
+        elif tipo == 'lead':
+            mensagem = f"""🔔 *NOVO LEAD/CONTATO!*
+
+📅 {agora}
+👤 Nome: {dados.get('nome', 'N/A')}
+📱 Telefone: {dados.get('telefone', 'N/A')}
+
+💬 Mensagem:
+"{dados.get('mensagem', 'N/A')}"
+
+🎯 Interesse: {dados.get('interesse', 'Não identificado')}
+
+_Notificação automática - {empresa_nome}_"""
+
+        elif tipo == 'entrega':
+            mensagem = f"""🚚 *ENTREGA SOLICITADA!*
+
+📅 {agora}
+👤 Cliente: {dados.get('cliente_nome', 'N/A')}
+📱 Telefone: {dados.get('cliente_telefone', 'N/A')}
+
+📍 Endereço:
+{dados.get('endereco', 'N/A')}
+
+📦 Produtos: {dados.get('produtos_resumo', 'N/A')}
+💰 Valor: R$ {dados.get('valor_total', '0,00')}
+
+_Notificação automática - {empresa_nome}_"""
+
+        elif tipo == 'estoque':
+            mensagem = f"""⚠️ *ALERTA DE ESTOQUE BAIXO!*
+
+📅 {agora}
+📦 Produto: {dados.get('produto_nome', 'N/A')}
+🔢 Código: {dados.get('codigo', 'N/A')}
+📊 Estoque atual: {dados.get('quantidade', 0)} unidades
+
+⚠️ Nível mínimo: {dados.get('nivel_minimo', 5)} unidades
+
+_Notificação automática - {empresa_nome}_"""
+
+        else:
+            mensagem = f"""📢 *NOTIFICAÇÃO*
+
+📅 {agora}
+{dados.get('mensagem', 'Sem detalhes')}
+
+_Notificação automática - {empresa_nome}_"""
+
+        # Enviar via bot server
+        try:
+            response = requests.post(
+                'http://localhost:3010/api/bot/send-notification',
+                json={
+                    'empresaId': empresa_id,
+                    'telefone': numero_gerente,
+                    'mensagem': mensagem
+                },
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    return jsonify({
+                        'success': True,
+                        'message': 'Notificação enviada com sucesso!',
+                        'enviada_para': numero_gerente
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': result.get('error', 'Erro ao enviar notificação')
+                    }), 500
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Erro HTTP {response.status_code}'
+                }), 500
+
+        except requests.exceptions.RequestException as e:
+            print(f"[API] Erro ao conectar com bot server: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Erro ao conectar com bot: {str(e)}'
+            }), 500
+
+    except Exception as e:
+        print(f"[API] Erro ao enviar notificação: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/docs')
 def docs():
     """Documentação da API"""
@@ -575,6 +851,8 @@ def docs():
             '/api/empresa/bot/toggle': 'POST - Ativar/Desativar bot (Body: {"empresa_id": 5, "bot_ativo": true})',
             '/api/empresa/check-setup/<empresa_id>': 'GET - Verificar status de setup da empresa',
             '/api/empresa/setup': 'POST - Configurar empresa (wizard de setup inicial)',
+            '/api/empresa/notificacoes/<empresa_id>': 'GET/POST - Configurar notificações do gerente',
+            '/api/empresa/notificacoes/enviar': 'POST - Enviar notificação ao gerente',
             '/api/leads': 'GET - Lista de leads',
             '/api/whatsapp/status': 'GET - Status WhatsApp',
             '/api/empresa/info': 'GET - Informações da empresa + bot',

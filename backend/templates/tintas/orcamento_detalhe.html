@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Orcamento #{{ orcamento.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-file-text me-2"></i>Orcamento #{{ orcamento.id }}</h2>
+        <a href="{{ url_for('tintas.listar_orcamentos') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Detalhes do Projeto -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Detalhes do Projeto</h5>
+                    {% if orcamento.status == 'pendente' %}
+                    <span class="badge bg-warning text-dark fs-6">Pendente</span>
+                    {% elif orcamento.status == 'enviado' %}
+                    <span class="badge bg-info fs-6">Enviado</span>
+                    {% elif orcamento.status == 'aprovado' %}
+                    <span class="badge bg-success fs-6">Aprovado</span>
+                    {% elif orcamento.status == 'recusado' %}
+                    <span class="badge bg-danger fs-6">Recusado</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="text-muted small">Tipo de Projeto</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.tipo_projeto or '-' }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">Ambiente</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.ambiente or '-' }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">Data</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.created_at.strftime('%d/%m/%Y %H:%M') if orcamento.created_at else '-' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="text-muted small">Area (m2)</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.area_m2 or '-' }} m2</p>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Altura Paredes</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.altura_paredes or 2.8 }} m</p>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Area Pintura</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.area_total_pintura or '-' }} m2</p>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Litros Necessarios</label>
+                            <p class="mb-0 fw-bold">{{ orcamento.litros_necessarios or '-' }} L</p>
+                        </div>
+                    </div>
+
+                    {% if orcamento.numero_latas %}
+                    <hr>
+                    <h6>Latas Sugeridas</h6>
+                    <div class="d-flex gap-3">
+                        {% for tam, qtd in orcamento.numero_latas.items() %}
+                        {% if qtd > 0 %}
+                        <div class="text-center">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mx-auto" style="width: 50px; height: 50px;">
+                                <strong>{{ qtd }}</strong>
+                            </div>
+                            <small class="text-muted">{{ tam }}</small>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Itens do Orcamento -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Itens do Orcamento</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Produto</th>
+                                    <th>Tamanho</th>
+                                    <th class="text-center">Qtd</th>
+                                    <th class="text-end">Preco Unit.</th>
+                                    <th class="text-end">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if orcamento.itens %}
+                                {% for item in orcamento.itens %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ item.nome }}</strong>
+                                        {% if item.marca %}
+                                        <br><small class="text-muted">{{ item.marca }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.tamanho or '-' }}</td>
+                                    <td class="text-center">{{ item.quantidade or item.qtd or 1 }}</td>
+                                    <td class="text-end">R$ {{ "%.2f"|format(item.preco_unitario or item.preco_unit or 0) }}</td>
+                                    <td class="text-end">R$ {{ "%.2f"|format(item.subtotal or 0) }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3 text-muted">Nenhum item</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumo e Acoes -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Resumo</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal:</span>
+                        <span>R$ {{ "%.2f"|format(orcamento.subtotal or 0) }}</span>
+                    </div>
+                    {% if orcamento.desconto_valor and orcamento.desconto_valor > 0 %}
+                    <div class="d-flex justify-content-between mb-2 text-success">
+                        <span>Desconto:</span>
+                        <span>- R$ {{ "%.2f"|format(orcamento.desconto_valor) }}</span>
+                    </div>
+                    {% endif %}
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                        <strong class="fs-5">Total:</strong>
+                        <strong class="fs-5 text-primary">R$ {{ "%.2f"|format(orcamento.valor_total or 0) }}</strong>
+                    </div>
+
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar me-1"></i>
+                            Validade: {{ orcamento.validade_dias or 7 }} dias
+                        </small>
+                    </div>
+
+                    <div class="d-flex gap-2 mb-3">
+                        {% if orcamento.enviado_whatsapp %}
+                        <span class="badge bg-success"><i class="bi bi-whatsapp me-1"></i> Enviado</span>
+                        {% endif %}
+                        {% if orcamento.enviado_email %}
+                        <span class="badge bg-info"><i class="bi bi-envelope me-1"></i> Email</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Atualizar Status -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Atualizar Status</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('tintas.atualizar_status_orcamento', id=orcamento.id) }}">
+                        <div class="mb-3">
+                            <select class="form-select" name="status">
+                                <option value="pendente" {{ 'selected' if orcamento.status == 'pendente' else '' }}>Pendente</option>
+                                <option value="enviado" {{ 'selected' if orcamento.status == 'enviado' else '' }}>Enviado</option>
+                                <option value="aprovado" {{ 'selected' if orcamento.status == 'aprovado' else '' }}>Aprovado</option>
+                                <option value="recusado" {{ 'selected' if orcamento.status == 'recusado' else '' }}>Recusado</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-check-lg me-1"></i> Atualizar
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {% if orcamento.lead_id %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Lead Associado</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('leads.ver_lead', id=orcamento.lead_id) }}" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-person me-1"></i> Ver Lead #{{ orcamento.lead_id }}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Loja de Tintas - Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-paint-bucket me-2"></i>Loja de Tintas</h2>
+        <a href="{{ url_for('tintas.configuracoes') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-gear me-1"></i> Configuracoes
+        </a>
+    </div>
+
+    <!-- Cards de Estatisticas -->
+    <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Produtos</h6>
+                            <h2 class="mb-0">{{ total_produtos }}</h2>
+                        </div>
+                        <i class="bi bi-box-seam display-4 opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('tintas.listar_produtos') }}" class="text-white text-decoration-none small">
+                        Ver catalogo <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Paleta de Cores</h6>
+                            <h2 class="mb-0">{{ total_cores }}</h2>
+                        </div>
+                        <i class="bi bi-palette display-4 opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('tintas.paleta_cores') }}" class="text-white text-decoration-none small">
+                        Gerenciar cores <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Orcamentos</h6>
+                            <h2 class="mb-0">{{ total_orcamentos }}</h2>
+                        </div>
+                        <i class="bi bi-file-text display-4 opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('tintas.listar_orcamentos') }}" class="text-white text-decoration-none small">
+                        Ver orcamentos <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="opacity-75 mb-1">Pendentes</h6>
+                            <h2 class="mb-0">{{ orcamentos_pendentes }}</h2>
+                        </div>
+                        <i class="bi bi-clock-history display-4 opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <span class="small opacity-75">Aguardando resposta</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Ultimos Orcamentos -->
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Ultimos Orcamentos</h5>
+                    <a href="{{ url_for('tintas.listar_orcamentos') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Data</th>
+                                    <th>Ambiente</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for orc in ultimos_orcamentos %}
+                                <tr onclick="window.location='{{ url_for('tintas.ver_orcamento', id=orc.id) }}'" style="cursor: pointer;">
+                                    <td><strong>#{{ orc.id }}</strong></td>
+                                    <td>{{ orc.created_at.strftime('%d/%m %H:%M') if orc.created_at else '-' }}</td>
+                                    <td>{{ orc.ambiente or '-' }}</td>
+                                    <td><strong>R$ {{ "%.2f"|format(orc.valor_total or 0) }}</strong></td>
+                                    <td>
+                                        {% if orc.status == 'pendente' %}
+                                        <span class="badge bg-warning text-dark">Pendente</span>
+                                        {% elif orc.status == 'aprovado' %}
+                                        <span class="badge bg-success">Aprovado</span>
+                                        {% elif orc.status == 'recusado' %}
+                                        <span class="badge bg-danger">Recusado</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ orc.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        Nenhum orcamento ainda
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acoes Rapidas -->
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Acoes Rapidas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('tintas.novo_produto') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-lg me-2"></i>Novo Produto
+                        </a>
+                        <a href="{{ url_for('tintas.paleta_cores') }}" class="btn btn-outline-info">
+                            <i class="bi bi-palette me-2"></i>Adicionar Cor
+                        </a>
+                        <a href="{{ url_for('tintas.listar_categorias') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-folder me-2"></i>Gerenciar Categorias
+                        </a>
+                        <a href="{{ url_for('tintas.configuracoes') }}" class="btn btn-outline-dark">
+                            <i class="bi bi-gear me-2"></i>Configuracoes Bot
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Produtos em Destaque -->
+            {% if produtos_destaque %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-star me-2"></i>Produtos em Destaque</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for prod in produtos_destaque %}
+                        <li class="list-group-item d-flex align-items-center">
+                            <div class="rounded me-3" style="width: 40px; height: 40px; background-color: {{ prod.cor_hex or '#6366f1' }};"></div>
+                            <div class="flex-grow-1">
+                                <strong>{{ prod.nome }}</strong>
+                                <br><small class="text-muted">{{ prod.marca }}</small>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

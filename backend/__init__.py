@@ -49,7 +49,7 @@ CORS(app,
                  "http://localhost:4000"
              ],
              "supports_credentials": True,
-             "allow_headers": ["Content-Type", "Authorization", "X-API-Key"],
+             "allow_headers": ["Content-Type", "Authorization", "X-API-Key", "X-Empresa-ID", "X-Empresa-Id"],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
          }
      })
@@ -57,12 +57,15 @@ CORS(app,
 # Database Manager - Usar gerenciador híbrido se remoto estiver habilitado
 use_remote = os.getenv('USE_REMOTE_DB', 'False').lower() == 'true'
 
+# Path absoluto do banco de dados local - SEMPRE usar backend/vendeai.db (único banco multi-tenant)
+LOCAL_DB_PATH = Path(__file__).resolve().parent / 'vendeai.db'
+
 if use_remote:
     db_manager = get_hybrid_db_manager()
     print("[INFO] Usando gerenciador híbrido de banco de dados (Local + Remoto)")
 else:
-    db_manager = DatabaseManager('sqlite:///vendeai.db')
-    print("[INFO] Usando gerenciador de banco de dados local (SQLite)")
+    db_manager = DatabaseManager(f'sqlite:///{LOCAL_DB_PATH}')
+    print(f"[INFO] Usando banco de dados local: {LOCAL_DB_PATH}")
 
 # Login Manager
 login_manager = LoginManager()
@@ -90,7 +93,7 @@ def load_user(user_id):
 
 
 # Importar rotas
-from backend.routes import auth, dashboard, leads, conversas, campanhas, admin, api, auth_api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos, afiliados, tracking, admin_api
+from backend.routes import auth, dashboard, leads, conversas, campanhas, admin, api, auth_api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos, afiliados, tracking, admin_api, varejo_api, entregas_api, tintas
 
 # Importar produtos_api separadamente para capturar erros
 try:
@@ -102,8 +105,28 @@ except Exception as e:
     traceback.print_exc()
     produtos_api = None
 
+# Importar bot_config_api
+try:
+    from backend.routes import bot_config_api
+    print("[INIT] OK bot_config_api importado com sucesso!")
+except Exception as e:
+    print(f"[INIT] ERRO ao importar bot_config_api: {e}")
+    import traceback
+    traceback.print_exc()
+    bot_config_api = None
+
 # Importar API temporária de veículos
 from backend.routes import veiculos_temp_api
+
+# Importar assinatura (checkout/pagamentos)
+try:
+    from backend.routes import assinatura
+    print("[INIT] OK assinatura importado com sucesso!")
+except Exception as e:
+    print(f"[INIT] ERRO ao importar assinatura: {e}")
+    import traceback
+    traceback.print_exc()
+    assinatura = None
 
 # Registrar blueprints
 app.register_blueprint(auth.bp)
@@ -131,4 +154,38 @@ app.register_blueprint(tracking.bp)  # ✅ Rastreamento de links de afiliados
 app.register_blueprint(admin_api.bp)  # ✅ API REST Admin CRM (React)
 app.register_blueprint(veiculos_temp_api.veiculos_temp_bp)  # ✅ API temporária de veículos (SQLite direto)
 print("[INIT] OK veiculos_temp_api_bp registrado!")
+
+# Registrar APIs de Varejo (clientes, pedidos, agendamentos)
+app.register_blueprint(varejo_api.varejo_api_bp)
+print("[INIT] OK varejo_api_bp registrado!")
+
+# Registrar API de Entregas
+app.register_blueprint(entregas_api.entregas_api_bp)
+print("[INIT] OK entregas_api_bp registrado!")
+
+# Registrar bot_config_api
+if bot_config_api is not None:
+    app.register_blueprint(bot_config_api.bot_config_api_bp)
+    print("[INIT] OK bot_config_api_bp registrado!")
+else:
+    print("[INIT] AVISO bot_config_api nao foi importado, blueprint nao registrado")
+
+# Registrar módulo de Tintas (Loja de Tintas)
+app.register_blueprint(tintas.tintas_bp)
+print("[INIT] OK tintas_bp registrado!")
+
+# Registrar API REST de Tintas
+try:
+    from backend.routes import tintas_api
+    app.register_blueprint(tintas_api.tintas_api_bp)
+    print("[INIT] OK tintas_api_bp registrado!")
+except Exception as e:
+    print(f"[INIT] ERRO ao importar tintas_api: {e}")
+
+# Registrar assinatura (checkout/pagamentos)
+if assinatura is not None:
+    app.register_blueprint(assinatura.assinatura_bp)
+    print("[INIT] OK assinatura_bp registrado!")
+else:
+    print("[INIT] AVISO assinatura nao foi importado, blueprint nao registrado")
 

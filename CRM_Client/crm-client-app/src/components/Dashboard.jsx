@@ -13,7 +13,8 @@ import {
   Car, CheckCircle, AlertTriangle, Info, RefreshCw, Power,
   Smartphone, Settings as SettingsIcon, Clock, DollarSign,
   BarChart3, Zap, TrendingDown, ArrowUpRight, ArrowDownRight,
-  Eye, PhoneCall, Mail, MapPin, Globe, Building2, Sparkles
+  Eye, PhoneCall, Mail, MapPin, Globe, Building2, Sparkles,
+  Package, Boxes, Truck
 } from 'lucide-react';
 
 export default function Dashboard({ user, botConfig, onNavigate, showNotification }) {
@@ -42,7 +43,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
       // Buscar estatísticas do backend
       let statsData = { data: {} };
       try {
-        const statsResponse = await fetch(`http://localhost:5000/api/stats/${empresaId}`);
+        const statsResponse = await fetch(`/api/stats/${empresaId}`);
         if (statsResponse.ok) {
           const data = await statsResponse.json();
           if (data.success) {
@@ -57,7 +58,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
         console.warn('[DASHBOARD] ⚠️ Erro ao buscar stats:', statsError.message);
       }
 
-      // Buscar status real do bot/WhatsApp da empresa
+      // Buscar status real do bot/WhatsApp e dados da empresa
       let botStatus = {
         ativo: false,
         configurado: false,
@@ -66,10 +67,18 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           phoneNumber: null
         }
       };
+      let empresaInfo = {
+        nome: user?.empresa_nome || 'Empresa',
+        endereco: null,
+        horarioAtendimento: null,
+        telefone: user?.whatsapp || null,
+        email: user?.email || null,
+        website: null
+      };
 
       try {
-        console.log('[DASHBOARD] 📡 Buscando status da empresa...');
-        const empresaResponse = await fetch(`http://localhost:5000/api/empresa/info`);
+        console.log('[DASHBOARD] 📡 Buscando dados da empresa...');
+        const empresaResponse = await fetch(`/api/empresa/info`);
         console.log('[DASHBOARD] 📡 Status HTTP:', empresaResponse.status);
 
         if (empresaResponse.ok) {
@@ -78,14 +87,28 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
 
           // A API retorna os dados diretamente (não dentro de success/empresa)
           if (empresaData.id) {
+            // Dados do bot
             botStatus = {
               ativo: empresaData.bot_ativo || false,
               configurado: empresaData.whatsapp_conectado || false,
               whatsapp: {
                 connected: empresaData.whatsapp_conectado || false,
-                phoneNumber: empresaData.whatsapp_numero || null
+                phoneNumber: empresaData.whatsapp_numero || null,
+                status: empresaData.whatsapp_status || 'disconnected'
               }
             };
+
+            // Dados da empresa
+            empresaInfo = {
+              nome: empresaData.nome || user?.empresa_nome || 'Empresa',
+              endereco: empresaData.endereco || null,
+              horarioAtendimento: empresaData.horario_atendimento || null,
+              telefone: empresaData.telefone || user?.whatsapp || null,
+              email: empresaData.email || user?.email || null,
+              website: empresaData.website || null
+            };
+
+            console.log('[DASHBOARD] ✅ Dados da empresa:', empresaInfo);
             console.log('[DASHBOARD] ✅ Status real do bot:', botStatus);
             console.log('[DASHBOARD] 📱 WhatsApp:', botStatus.whatsapp.connected ? `Conectado (${botStatus.whatsapp.phoneNumber})` : 'Desconectado');
           } else {
@@ -96,27 +119,85 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           console.error('[DASHBOARD] ❌ Erro HTTP:', empresaResponse.status, errorText);
         }
       } catch (botError) {
-        console.error('[DASHBOARD] ❌ Erro ao buscar status do bot:', botError);
+        console.error('[DASHBOARD] ❌ Erro ao buscar dados da empresa:', botError);
+      }
+
+      // Buscar dados de produtos/estoque para varejo
+      const nichoRaw = user?.nicho || 'veiculos';
+      const nicho = nichoRaw.toLowerCase();
+      let produtosData = { total: 0, entregas: 0, pedidos: 0 };
+
+      if (nicho === 'atacado_varejo' || nicho === 'varejo' || nicho === 'loja_tintas') {
+        try {
+          const produtosResponse = await fetch(`/api/produtos/listar?empresa_id=${empresaId}`, {
+            headers: { 'X-Empresa-ID': empresaId?.toString() }
+          });
+          if (produtosResponse.ok) {
+            const data = await produtosResponse.json();
+            if (data.success) {
+              // API retorna data.data.produtos (formato produtos_api.py)
+              produtosData.total = data.data?.produtos?.length || data.produtos?.length || 0;
+            }
+          }
+
+          // Buscar entregas
+          const entregasResponse = await fetch(`/api/entregas?empresa_id=${empresaId}`, {
+            headers: { 'X-Empresa-ID': empresaId?.toString() }
+          });
+          if (entregasResponse.ok) {
+            const data = await entregasResponse.json();
+            if (data.success) {
+              produtosData.entregas = data.data?.entregas?.length || 0;
+            }
+          }
+
+          // Buscar pedidos
+          const pedidosResponse = await fetch(`/api/pedidos/listar?empresa_id=${empresaId}`, {
+            headers: { 'X-Empresa-ID': empresaId?.toString() }
+          });
+          if (pedidosResponse.ok) {
+            const data = await pedidosResponse.json();
+            if (data.success) {
+              produtosData.pedidos = data.pedidos?.length || 0;
+            }
+          }
+
+          // Buscar clientes
+          const clientesResponse = await fetch(`/api/clientes/listar?empresa_id=${empresaId}`, {
+            headers: { 'X-Empresa-ID': empresaId?.toString() }
+          });
+          if (clientesResponse.ok) {
+            const data = await clientesResponse.json();
+            if (data.success) {
+              produtosData.clientes = data.clientes?.length || 0;
+            }
+          }
+        } catch (err) {
+          console.warn('[DASHBOARD] Erro ao buscar dados de varejo:', err);
+        }
       }
 
       // Montar dados do dashboard
       const dashboardData = {
         empresa: {
-          nome: user?.empresa_nome || 'Empresa',
-          nicho: user?.nicho || 'veiculos',
-          telefone: user?.whatsapp || '(00) 00000-0000',
-          email: user?.email || 'contato@empresa.com',
-          endereco: 'Rua Principal, 123 - Centro',
-          horarioAtendimento: 'Seg-Sex: 8h às 18h',
-          website: 'www.empresa.com.br'
+          nome: empresaInfo.nome,
+          nicho: nicho, // já está em lowercase
+          telefone: empresaInfo.telefone,
+          email: empresaInfo.email,
+          endereco: empresaInfo.endereco,
+          horarioAtendimento: empresaInfo.horarioAtendimento,
+          website: empresaInfo.website
         },
         bot: botStatus,
         stats: {
           totalVeiculos: 45,
-          totalClientes: statsData?.data?.clientes?.total || 0,
+          totalProdutos: produtosData.total,
+          totalClientes: produtosData.clientes || statsData?.data?.clientes?.total || 0,
           totalConversas: statsData?.data?.conversas?.total || 0,
           totalAgendamentos: statsData?.data?.agendamentos?.total || 0,
           agendamentosPendentes: statsData?.data?.agendamentos?.pendentes || 0,
+          totalEntregas: produtosData.entregas,
+          totalPedidos: produtosData.pedidos,
           financiamentosTotal: statsData?.data?.financiamentos?.total || 0,
           financiamentosAprovados: statsData?.data?.financiamentos?.aprovados || 0,
           mensagensHoje: statsData?.data?.mensagens?.hoje || 0,
@@ -124,7 +205,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           taxaResposta: statsData?.data?.bot?.taxa_resposta || 0,
           tempoMedioResposta: statsData?.data?.bot?.tempo_medio_resposta || '-',
           leadsMes: statsData?.data?.leads?.mes || 0,
-          vendasMes: 12,
+          vendasMes: produtosData.pedidos || 12,
           receitaMes: 680000,
           ticketMedio: 56666.67
         },
@@ -231,14 +312,21 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
                   {empresa.nome}
                 </h1>
                 <div className="flex items-center gap-4 mt-1.5 text-xs text-white/60">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" />
-                    <span>{empresa.endereco}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>{empresa.horarioAtendimento}</span>
-                  </div>
+                  {empresa.endereco && (
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span>{empresa.endereco}</span>
+                    </div>
+                  )}
+                  {empresa.horarioAtendimento && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{empresa.horarioAtendimento}</span>
+                    </div>
+                  )}
+                  {!empresa.endereco && !empresa.horarioAtendimento && (
+                    <span className="text-white/40 italic">Configure os dados da empresa em Minha Empresa</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -470,39 +558,71 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           </div>
         </div>
 
-        {/* Veículos/Produtos */}
+        {/* Veículos/Produtos - baseado no nicho */}
         <div className="relative overflow-hidden rounded-xl card-glass hover:bg-white/5 transition-all group">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="relative p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="h-11 w-11 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                <Car className="h-6 w-6 text-white" />
+                {empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' || empresa.nicho === 'loja_tintas' ? (
+                  <Package className="h-6 w-6 text-white" />
+                ) : (
+                  <Car className="h-6 w-6 text-white" />
+                )}
               </div>
             </div>
-            <h3 className="text-xs text-white/60 font-medium mb-1">Veículos Disponíveis</h3>
-            <p className="text-2xl font-bold text-white">{formatNumber(stats.totalVeiculos)}</p>
+            <h3 className="text-xs text-white/60 font-medium mb-1">
+              {empresa.nicho === 'loja_tintas' ? 'Tintas em Estoque' :
+               empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' ? 'Produtos em Estoque' : 'Veículos Disponíveis'}
+            </h3>
+            <p className="text-2xl font-bold text-white">
+              {empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' || empresa.nicho === 'loja_tintas'
+                ? formatNumber(stats.totalProdutos)
+                : formatNumber(stats.totalVeiculos)}
+            </p>
             <p className="text-xs text-white/60 font-semibold mt-2">No estoque</p>
           </div>
         </div>
 
-        {/* Agendamentos */}
+        {/* Agendamentos/Entregas - baseado no nicho */}
         <div className="relative overflow-hidden rounded-xl card-glass hover:bg-white/5 transition-all group">
           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="relative p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="h-11 w-11 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Calendar className="h-6 w-6 text-white" />
+                {empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' || empresa.nicho === 'loja_tintas' ? (
+                  <Truck className="h-6 w-6 text-white" />
+                ) : (
+                  <Calendar className="h-6 w-6 text-white" />
+                )}
               </div>
-              {stats.agendamentosPendentes > 0 && (
-                <div className="h-6 w-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center shadow-lg shadow-amber-500/50 animate-pulse">
-                  {stats.agendamentosPendentes}
-                </div>
+              {(empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' || empresa.nicho === 'loja_tintas') ? (
+                stats.totalEntregas > 0 && (
+                  <div className="h-6 w-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center shadow-lg shadow-amber-500/50 animate-pulse">
+                    {stats.totalEntregas}
+                  </div>
+                )
+              ) : (
+                stats.agendamentosPendentes > 0 && (
+                  <div className="h-6 w-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center shadow-lg shadow-amber-500/50 animate-pulse">
+                    {stats.agendamentosPendentes}
+                  </div>
+                )
               )}
             </div>
-            <h3 className="text-xs text-white/60 font-medium mb-1">Agendamentos</h3>
-            <p className="text-2xl font-bold text-white">{formatNumber(stats.totalAgendamentos)}</p>
+            <h3 className="text-xs text-white/60 font-medium mb-1">
+              {empresa.nicho === 'loja_tintas' ? 'Orçamentos/Entregas' :
+               empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' ? 'Entregas' : 'Agendamentos'}
+            </h3>
+            <p className="text-2xl font-bold text-white">
+              {empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' || empresa.nicho === 'loja_tintas'
+                ? formatNumber(stats.totalEntregas)
+                : formatNumber(stats.totalAgendamentos)}
+            </p>
             <p className="text-xs text-amber-400 font-semibold mt-2">
-              {stats.agendamentosPendentes} pendentes
+              {empresa.nicho === 'atacado_varejo' || empresa.nicho === 'varejo' || empresa.nicho === 'loja_tintas'
+                ? `${stats.totalPedidos} pedidos`
+                : `${stats.agendamentosPendentes} pendentes`}
             </p>
           </div>
         </div>

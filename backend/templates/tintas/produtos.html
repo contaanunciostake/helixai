@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Catalogo de Tintas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-paint-bucket me-2"></i>Catalogo de Tintas</h2>
+        <a href="{{ url_for('tintas.novo_produto') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Novo Produto
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <select class="form-select" id="filtroCategoria">
+                        <option value="">Todas Categorias</option>
+                        {% for cat in categorias %}
+                        <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filtroTipo">
+                        <option value="">Tipo</option>
+                        <option value="latex">Latex</option>
+                        <option value="acrilica">Acrilica</option>
+                        <option value="esmalte">Esmalte</option>
+                        <option value="verniz">Verniz</option>
+                        <option value="textura">Textura</option>
+                        <option value="epoxi">Epoxi</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filtroMarca">
+                        <option value="">Marca</option>
+                        <option value="suvinil">Suvinil</option>
+                        <option value="coral">Coral</option>
+                        <option value="sherwin">Sherwin-Williams</option>
+                        <option value="lukscolor">Lukscolor</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" id="busca" placeholder="Buscar produto...">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="limparFiltros()">
+                        <i class="bi bi-x-lg me-1"></i> Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid de Produtos -->
+    <div class="row g-4" id="gridProdutos">
+        {% for produto in produtos %}
+        <div class="col-md-6 col-lg-4 col-xl-3 produto-card"
+             data-categoria="{{ produto.categoria_id }}"
+             data-tipo="{{ produto.tipo }}"
+             data-marca="{{ produto.marca|lower if produto.marca else '' }}">
+            <div class="card h-100 shadow-sm">
+                <div class="position-relative">
+                    {% if produto.imagem_url %}
+                    <img src="{{ produto.imagem_url }}" class="card-img-top" alt="{{ produto.nome }}" style="height: 180px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top bg-dark d-flex align-items-center justify-content-center" style="height: 180px;">
+                        <div class="text-center">
+                            <div class="rounded-circle mx-auto mb-2"
+                                 style="width: 60px; height: 60px; background-color: {{ produto.cor_hex or '#6366f1' }}; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                            </div>
+                            <small class="text-muted">{{ produto.cor_nome or 'Cor padrao' }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if produto.destaque %}
+                    <span class="badge bg-warning position-absolute top-0 end-0 m-2">
+                        <i class="bi bi-star-fill"></i> Destaque
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{{ produto.nome }}</h6>
+                    <p class="text-muted small mb-2">{{ produto.marca or '' }} {{ '- ' + produto.linha if produto.linha else '' }}</p>
+
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                        {% if produto.tipo %}
+                        <span class="badge bg-secondary">{{ produto.tipo }}</span>
+                        {% endif %}
+                        {% if produto.acabamento %}
+                        <span class="badge bg-info">{{ produto.acabamento }}</span>
+                        {% endif %}
+                        {% if produto.ambiente %}
+                        <span class="badge bg-dark">{{ produto.ambiente }}</span>
+                        {% endif %}
+                    </div>
+
+                    <p class="small mb-2">
+                        <i class="bi bi-rulers me-1"></i> Rend: {{ produto.rendimento_m2_litro or '-' }}m2/L
+                    </p>
+
+                    {% if produto.tamanhos_precos %}
+                    <div class="small">
+                        {% for tam, preco in produto.tamanhos_precos.items() %}
+                        {% if preco and preco > 0 %}
+                        <span class="me-2"><strong>{{ tam }}:</strong> R${{ "%.2f"|format(preco) }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('tintas.ver_produto', id=produto.id) }}" class="btn btn-sm btn-outline-primary flex-grow-1">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletarProduto({{ produto.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Nenhum produto cadastrado. <a href="{{ url_for('tintas.novo_produto') }}">Cadastre o primeiro!</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+// Filtros
+document.querySelectorAll('#filtroCategoria, #filtroTipo, #filtroMarca, #busca').forEach(el => {
+    el.addEventListener('change', filtrarProdutos);
+    el.addEventListener('input', filtrarProdutos);
+});
+
+function filtrarProdutos() {
+    const categoria = document.getElementById('filtroCategoria').value;
+    const tipo = document.getElementById('filtroTipo').value;
+    const marca = document.getElementById('filtroMarca').value;
+    const busca = document.getElementById('busca').value.toLowerCase();
+
+    document.querySelectorAll('.produto-card').forEach(card => {
+        let show = true;
+
+        if (categoria && card.dataset.categoria !== categoria) show = false;
+        if (tipo && card.dataset.tipo !== tipo) show = false;
+        if (marca && card.dataset.marca !== marca) show = false;
+        if (busca && !card.textContent.toLowerCase().includes(busca)) show = false;
+
+        card.style.display = show ? '' : 'none';
+    });
+}
+
+function limparFiltros() {
+    document.getElementById('filtroCategoria').value = '';
+    document.getElementById('filtroTipo').value = '';
+    document.getElementById('filtroMarca').value = '';
+    document.getElementById('busca').value = '';
+    filtrarProdutos();
+}
+
+function deletarProduto(id) {
+    if (confirm('Tem certeza que deseja remover este produto?')) {
+        fetch(`/tintas/api/produtos/${id}`, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) location.reload();
+            });
+    }
+}
+</script>
+{% endblock %}

@@ -120,13 +120,13 @@ def login():
                     'nome': usuario.nome,
                     'email': usuario.email,
                     'telefone': usuario.telefone,
-                    'tipo': usuario.tipo.value,
+                    'tipo': usuario.tipo,  # Agora é string direto
                     'empresa_id': usuario.empresa_id,
                     'empresa': {
                         'id': empresa.id,
                         'nome': empresa.nome,
-                        'nicho': empresa.nicho.value if empresa.nicho else None,
-                        'plano': empresa.plano.value if empresa.plano else None
+                        'nicho': empresa.nicho if isinstance(empresa.nicho, str) else empresa.nicho.value if empresa.nicho else None,
+                        'plano': empresa.plano if isinstance(empresa.plano, str) else empresa.plano.value if empresa.plano else None
                     } if empresa else None
                 }
             }), 200

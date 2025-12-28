@@ -1441,7 +1441,8 @@
         // DADOS DO PLANO
         // ===================================
         const urlParams = new URLSearchParams(window.location.search);
-        const planId = parseInt(urlParams.get('plano') || '2');
+        // Aceita tanto ?plano=2 quanto ?plano_id=2
+        const planId = parseInt(urlParams.get('plano_id') || urlParams.get('plano') || '2');
 
         const plansData = {
             1: {
@@ -1586,14 +1587,16 @@
         async function initMercadoPago() {
             try {
                 // Tentar buscar chave do backend
-                const response = await fetch('http://localhost:5000/api/assinatura/test');
+                const response = await fetch('http://localhost:5000/api/assinatura/config');
                 const data = await response.json();
 
-                if (data.public_key) {
+                if (data.success && data.public_key) {
                     mpPublicKey = data.public_key;
+                    console.log('[Checkout] Chave pública carregada do backend com sucesso');
                 } else {
                     // Fallback para chave de teste
                     mpPublicKey = 'TEST-c93f534c-1b3e-4f1c-b865-21af78c5e5ef';
+                    console.warn('[Checkout] Usando chave de teste');
                 }
             } catch (error) {
                 console.warn('[Checkout] Erro ao buscar chave do backend, usando chave de teste:', error);
@@ -2072,11 +2075,11 @@
 
                             // Preencher com dados de cartão de teste Mastercard aprovado
                             cardNumberInput.value = '5031 4332 1540 6351';
-                            document.getElementById('card-holder-name').value = 'APRO VENDEAI';
-                            cardExpiryInput.value = '11/25';
+                            document.getElementById('card-holder-name').value = 'APRO';
+                            cardExpiryInput.value = '11/30';
                             cardCvvInput.value = '123';
                             document.getElementById('card-doc-type').value = 'CPF';
-                            cardDocNumber.value = '123.456.789-00';
+                            cardDocNumber.value = '123456789-09';
 
                             // Trigger de detecção de bandeira
                             const brandContainer = document.getElementById('card-brand');

@@ -35,8 +35,9 @@ class PlanoAssinatura(enum.Enum):
 
 class NichoEmpresa(enum.Enum):
     """Nicho de atuação da empresa"""
-    VEICULOS = "veiculos"       # Vendas de veículos (AIra Auto)
-    IMOVEIS = "imoveis"         # Vendas de imóveis (AIra Imob)
+    VEICULOS = "veiculos"           # Vendas de veículos (AIra Auto)
+    IMOVEIS = "imoveis"             # Vendas de imóveis (AIra Imob)
+    ATACADO_VAREJO = "atacado_varejo"  # Atacado/Varejo (distribuidores, lojas)
 
 
 class StatusLead(enum.Enum):
@@ -131,7 +132,7 @@ class Usuario(UserMixin, Base):
     nome = Column(String(200), nullable=False)
     email = Column(String(200), unique=True, nullable=False, index=True)
     senha_hash = Column(String(256), nullable=False)
-    tipo = Column(SQLEnum(TipoUsuario), default=TipoUsuario.USUARIO)
+    tipo = Column(String(20), default='usuario')  # Valores: super_admin, admin_empresa, usuario, visualizador
     ativo = Column(Boolean, default=True)
 
     # Relacionamento com empresa
@@ -155,6 +156,21 @@ class Usuario(UserMixin, Base):
     def check_senha(self, senha):
         """Verifica senha"""
         return check_password_hash(self.senha_hash, senha)
+
+    @property
+    def tipo_enum(self):
+        """Retorna o tipo como enum TipoUsuario"""
+        try:
+            # Mapear string para enum
+            tipo_map = {
+                'super_admin': TipoUsuario.SUPER_ADMIN,
+                'admin_empresa': TipoUsuario.ADMIN_EMPRESA,
+                'usuario': TipoUsuario.USUARIO,
+                'visualizador': TipoUsuario.VISUALIZADOR
+            }
+            return tipo_map.get(self.tipo, TipoUsuario.USUARIO)
+        except:
+            return TipoUsuario.USUARIO
 
     # Métodos requeridos pelo Flask-Login
     @property
@@ -194,8 +210,20 @@ class Empresa(Base):
     whatsapp_qr_code = Column(Text)  # QR Code para conexão
     bot_ativo = Column(Boolean, default=False)
 
+    # Notificações para Gerente via WhatsApp
+    numero_gerente = Column(String(20))  # Número WhatsApp do gerente para receber alertas
+    notificar_vendas = Column(Boolean, default=True)  # Notificar vendas/pedidos
+    notificar_leads = Column(Boolean, default=True)  # Notificar novos leads
+    notificar_entregas = Column(Boolean, default=True)  # Notificar status de entregas
+    notificar_estoque = Column(Boolean, default=False)  # Notificar estoque baixo
+
     # Nicho de atuação
     nicho = Column(SQLEnum(NichoEmpresa), nullable=True)  # veiculos ou imoveis
+
+    # Configuração do Wizard/Setup
+    nome_bot = Column(String(100))  # Nome da IA configurada no wizard
+    setup_completo = Column(Boolean, default=False)  # Se completou o wizard de configuração inicial
+    tem_catalogo = Column(Boolean, default=False)  # Se possui catálogo de produtos
 
     # Assinatura
     plano = Column(SQLEnum(PlanoAssinatura), default=PlanoAssinatura.GRATUITO)
@@ -668,6 +696,7 @@ class Produto(Base):
     sku = Column(String(100))
     codigo_barras = Column(String(100))
     marca = Column(String(100))
+    aplicacao = Column(String(100))  # Ex: Carro e SUV, Moto, Caminhão, Máquinas Pesadas
     peso = Column(Float)  # em kg
     dimensoes = Column(String(100))  # formato: LxAxP em cm
 
@@ -1032,6 +1061,189 @@ class ConfiguracaoAfiliados(Base):
 
     def __repr__(self):
         return f'<ConfiguracaoAfiliados - Primeira Venda: {self.comissao_primeira_venda_padrao}% - Recorrente: {self.comissao_recorrente_padrao}%>'
+
+
+# ==================== SISTEMA DE VAREJO ====================
+
+class Cliente(Base):
+    """Clientes da empresa (para nicho Varejo/Atacado)"""
+    __tablename__ = 'clientes'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+
+    # Dados básicos
+    nome = Column(String(200), nullable=False)
+    tipo = Column(String(10), default='PJ')  # PJ ou PF
+    cpf_cnpj = Column(String(20))
+    email = Column(String(200))
+    telefone = Column(String(20))
+    celular = Column(String(20))
+
+    # Endereço
+    endereco = Column(String(300))
+    numero = Column(String(20))
+    complemento = Column(String(100))
+    bairro = Column(String(100))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+    cep = Column(String(10))
+
+    # Observações
+    observacoes = Column(Text)
+
+    # Métricas
+    total_compras = Column(Float, default=0.0)
+    ultima_compra = Column(DateTime)
+
+    # Status
+    ativo = Column(Boolean, default=True)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    pedidos = relationship("Pedido", back_populates="cliente")
+
+    def __repr__(self):
+        return f'<Cliente {self.nome}>'
+
+
+class Pedido(Base):
+    """Pedidos de venda (para nicho Varejo/Atacado)"""
+    __tablename__ = 'pedidos'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    cliente_id = Column(Integer, ForeignKey('clientes.id'), nullable=False, index=True)
+
+    # Status
+    status = Column(String(50), default='pendente')  # pendente, confirmado, em_separacao, enviado, entregue, cancelado
+
+    # Datas
+    data_entrega = Column(DateTime)
+
+    # Pagamento
+    forma_pagamento = Column(String(50))  # boleto, pix, cartao_credito, cartao_debito, dinheiro, prazo
+    desconto = Column(Float, default=0.0)
+    total = Column(Float, default=0.0)
+
+    # Observações
+    observacoes = Column(Text)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    cliente = relationship("Cliente", back_populates="pedidos")
+    itens = relationship("ItemPedido", back_populates="pedido", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<Pedido {self.id} - Cliente:{self.cliente_id}>'
+
+
+class ItemPedido(Base):
+    """Itens de um pedido"""
+    __tablename__ = 'itens_pedido'
+
+    id = Column(Integer, primary_key=True)
+    pedido_id = Column(Integer, ForeignKey('pedidos.id'), nullable=False, index=True)
+    produto_id = Column(Integer, ForeignKey('produtos.id'), nullable=False)
+
+    # Dados do item
+    quantidade = Column(Integer, default=1)
+    preco_unitario = Column(Float, nullable=False)
+
+    # Relacionamentos
+    pedido = relationship("Pedido", back_populates="itens")
+    produto = relationship("Produto")
+
+    def __repr__(self):
+        return f'<ItemPedido Pedido:{self.pedido_id} Produto:{self.produto_id}>'
+
+
+class Fornecedor(Base):
+    """Fornecedores da empresa (para nicho Varejo/Atacado)"""
+    __tablename__ = 'fornecedores'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+
+    # Dados básicos
+    nome = Column(String(200), nullable=False)
+    cnpj = Column(String(20))
+    email = Column(String(200))
+    telefone = Column(String(20))
+
+    # Endereço
+    endereco = Column(String(300))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+
+    # Contato
+    contato = Column(String(100))  # Nome do contato na empresa
+
+    # Observações
+    observacoes = Column(Text)
+
+    # Status
+    ativo = Column(Boolean, default=True)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+
+    def __repr__(self):
+        return f'<Fornecedor {self.nome}>'
+
+
+class NotaFiscal(Base):
+    """Notas fiscais emitidas"""
+    __tablename__ = 'notas_fiscais'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    pedido_id = Column(Integer, ForeignKey('pedidos.id'))
+    cliente_id = Column(Integer, ForeignKey('clientes.id'))
+
+    # Dados da NF
+    numero = Column(String(50))
+    serie = Column(String(10))
+    chave_acesso = Column(String(50))
+    tipo = Column(String(20), default='NFe')  # NFe, NFCe, NFSe
+
+    # Valores
+    valor_total = Column(Float, default=0.0)
+    valor_icms = Column(Float, default=0.0)
+
+    # Status
+    status = Column(String(20), default='emitida')  # emitida, cancelada, inutilizada
+
+    # Datas
+    data_emissao = Column(DateTime, default=datetime.utcnow)
+    data_cancelamento = Column(DateTime)
+
+    # XML
+    xml_nfe = Column(Text)
+    pdf_danfe = Column(String(500))  # URL do PDF
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    pedido = relationship("Pedido")
+    cliente = relationship("Cliente")
+
+    def __repr__(self):
+        return f'<NotaFiscal {self.numero}>'
 
 
 # ==================== DATABASE MANAGER ====================

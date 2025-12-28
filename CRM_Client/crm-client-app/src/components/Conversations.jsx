@@ -2,10 +2,15 @@
  * ════════════════════════════════════════════════════════════════
  * COMPONENTE: Conversas - Kanban Arrastável (Green Neon Design)
  * ════════════════════════════════════════════════════════════════
+ *
+ * ATUALIZADO: Integração com WebSocket para tempo real
+ * - Conecta ao Bot Server (porta 3010) via WebSocket
+ * - Recebe atualizações de novas mensagens em tempo real
+ * - Busca conversas reais do banco de dados
  */
 
-import { useState, useEffect } from 'react';
-import { MessageSquare, RefreshCw, AlertTriangle, X, Phone, Clock, MapPin, User, Mail } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { MessageSquare, RefreshCw, AlertTriangle, X, Phone, Clock, MapPin, User, Mail, Wifi, WifiOff } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { Button } from '@/components/ui/button.jsx';
 
@@ -13,6 +18,7 @@ export default function Conversations({ user, botConfig, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const [conversas, setConversas] = useState({
     novo: [],
     emAtendimento: [],
@@ -20,16 +26,98 @@ export default function Conversations({ user, botConfig, showNotification }) {
     fechado: []
   });
 
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+
+  // ═══════════════════════════════════════════════════════════════
+  // WEBSOCKET CONNECTION
+  // ═══════════════════════════════════════════════════════════════
+  const connectWebSocket = useCallback(() => {
+    const empresaId = user?.empresa_id || 9;
+    const wsUrl = `ws://localhost:3010/ws?empresa_id=${empresaId}`;
+
+    console.log('[WS] Conectando ao WebSocket:', wsUrl);
+
+    try {
+      wsRef.current = new WebSocket(wsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log('[WS] Conectado!');
+        setWsConnected(true);
+        showNotification && showNotification('Conectado em tempo real', 'success');
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('[WS] Mensagem recebida:', message.type);
+
+          if (message.type === 'new_message') {
+            // Nova mensagem recebida - atualizar conversas
+            handleNewMessage(message.data);
+          } else if (message.type === 'status') {
+            console.log('[WS] Status:', message.data);
+          }
+        } catch (e) {
+          console.error('[WS] Erro ao processar mensagem:', e);
+        }
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('[WS] Desconectado');
+        setWsConnected(false);
+
+        // Reconectar após 5 segundos
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.log('[WS] Tentando reconectar...');
+          connectWebSocket();
+        }, 5000);
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('[WS] Erro:', error);
+        setWsConnected(false);
+      };
+    } catch (error) {
+      console.error('[WS] Erro ao criar conexão:', error);
+    }
+  }, [user, showNotification]);
+
+  // Handler para nova mensagem via WebSocket
+  const handleNewMessage = useCallback((data) => {
+    console.log('[WS] Nova mensagem:', data);
+
+    // Recarregar conversas para obter dados atualizados
+    loadConversations(true);
+
+    // Notificar usuário
+    if (!data.enviada_por_bot) {
+      showNotification && showNotification(
+        `Nova mensagem de ${data.nome}: ${data.mensagem.substring(0, 50)}...`,
+        'info'
+      );
+    }
+  }, [showNotification]);
+
   useEffect(() => {
     loadConversations();
+    connectWebSocket();
 
-    // Auto-refresh a cada 30 segundos
+    // Auto-refresh a cada 30 segundos (backup caso WS falhe)
     const interval = setInterval(() => {
       loadConversations(true);
     }, 30000);
 
-    return () => clearInterval(interval);
-  }, [user]);
+    return () => {
+      clearInterval(interval);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, [user, connectWebSocket]);
 
   const loadConversations = async (silent = false) => {
     try {
@@ -37,164 +125,42 @@ export default function Conversations({ user, botConfig, showNotification }) {
       else setRefreshing(true);
 
       const empresaId = user?.empresa_id || 9;
+      const apiUrl = botConfig?.apiUrl || 'http://localhost:5000';
 
-      // Tentar buscar da API
-      try {
-        const response = await fetch(`${botConfig.apiUrl}/api/conversations/${empresaId}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setConversas(data.data);
-            return;
-          }
+      // Buscar conversas reais da API
+      console.log(`[CONVERSATIONS] Buscando conversas da empresa ${empresaId}...`);
+
+      const response = await fetch(`${apiUrl}/conversas/api/conversations/${empresaId}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log(`[CONVERSATIONS] ${Object.values(data.data).flat().length} conversas carregadas`);
+          setConversas(data.data);
+          return;
         }
-      } catch (apiError) {
-        console.log('[CONVERSATIONS] API indisponível, usando dados de exemplo');
       }
 
-      // Dados de exemplo para demonstração
-      const dadosExemplo = {
-        novo: [
-          {
-            id: 'conv-1',
-            nome: 'João Silva',
-            telefone: '41999887766',
-            email: 'joao.silva@email.com',
-            mensagem: 'Olá! Gostaria de saber mais sobre os veículos disponíveis',
-            hora: '10:30',
-            origem: 'WhatsApp',
-            localizacao: 'Curitiba, PR',
-            temperatura: 'QUENTE',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: '10:30' },
-              { tipo: 'mensagem', mensagem: 'Olá! Gostaria de saber mais sobre os veículos disponíveis', hora: '10:30' }
-            ]
-          },
-          {
-            id: 'conv-2',
-            nome: 'Maria Santos',
-            telefone: '41988776655',
-            email: 'maria.santos@email.com',
-            mensagem: 'Oi, vi um Corolla 2022 no site. Ainda está disponível?',
-            hora: '11:15',
-            origem: 'WhatsApp',
-            localizacao: 'São José dos Pinhais, PR',
-            temperatura: 'MORNO',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: '11:15' },
-              { tipo: 'mensagem', mensagem: 'Oi, vi um Corolla 2022 no site. Ainda está disponível?', hora: '11:15' }
-            ]
-          },
-          {
-            id: 'conv-3',
-            nome: 'Pedro Oliveira',
-            telefone: '41977665544',
-            email: 'pedro.oliveira@email.com',
-            mensagem: 'Bom dia! Queria fazer um test drive',
-            hora: '14:20',
-            origem: 'Site',
-            localizacao: 'Pinhais, PR',
-            temperatura: 'QUENTE',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa via site', hora: '14:20' },
-              { tipo: 'mensagem', mensagem: 'Bom dia! Queria fazer um test drive', hora: '14:20' }
-            ]
-          }
-        ],
-        emAtendimento: [
-          {
-            id: 'conv-4',
-            nome: 'Ana Costa',
-            telefone: '41966554433',
-            email: 'ana.costa@email.com',
-            mensagem: 'Estou interessada no financiamento',
-            hora: 'Ontem',
-            origem: 'WhatsApp',
-            localizacao: 'Curitiba, PR',
-            temperatura: 'QUENTE',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: 'Ontem 09:30' },
-              { tipo: 'mensagem', mensagem: 'Estou interessada no financiamento', hora: 'Ontem 09:30' },
-              { tipo: 'resposta', mensagem: 'Claro! Vou te enviar as opções de financiamento', hora: 'Ontem 09:35' }
-            ]
-          },
-          {
-            id: 'conv-5',
-            nome: 'Carlos Lima',
-            telefone: '41955443322',
-            email: 'carlos.lima@email.com',
-            mensagem: 'Qual o preço do HB20 2023?',
-            hora: 'Ontem',
-            origem: 'WhatsApp',
-            localizacao: 'Araucária, PR',
-            temperatura: 'MORNO',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: 'Ontem 14:20' },
-              { tipo: 'mensagem', mensagem: 'Qual o preço do HB20 2023?', hora: 'Ontem 14:20' }
-            ]
-          }
-        ],
-        proposta: [
-          {
-            id: 'conv-6',
-            nome: 'Juliana Alves',
-            telefone: '41944332211',
-            email: 'juliana.alves@email.com',
-            mensagem: 'Enviaram a proposta de financiamento. Vou analisar',
-            hora: '2 dias',
-            origem: 'WhatsApp',
-            localizacao: 'Colombo, PR',
-            temperatura: 'QUENTE',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: '2 dias 10:00' },
-              { tipo: 'mensagem', mensagem: 'Estou interessada no Civic', hora: '2 dias 10:00' },
-              { tipo: 'resposta', mensagem: 'Enviando proposta de financiamento', hora: '2 dias 10:15' },
-              { tipo: 'mensagem', mensagem: 'Enviaram a proposta de financiamento. Vou analisar', hora: '2 dias 15:30' }
-            ]
-          }
-        ],
-        fechado: [
-          {
-            id: 'conv-7',
-            nome: 'Roberto Martins',
-            telefone: '41933221100',
-            email: 'roberto.martins@email.com',
-            mensagem: 'Comprei o Civic! Obrigado pelo atendimento',
-            hora: '3 dias',
-            origem: 'WhatsApp',
-            localizacao: 'Curitiba, PR',
-            temperatura: 'CONVERTIDO',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: '5 dias 09:00' },
-              { tipo: 'mensagem', mensagem: 'Quero comprar o Civic', hora: '5 dias 09:00' },
-              { tipo: 'resposta', mensagem: 'Ótimo! Vou preparar a documentação', hora: '5 dias 09:10' },
-              { tipo: 'venda', mensagem: 'Comprei o Civic! Obrigado pelo atendimento', hora: '3 dias 11:00' }
-            ]
-          },
-          {
-            id: 'conv-8',
-            nome: 'Fernanda Rocha',
-            telefone: '41922110099',
-            email: 'fernanda.rocha@email.com',
-            mensagem: 'Fechado! Quando posso retirar?',
-            hora: '5 dias',
-            origem: 'WhatsApp',
-            localizacao: 'Pinhais, PR',
-            temperatura: 'CONVERTIDO',
-            historico: [
-              { tipo: 'entrada', mensagem: 'Cliente iniciou conversa', hora: '7 dias 14:00' },
-              { tipo: 'mensagem', mensagem: 'Interesse no Onix', hora: '7 dias 14:00' },
-              { tipo: 'venda', mensagem: 'Fechado! Quando posso retirar?', hora: '5 dias 10:00' }
-            ]
-          }
-        ]
-      };
+      // Se API falhar, manter estado atual (não usar dados fake)
+      console.log('[CONVERSATIONS] API retornou erro ou está indisponível');
 
-      setConversas(dadosExemplo);
+      // Definir estado vazio se não houver dados
+      if (!conversas.novo.length && !conversas.emAtendimento.length) {
+        setConversas({
+          novo: [],
+          emAtendimento: [],
+          proposta: [],
+          fechado: []
+        });
+      }
 
     } catch (error) {
-      console.error('[CONVERSATIONS] Erro:', error);
-      showNotification('Erro ao carregar conversas');
+      console.error('[CONVERSATIONS] Erro ao carregar:', error);
+
+      // Manter dados existentes em caso de erro de rede
+      if (!silent) {
+        showNotification && showNotification('Erro ao carregar conversas. Tentando novamente...', 'error');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -321,10 +287,30 @@ export default function Conversations({ user, botConfig, showNotification }) {
               <h2 className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
                 Conversas - Visão Kanban
               </h2>
-              <p className="text-gray-400 text-sm mt-1">
-                Gerencie o funil de vendas - Arraste os cards entre as colunas
-                {totalConversas > 0 && ` • ${totalConversas} conversas ativas`}
-              </p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-gray-400 text-sm">
+                  Gerencie o funil de vendas - Arraste os cards entre as colunas
+                  {totalConversas > 0 && ` • ${totalConversas} conversas ativas`}
+                </p>
+                {/* Indicador WebSocket */}
+                <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                  wsConnected
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                }`}>
+                  {wsConnected ? (
+                    <>
+                      <Wifi className="h-3 w-3" />
+                      Tempo Real
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-3 w-3" />
+                      Offline
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
             <Button
               onClick={() => loadConversations()}

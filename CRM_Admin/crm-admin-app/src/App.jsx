@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -6,19 +6,20 @@ import { AdminLayout } from './components/layout/AdminLayout'
 import { Login } from './pages/Login/Login'
 import { AdminDashboard } from './pages/Dashboard/AdminDashboard'
 import { CompanyManagement } from './pages/Companies/CompanyManagement'
+import { Analytics } from './pages/Analytics/Analytics'
+import { Activity } from './pages/Activity/Activity'
+import { EmpresasAdmin } from './pages/Empresas/EmpresasAdmin'
+import { UsuariosAdmin } from './pages/Usuarios/UsuariosAdmin'
+import { AfiliadosAdmin } from './pages/Afiliados/AfiliadosAdmin'
+import { AssinaturasAdmin } from './pages/Assinaturas/AssinaturasAdmin'
+import { PagamentosAdmin } from './pages/Pagamentos/PagamentosAdmin'
+import { ComissoesAdmin } from './pages/Comissoes/ComissoesAdmin'
+import { BotsAdmin } from './pages/Bots/BotsAdmin'
+import { WhatsAppConnection } from './pages/WhatsApp/WhatsAppConnection'
+import { LogsAdmin } from './pages/Logs/LogsAdmin'
+import { DatabaseAdmin } from './pages/Database/DatabaseAdmin'
+import { ConfiguracoesAdmin } from './pages/Configuracoes/ConfiguracoesAdmin'
 import './App.css'
-
-// Placeholder para páginas que serão implementadas
-function PlaceholderPage({ title }) {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
-        <p className="text-gray-400">Em desenvolvimento...</p>
-      </div>
-    </div>
-  )
-}
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState('dashboard')
@@ -34,29 +35,31 @@ function AppContent() {
       case 'dashboard':
         return <AdminDashboard />
       case 'analytics':
-        return <PlaceholderPage title="Analytics" />
+        return <Analytics />
       case 'activity':
-        return <PlaceholderPage title="Atividade do Sistema" />
+        return <Activity />
       case 'empresas':
-        return <CompanyManagement />
+        return <EmpresasAdmin />
       case 'usuarios':
-        return <PlaceholderPage title="Gestão de Usuários" />
+        return <UsuariosAdmin />
       case 'afiliados':
-        return <PlaceholderPage title="Gestão de Afiliados" />
+        return <AfiliadosAdmin />
       case 'assinaturas':
-        return <PlaceholderPage title="Assinaturas" />
+        return <AssinaturasAdmin />
       case 'pagamentos':
-        return <PlaceholderPage title="Pagamentos" />
+        return <PagamentosAdmin />
       case 'comissoes':
-        return <PlaceholderPage title="Comissões" />
+        return <ComissoesAdmin />
       case 'bots':
-        return <PlaceholderPage title="Monitor de Bots" />
+        return <BotsAdmin />
+      case 'whatsapp':
+        return <WhatsAppConnection />
       case 'logs':
-        return <PlaceholderPage title="Logs do Sistema" />
+        return <LogsAdmin />
       case 'database':
-        return <PlaceholderPage title="Gestão de Banco de Dados" />
+        return <DatabaseAdmin />
       case 'configuracoes':
-        return <PlaceholderPage title="Configurações Globais" />
+        return <ConfiguracoesAdmin />
       default:
         return <AdminDashboard />
     }

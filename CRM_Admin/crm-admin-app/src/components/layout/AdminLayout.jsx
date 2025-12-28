@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Users, CreditCard, DollarSign,
   Settings, BarChart3, Menu, X, LogOut, Shield, Database,
   UserCog, FileText, Bell, Activity, Zap, TrendingUp,
-  Package, MessageSquare, Calendar
+  Package, MessageSquare, Calendar, Smartphone
 } from 'lucide-react';
 
 export function AdminLayout({ children, currentPage, onPageChange, user, onLogout }) {
@@ -37,10 +37,11 @@ export function AdminLayout({ children, currentPage, onPageChange, user, onLogou
     {
       title: 'Sistema',
       items: [
-        { id: 'bots', label: 'Bots WhatsApp', icon: MessageSquare },
+        { id: 'whatsapp', label: 'Conexao WhatsApp', icon: Smartphone },
+        { id: 'bots', label: 'Monitor de Bots', icon: MessageSquare },
         { id: 'logs', label: 'Logs', icon: FileText },
         { id: 'database', label: 'Banco de Dados', icon: Database },
-        { id: 'configuracoes', label: 'Configurações', icon: Settings },
+        { id: 'configuracoes', label: 'Configuracoes', icon: Settings },
       ]
     }
   ];

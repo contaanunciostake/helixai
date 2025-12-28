@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Paleta de Cores{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-palette me-2"></i>Paleta de Cores</h2>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaCor">
+            <i class="bi bi-plus-lg me-1"></i> Nova Cor
+        </button>
+    </div>
+
+    <!-- Filtros por Familia -->
+    <div class="mb-4">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-secondary active" onclick="filtrarFamilia('')">Todas</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="filtrarFamilia('Neutros')">Neutros</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="filtrarFamilia('Quentes')">Quentes</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="filtrarFamilia('Frios')">Frios</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="filtrarFamilia('Pasteis')">Pasteis</button>
+        </div>
+    </div>
+
+    <!-- Grid de Cores -->
+    <div class="row g-3" id="gridCores">
+        {% for cor in cores %}
+        <div class="col-6 col-md-4 col-lg-3 col-xl-2 cor-card" data-familia="{{ cor.familia }}">
+            <div class="card h-100 shadow-sm">
+                <div class="card-img-top position-relative" style="height: 120px; background-color: {{ cor.hex_color or '#cccccc' }};">
+                    {% if cor.tendencia %}
+                    <span class="badge bg-warning position-absolute top-0 end-0 m-2">
+                        <i class="bi bi-star-fill"></i> Tendencia
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="card-body text-center py-2">
+                    <h6 class="card-title mb-0">{{ cor.nome }}</h6>
+                    <small class="text-muted">{{ cor.codigo or '-' }}</small>
+                    <div class="mt-1">
+                        <span class="badge bg-secondary">{{ cor.familia or 'Sem familia' }}</span>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent text-center py-1">
+                    <button class="btn btn-sm btn-link" onclick="editarCor({{ cor.id }}, '{{ cor.nome }}', '{{ cor.codigo }}', '{{ cor.hex_color }}', '{{ cor.familia }}', {{ 'true' if cor.tendencia else 'false' }})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-link text-danger" onclick="excluirCor({{ cor.id }})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Nenhuma cor cadastrada. Adicione cores para seu catalogo!
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal Nova Cor -->
+<div class="modal fade" id="modalNovaCor" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('tintas.nova_cor') }}" id="formCor">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-palette me-2"></i>Nova Cor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <div id="previewCor" style="width: 100px; height: 100px; border-radius: 50%; margin: 0 auto; border: 3px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background-color: #6366f1;"></div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Nome da Cor *</label>
+                            <input type="text" class="form-control" name="nome" id="nomeCor" required placeholder="Azul Serenidade">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Codigo</label>
+                            <input type="text" class="form-control" name="codigo" id="codigoCor" placeholder="N420">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Cor (Hex)</label>
+                            <div class="input-group">
+                                <input type="color" class="form-control form-control-color" id="pickerCor" value="#6366f1"
+                                       onchange="atualizarPreview(this.value)">
+                                <input type="text" class="form-control" name="hex_color" id="hexCor" value="#6366f1"
+                                       onchange="atualizarPreview(this.value)">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Familia</label>
+                            <select class="form-select" name="familia" id="familiaCor">
+                                <option value="">Selecione...</option>
+                                <option value="Neutros">Neutros</option>
+                                <option value="Quentes">Quentes</option>
+                                <option value="Frios">Frios</option>
+                                <option value="Pasteis">Pasteis</option>
+                                <option value="Vibrantes">Vibrantes</option>
+                                <option value="Terrosos">Terrosos</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="tendencia" id="tendenciaCor">
+                                <label class="form-check-label" for="tendenciaCor">
+                                    <i class="bi bi-star-fill text-warning me-1"></i> Cor Tendencia
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">URL Imagem Ambiente</label>
+                            <input type="url" class="form-control" name="imagem_ambiente" id="imagemAmbiente" placeholder="https://...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i> Salvar Cor
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function atualizarPreview(cor) {
+    document.getElementById('previewCor').style.backgroundColor = cor;
+    document.getElementById('hexCor').value = cor;
+    document.getElementById('pickerCor').value = cor;
+}
+
+function filtrarFamilia(familia) {
+    document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    document.querySelectorAll('.cor-card').forEach(card => {
+        if (!familia || card.dataset.familia === familia) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function editarCor(id, nome, codigo, hex, familia, tendencia) {
+    document.getElementById('nomeCor').value = nome;
+    document.getElementById('codigoCor').value = codigo;
+    document.getElementById('hexCor').value = hex || '#6366f1';
+    document.getElementById('pickerCor').value = hex || '#6366f1';
+    document.getElementById('familiaCor').value = familia;
+    document.getElementById('tendenciaCor').checked = tendencia;
+    atualizarPreview(hex || '#6366f1');
+
+    document.getElementById('formCor').action = `/tintas/cores/${id}/editar`;
+    document.querySelector('#modalNovaCor .modal-title').innerHTML = '<i class="bi bi-palette me-2"></i>Editar Cor';
+
+    new bootstrap.Modal(document.getElementById('modalNovaCor')).show();
+}
+
+function excluirCor(id) {
+    if (confirm('Tem certeza que deseja remover esta cor?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/tintas/cores/${id}/excluir`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Reset form on modal close
+document.getElementById('modalNovaCor').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('formCor').reset();
+    document.getElementById('formCor').action = "{{ url_for('tintas.nova_cor') }}";
+    document.querySelector('#modalNovaCor .modal-title').innerHTML = '<i class="bi bi-palette me-2"></i>Nova Cor';
+    atualizarPreview('#6366f1');
+});
+</script>
+{% endblock %}

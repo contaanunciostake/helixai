@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { ShieldCheck, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+const API_URL = 'http://localhost:5000/api/auth'
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -20,60 +22,116 @@ export function Login() {
     setLoading(true)
     setError('')
 
-    // Simular delay de autenticação
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha: password })
+      })
 
-    // Verificar credenciais
-    if (email === 'admin@vendeai.com' && password === 'admin123') {
-      const userData = {
-        nome: 'Pauline Seitz',
-        email: email,
-        funcao: 'Web Designer',
-        avatar: null
+      const result = await response.json()
+
+      if (result.success) {
+        const userData = {
+          ...result.usuario,
+          token: result.token,
+          loginTime: new Date().toISOString()
+        }
+
+        // Verificar se e super_admin
+        if (userData.tipo !== 'super_admin') {
+          // Nao e admin - redirecionar para painel cliente
+          localStorage.setItem('crm_user', JSON.stringify(userData))
+          localStorage.setItem('crm_token', result.token)
+          localStorage.setItem('crm_isLoggedIn', 'true')
+          setError('Acesso negado. Este painel e exclusivo para administradores.')
+          setLoading(false)
+
+          // Redirecionar para painel cliente apos 2 segundos
+          setTimeout(() => {
+            window.location.replace('http://localhost:5177')
+          }, 2000)
+          return
+        }
+
+        // E super_admin - pode acessar
+        localStorage.setItem('admin_user', JSON.stringify(userData))
+        localStorage.setItem('admin_token', result.token)
+        localStorage.setItem('admin_isLoggedIn', 'true')
+
+        login(userData)
+        navigate('/dashboard')
+      } else {
+        setError(result.message || 'Email ou senha incorretos')
       }
-
-      login(userData)
-      setLoading(false)
-      navigate('/dashboard')
-    } else {
-      setError('Email ou senha incorretos')
+    } catch (err) {
+      console.error('[Admin Login] Erro:', err)
+      setError('Erro ao conectar com o servidor')
+    } finally {
       setLoading(false)
     }
   }
 
-  // Login rápido com credenciais demo
+  // Login rapido com credenciais demo (para testes)
   const loginDemo = async () => {
-    setEmail('admin@vendeai.com')
-    setPassword('admin123')
+    setEmail('admin@aira.com')
+    setPassword('Admin@123')
+
+    // Simular submit
     setLoading(true)
+    setError('')
 
-    await new Promise(resolve => setTimeout(resolve, 300))
+    try {
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@aira.com', senha: 'Admin@123' })
+      })
 
-    const userData = {
-      nome: 'Pauline Seitz',
-      email: 'admin@vendeai.com',
-      funcao: 'Web Designer',
-      avatar: null
+      const result = await response.json()
+
+      if (result.success) {
+        const userData = {
+          ...result.usuario,
+          token: result.token,
+          loginTime: new Date().toISOString()
+        }
+
+        if (userData.tipo !== 'super_admin') {
+          setError('Usuario demo nao e administrador')
+          setLoading(false)
+          return
+        }
+
+        localStorage.setItem('admin_user', JSON.stringify(userData))
+        localStorage.setItem('admin_token', result.token)
+        localStorage.setItem('admin_isLoggedIn', 'true')
+
+        login(userData)
+        navigate('/dashboard')
+      } else {
+        setError(result.message || 'Credenciais demo invalidas')
+      }
+    } catch (err) {
+      setError('Erro ao conectar. Verifique se o backend esta rodando.')
+    } finally {
+      setLoading(false)
     }
-
-    login(userData)
-    setLoading(false)
-    navigate('/dashboard')
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f1419] via-[#1a2332] to-[#0f1419] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo e Título */}
+        {/* Logo e Titulo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl mb-4 shadow-lg shadow-purple-500/50">
             <ShieldCheck className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            CRM Admin
+            AIra Admin
           </h1>
           <p className="text-gray-400 mt-2">
-            Painel de Administração
+            Painel de Administracao Master
           </p>
         </div>
 
@@ -81,10 +139,10 @@ export function Login() {
         <Card className="shadow-xl border-[#2d3748] bg-[#1a2332]">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center text-white">
-              Bem-vindo
+              Acesso Restrito
             </CardTitle>
             <CardDescription className="text-center text-gray-400">
-              Entre com suas credenciais de administrador
+              Entre com suas credenciais de super administrador
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -100,7 +158,7 @@ export function Login() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@vendeai.com"
+                    placeholder="admin@aira.com"
                     className="w-full pl-10 pr-4 py-2.5 bg-[#0f1419] border border-[#2d3748] rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-white placeholder:text-gray-600"
                     required
                   />
@@ -138,12 +196,13 @@ export function Login() {
 
               {/* Mensagem de Erro */}
               {error && (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm">
+                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
                   {error}
                 </div>
               )}
 
-              {/* Botão de Login */}
+              {/* Botao de Login */}
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-lg hover:shadow-xl"
@@ -152,10 +211,10 @@ export function Login() {
                 {loading ? (
                   <div className="flex items-center justify-center">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Entrando...
+                    Verificando...
                   </div>
                 ) : (
-                  'Entrar'
+                  'Entrar no Painel Admin'
                 )}
               </Button>
 
@@ -169,7 +228,7 @@ export function Login() {
                 </div>
               </div>
 
-              {/* Login Rápido */}
+              {/* Login Demo */}
               <Button
                 type="button"
                 onClick={loginDemo}
@@ -181,14 +240,14 @@ export function Login() {
               </Button>
             </form>
 
-            {/* Informações */}
-            <div className="mt-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/30">
-              <p className="text-sm text-purple-400 font-medium mb-2">
-                💡 Credenciais de Teste
+            {/* Aviso */}
+            <div className="mt-6 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/30">
+              <p className="text-sm text-yellow-400 font-medium mb-2">
+                ⚠️ Acesso Restrito
               </p>
-              <p className="text-xs text-purple-300">
-                Email: admin@vendeai.com<br />
-                Senha: admin123
+              <p className="text-xs text-yellow-300">
+                Este painel e exclusivo para super administradores.
+                Usuarios comuns serao redirecionados para o painel cliente.
               </p>
             </div>
           </CardContent>
@@ -196,7 +255,7 @@ export function Login() {
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-500">
-          <p>VendeAI CRM Admin © 2025 - Powered by Helix AI</p>
+          <p>AIra CRM Admin © 2025 - Powered by Helix AI</p>
         </div>
       </div>
     </div>

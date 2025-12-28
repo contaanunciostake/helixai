@@ -71,23 +71,57 @@ function App() {
     return () => clearInterval(interval)
   }, [])
 
-  const credentials = {
-    admin: { email: 'admin@aira.com', password: 'admin123' },
-    client: { email: 'cliente@empresa.com', password: 'cliente123' }
-  }
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     setLoginError('')
-    const creds = credentials[loginType]
-    if (email === creds.email && password === creds.password) {
-      if (loginType === 'admin') {
-        window.location.href = 'http://localhost:5173'
+    setIsLoggingIn(true)
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha: password })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const userData = {
+          ...result.usuario,
+          token: result.token,
+          loginTime: new Date().toISOString()
+        }
+
+        // Verificar tipo de usuario e redirecionar
+        // IMPORTANTE: localStorage nao eh compartilhado entre portas diferentes
+        // Entao precisamos passar os dados via URL
+
+        // Codificar dados do usuario em base64 para passar na URL
+        // IMPORTANTE: Usar encodeURIComponent para garantir que caracteres especiais (+, /, =) sejam codificados
+        const authData = encodeURIComponent(btoa(JSON.stringify(userData)))
+
+        console.log('[Landing] Redirecionando usuário tipo:', userData.tipo)
+        console.log('[Landing] empresa_id:', userData.empresa_id)
+
+        if (userData.tipo === 'super_admin') {
+          // Super Admin -> Painel Admin (5175)
+          console.log('[Landing] Redirecionando para Admin Panel')
+          window.location.href = `http://localhost:5175/dashboard?auth=${authData}`
+        } else {
+          // Cliente -> Painel Cliente (5177)
+          console.log('[Landing] Redirecionando para Client Panel')
+          window.location.href = `http://localhost:5177?auth=${authData}`
+        }
       } else {
-        window.location.href = 'http://localhost:5175'
+        setLoginError(result.message || 'Email ou senha incorretos')
       }
-    } else {
-      setLoginError('Email ou senha incorretos')
+    } catch (error) {
+      console.error('Erro no login:', error)
+      setLoginError('Erro ao conectar com o servidor')
+    } finally {
+      setIsLoggingIn(false)
     }
   }
 
@@ -1025,11 +1059,19 @@ function App() {
 
                   <motion.button
                     type="submit"
-                    className="w-full py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/50"
+                    disabled={isLoggingIn}
+                    className="w-full py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/50 disabled:opacity-50"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    Entrar
+                    {isLoggingIn ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Entrando...
+                      </span>
+                    ) : (
+                      'Entrar'
+                    )}
                   </motion.button>
                 </form>
 
@@ -1037,8 +1079,8 @@ function App() {
                   <p className="text-sm text-gray-400 mb-2">Credenciais de teste:</p>
                   <p className="text-sm text-blue-400 font-mono">
                     {loginType === 'admin'
-                      ? 'Email: admin@aira.com | Senha: admin123'
-                      : 'Email: cliente@empresa.com | Senha: cliente123'}
+                      ? 'Email: admin@aira.com | Senha: Admin@123'
+                      : 'Email: cliente@teste.com | Senha: Cliente@123'}
                   </p>
                 </div>
 

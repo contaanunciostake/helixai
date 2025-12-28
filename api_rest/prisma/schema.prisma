@@ -1,0 +1,263 @@
+// ════════════════════════════════════════════════════════════════
+// VENDEAI DATABASE SCHEMA - PRISMA
+// ════════════════════════════════════════════════════════════════
+// Based on the comprehensive schema from database_prisma
+// ════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ══════════════════════════════════════════════════════════════
+// EMPRESA (Multi-tenant root)
+// ══════════════════════════════════════════════════════════════
+
+model Empresa {
+  id            String   @id @default(uuid())
+  nome          String
+  cnpj          String?  @unique
+  telefone      String?
+  email         String?
+  endereco      String?
+  plano         String   @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+  deletadoEm    DateTime?
+
+  // Relations
+  users              User[]
+  botConfigurations  BotConfiguration[]
+  vehicles           Vehicle[]
+  conversations      Conversation[]
+  analyticsMetrics   AnalyticsMetric[]
+  knowledgeBase      KnowledgeBase[]
+  auditLogs          AuditLog[]
+
+  @@index([cnpj])
+  @@index([ativo])
+  @@map("empresas")
+}
+
+// ══════════════════════════════════════════════════════════════
+// USER
+// ══════════════════════════════════════════════════════════════
+
+model User {
+  id           String    @id @default(uuid())
+  empresaId    String
+  nome         String
+  email        String    @unique
+  senha        String
+  tipo         String    @default("VENDEDOR") // ADMIN, GERENTE, VENDEDOR
+  ultimoAcesso DateTime?
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime?
+
+  // Relations
+  empresa   Empresa     @relation(fields: [empresaId], references: [id])
+  auditLogs AuditLog[]
+
+  @@index([email])
+  @@index([empresaId])
+  @@index([tipo])
+  @@map("users")
+}
+
+// ══════════════════════════════════════════════════════════════
+// BOT CONFIGURATION
+// ══════════════════════════════════════════════════════════════
+
+model BotConfiguration {
+  id            String   @id @default(uuid())
+  empresaId     String
+  nome          String
+  descricao     String?
+  ativo         Boolean  @default(true)
+  configuracoes Json     @default("{}")
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+  deletadoEm    DateTime?
+
+  // Relations
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
+  @@index([ativo])
+  @@map("bot_configurations")
+}
+
+// ══════════════════════════════════════════════════════════════
+// VEHICLE
+// ══════════════════════════════════════════════════════════════
+
+model Vehicle {
+  id           String    @id @default(uuid())
+  empresaId    String
+  marca        String
+  modelo       String
+  ano          Int
+  preco        Float
+  km           Int
+  cor          String?
+  combustivel  String?
+  cambio       String?
+  portas       Int?
+  descricao    String?
+  disponivel   Boolean   @default(true)
+  fotos        String[]  @default([])
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime?
+
+  // Relations
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
+  @@index([disponivel])
+  @@index([marca])
+  @@index([modelo])
+  @@index([preco])
+  @@map("vehicles")
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONVERSATION
+// ══════════════════════════════════════════════════════════════
+
+model Conversation {
+  id              String    @id @default(uuid())
+  empresaId       String
+  clienteNome     String
+  clienteTelefone String
+  status          String    @default("ATIVO") // ATIVO, PAUSADO, ENCERRADO
+  iniciadoEm      DateTime  @default(now())
+  ultimaMensagem  DateTime?
+  deletadoEm      DateTime?
+
+  // Relations
+  empresa  Empresa               @relation(fields: [empresaId], references: [id])
+  messages Message[]
+  context  ConversationContext?
+
+  @@index([empresaId])
+  @@index([clienteTelefone])
+  @@index([status])
+  @@index([iniciadoEm])
+  @@map("conversations")
+}
+
+// ══════════════════════════════════════════════════════════════
+// MESSAGE
+// ══════════════════════════════════════════════════════════════
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  tipo           String // RECEBIDA, ENVIADA
+  conteudo       String
+  timestamp      DateTime @default(now())
+  lida           Boolean  @default(false)
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId])
+  @@index([timestamp])
+  @@index([tipo])
+  @@map("messages")
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONVERSATION CONTEXT
+// ══════════════════════════════════════════════════════════════
+
+model ConversationContext {
+  id             String   @id @default(uuid())
+  conversationId String   @unique
+  contexto       Json     @default("{}")
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("conversation_contexts")
+}
+
+// ══════════════════════════════════════════════════════════════
+// ANALYTICS METRIC
+// ══════════════════════════════════════════════════════════════
+
+model AnalyticsMetric {
+  id        String   @id @default(uuid())
+  empresaId String
+  tipo      String // CONVERSATION, MESSAGE, PERFORMANCE, CONVERSION
+  metrica   String
+  valor     Float
+  data      DateTime @default(now())
+  metadata  Json?
+
+  // Relations
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
+  @@index([tipo])
+  @@index([data])
+  @@map("analytics_metrics")
+}
+
+// ══════════════════════════════════════════════════════════════
+// KNOWLEDGE BASE
+// ══════════════════════════════════════════════════════════════
+
+model KnowledgeBase {
+  id           String    @id @default(uuid())
+  empresaId    String
+  titulo       String
+  conteudo     String
+  tags         String[]  @default([])
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime?
+
+  // Relations
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
+  @@index([ativo])
+  @@map("knowledge_base")
+}
+
+// ══════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ══════════════════════════════════════════════════════════════
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  empresaId String
+  userId    String?
+  acao      String
+  entidade  String
+  entidadeId String?
+  antes     Json?
+  depois    Json?
+  ip        String?
+  timestamp DateTime @default(now())
+
+  // Relations
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@index([empresaId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}

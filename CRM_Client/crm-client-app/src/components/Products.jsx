@@ -30,44 +30,63 @@ export default function Products({ user, nicho }) {
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
 
-  // Estados para edição
+  // Estados para edição/criação/visualização
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [modalMode, setModalMode] = useState('edit'); // 'create', 'edit', 'view'
 
   // Estado para histórico de importações
   const [importHistory, setImportHistory] = useState([]);
 
   const empresaId = user?.empresa_id;
 
+  const [totalProducts, setTotalProducts] = useState(0);
+  const ITEMS_PER_PAGE = 25; // Limite por página
+
   // Carregar produtos
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `${API_URL}/api/veiculos?empresa_id=${empresaId}&page=${currentPage}&limit=20`,
-        {
-          headers: {
-            'X-Empresa-ID': empresaId.toString()
-          }
+
+      // Usar endpoint correto baseado no nicho
+      const isVeiculos = nicho === 'veiculos';
+      const endpoint = isVeiculos
+        ? `${API_URL}/api/veiculos?empresa_id=${empresaId}&page=${currentPage}&limit=${ITEMS_PER_PAGE}${searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''}`
+        : `${API_URL}/api/produtos?empresa_id=${empresaId}&page=${currentPage}&limit=${ITEMS_PER_PAGE}${searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''}`;
+
+      console.log('[Products] Carregando:', endpoint);
+
+      const response = await fetch(endpoint, {
+        headers: {
+          'X-Empresa-ID': empresaId.toString()
         }
-      );
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('[Products] Resposta:', data);
 
       if (data.success) {
-        setProducts(data.data || []);
-        setTotalPages(data.pagination?.pages || 1);
+        // API de produtos retorna data.data.produtos, veículos retorna data.data
+        const productsList = isVeiculos ? (data.data || []) : (data.data?.produtos || data.data || []);
+        setProducts(productsList);
+
+        // Paginação
+        const pagination = data.data?.pagination || data.pagination;
+        setTotalPages(pagination?.pages || Math.ceil((pagination?.total || productsList.length) / ITEMS_PER_PAGE) || 1);
+        setTotalProducts(pagination?.total || productsList.length);
       } else {
         setProducts([]);
+        setTotalProducts(0);
       }
     } catch (error) {
-      console.error('[Products] Erro ao carregar veículos:', error);
+      console.error('[Products] Erro ao carregar produtos:', error);
       setProducts([]);
+      setTotalProducts(0);
     } finally {
       setLoading(false);
     }
@@ -76,14 +95,16 @@ export default function Products({ user, nicho }) {
   // Carregar estatísticas
   const loadStats = async () => {
     try {
-      const response = await fetch(
-        `${API_URL}/api/veiculos/stats?empresa_id=${empresaId}`,
-        {
-          headers: {
-            'X-Empresa-ID': empresaId.toString()
-          }
+      const isVeiculos = nicho === 'veiculos';
+      const endpoint = isVeiculos
+        ? `${API_URL}/api/veiculos/stats?empresa_id=${empresaId}`
+        : `${API_URL}/api/produtos/stats?empresa_id=${empresaId}`;
+
+      const response = await fetch(endpoint, {
+        headers: {
+          'X-Empresa-ID': empresaId.toString()
         }
-      );
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -92,7 +113,7 @@ export default function Products({ user, nicho }) {
       const data = await response.json();
 
       if (data.success) {
-        setStats(data.stats);
+        setStats(data.stats || data.data);
       }
     } catch (error) {
       console.error('[Products] Erro ao carregar estatísticas:', error);
@@ -207,24 +228,43 @@ export default function Products({ user, nicho }) {
     }
   };
 
-  // Editar produto
-  const handleEditProduct = async () => {
+  // Criar ou editar produto/veículo
+  const handleSaveProduct = async () => {
     if (!editingProduct) return;
 
     try {
       setIsSaving(true);
 
-      const response = await fetch(
-        `${API_URL}/api/produtos/${editingProduct.id}?empresa_id=${empresaId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Empresa-ID': empresaId.toString()
-          },
-          body: JSON.stringify(editingProduct)
-        }
-      );
+      const isVeiculos = nicho === 'veiculos';
+      let url, method;
+
+      if (modalMode === 'create') {
+        // Criar novo
+        url = isVeiculos
+          ? `${API_URL}/api/veiculos/criar`
+          : `${API_URL}/api/produtos/${empresaId}`;
+        method = 'POST';
+      } else {
+        // Atualizar existente
+        url = isVeiculos
+          ? `${API_URL}/api/veiculos/atualizar/${editingProduct.id}`
+          : `${API_URL}/api/produtos/${editingProduct.id}?empresa_id=${empresaId}`;
+        method = 'PUT';
+      }
+
+      const payload = {
+        ...editingProduct,
+        empresa_id: empresaId
+      };
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Empresa-ID': empresaId.toString()
+        },
+        body: JSON.stringify(payload)
+      });
 
       const data = await response.json();
 
@@ -234,6 +274,7 @@ export default function Products({ user, nicho }) {
         loadStats();
         setIsEditDialogOpen(false);
         setEditingProduct(null);
+        setModalMode('edit');
       } else {
         alert(`Erro: ${data.error}`);
       }
@@ -244,20 +285,22 @@ export default function Products({ user, nicho }) {
     }
   };
 
-  // Deletar produto
+  // Deletar produto/veículo
   const handleDeleteProduct = async (productId) => {
-    if (!confirm('Tem certeza que deseja remover este produto?')) return;
+    if (!confirm('Tem certeza que deseja remover este item?')) return;
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/produtos/${productId}?empresa_id=${empresaId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'X-Empresa-ID': empresaId.toString()
-          }
+      const isVeiculos = nicho === 'veiculos';
+      const url = isVeiculos
+        ? `${API_URL}/api/veiculos/excluir/${productId}?empresa_id=${empresaId}`
+        : `${API_URL}/api/produtos/${productId}?empresa_id=${empresaId}`;
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'X-Empresa-ID': empresaId.toString()
         }
-      );
+      });
 
       const data = await response.json();
 
@@ -272,8 +315,46 @@ export default function Products({ user, nicho }) {
     }
   };
 
+  // Abrir modal para criar novo
+  const openCreateDialog = () => {
+    setModalMode('create');
+    setEditingProduct(nicho === 'veiculos' ? {
+      marca: '',
+      modelo: '',
+      versao: '',
+      ano_modelo: '',
+      preco: '',
+      quilometragem: '',
+      cor: '',
+      combustivel: 'Flex',
+      cambio: 'Manual',
+      motor: '',
+      portas: 4,
+      descricao: '',
+      disponivel: true,
+      destaque: false
+    } : {
+      nome: '',
+      categoria: '',
+      marca: '',
+      preco: '',
+      estoque: 0,
+      descricao: '',
+      disponivel: true
+    });
+    setIsEditDialogOpen(true);
+  };
+
   // Abrir modal de edição
   const openEditDialog = (product) => {
+    setModalMode('edit');
+    setEditingProduct({ ...product });
+    setIsEditDialogOpen(true);
+  };
+
+  // Abrir modal de visualização
+  const openViewDialog = (product) => {
+    setModalMode('view');
     setEditingProduct({ ...product });
     setIsEditDialogOpen(true);
   };
@@ -313,10 +394,19 @@ export default function Products({ user, nicho }) {
 
             <Button
               onClick={() => setIsImportDialogOpen(true)}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+              variant="outline"
+              className="bg-white/5 border-white/10 hover:bg-white/10 text-white"
             >
               <Upload className="h-4 w-4 mr-2" />
               Importar CSV
+            </Button>
+
+            <Button
+              onClick={openCreateDialog}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Novo {nicho === 'veiculos' ? 'Veículo' : 'Produto'}
             </Button>
           </div>
         </div>
@@ -505,10 +595,20 @@ export default function Products({ user, nicho }) {
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <Button
+                                    onClick={() => openViewDialog(product)}
+                                    size="sm"
+                                    variant="ghost"
+                                    className="hover:bg-blue-500/20 text-blue-400 hover:text-blue-300"
+                                    title="Visualizar"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
                                     onClick={() => openEditDialog(product)}
                                     size="sm"
                                     variant="ghost"
                                     className="hover:bg-white/10 text-white/60 hover:text-white"
+                                    title="Editar"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
@@ -517,6 +617,7 @@ export default function Products({ user, nicho }) {
                                     size="sm"
                                     variant="ghost"
                                     className="hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                                    title="Excluir"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -563,10 +664,20 @@ export default function Products({ user, nicho }) {
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <Button
+                                    onClick={() => openViewDialog(product)}
+                                    size="sm"
+                                    variant="ghost"
+                                    className="hover:bg-blue-500/20 text-blue-400 hover:text-blue-300"
+                                    title="Visualizar"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
                                     onClick={() => openEditDialog(product)}
                                     size="sm"
                                     variant="ghost"
                                     className="hover:bg-white/10 text-white/60 hover:text-white"
+                                    title="Editar"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
@@ -575,6 +686,7 @@ export default function Products({ user, nicho }) {
                                     size="sm"
                                     variant="ghost"
                                     className="hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                                    title="Excluir"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -588,33 +700,52 @@ export default function Products({ user, nicho }) {
                   </Table>
 
                   {/* Paginação */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-6">
-                      <div className="text-sm text-white/60">
-                        Página {currentPage} de {totalPages}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => setCurrentPage(currentPage - 1)}
-                          disabled={currentPage === 1}
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-50"
-                        >
-                          Anterior
-                        </Button>
-                        <Button
-                          onClick={() => setCurrentPage(currentPage + 1)}
-                          disabled={currentPage === totalPages}
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-50"
-                        >
-                          Próxima
-                        </Button>
-                      </div>
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/10">
+                    <div className="text-sm text-white/60">
+                      Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalProducts)} de <span className="font-semibold text-green-400">{totalProducts}</span> produtos
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-30 text-white"
+                      >
+                        ««
+                      </Button>
+                      <Button
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-30 text-white"
+                      >
+                        « Anterior
+                      </Button>
+                      <span className="px-4 py-1 bg-green-500/20 border border-green-500/30 rounded text-green-400 text-sm font-semibold">
+                        {currentPage} / {totalPages}
+                      </span>
+                      <Button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-30 text-white"
+                      >
+                        Próxima »
+                      </Button>
+                      <Button
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-30 text-white"
+                      >
+                        »»
+                      </Button>
+                    </div>
+                  </div>
                 </>
               )}
             </CardContent>
@@ -760,12 +891,21 @@ export default function Products({ user, nicho }) {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Editar Produto */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      {/* Dialog: Criar/Editar/Visualizar Produto */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) {
+          setModalMode('edit');
+          setEditingProduct(null);
+        }
+      }}>
         <DialogContent className="bg-gray-900 border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-white">
-              Editar {nicho === 'veiculos' ? 'Veículo' : 'Produto'}
+            <DialogTitle className="text-white flex items-center gap-2">
+              {modalMode === 'create' && <Plus className="h-5 w-5 text-green-400" />}
+              {modalMode === 'edit' && <Edit className="h-5 w-5 text-blue-400" />}
+              {modalMode === 'view' && <Eye className="h-5 w-5 text-gray-400" />}
+              {modalMode === 'create' ? 'Novo' : modalMode === 'edit' ? 'Editar' : 'Visualizar'} {nicho === 'veiculos' ? 'Veículo' : 'Produto'}
             </DialogTitle>
           </DialogHeader>
 
@@ -775,19 +915,21 @@ export default function Products({ user, nicho }) {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-white/80">Marca</Label>
+                      <Label className="text-white/80">Marca *</Label>
                       <Input
                         value={editingProduct.marca || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, marca: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                     <div>
-                      <Label className="text-white/80">Modelo</Label>
+                      <Label className="text-white/80">Modelo *</Label>
                       <Input
                         value={editingProduct.modelo || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, modelo: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                   </div>
@@ -797,7 +939,8 @@ export default function Products({ user, nicho }) {
                     <Input
                       value={editingProduct.versao || ''}
                       onChange={(e) => setEditingProduct({...editingProduct, versao: e.target.value})}
-                      className="bg-white/5 border-white/10 text-white mt-2"
+                      className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                      disabled={modalMode === 'view'}
                     />
                   </div>
 
@@ -807,27 +950,31 @@ export default function Products({ user, nicho }) {
                       <Input
                         value={editingProduct.ano_modelo || editingProduct.ano || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, ano_modelo: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                     <div>
-                      <Label className="text-white/80">Preço</Label>
+                      <Label className="text-white/80">Preço *</Label>
                       <Input
                         type="number"
                         value={editingProduct.preco || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, preco: parseFloat(e.target.value)})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <Label className="text-white/80">Quilometragem</Label>
                       <Input
                         value={editingProduct.quilometragem || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, quilometragem: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
+                        placeholder="ex: 50.000 km"
                       />
                     </div>
                     <div>
@@ -835,8 +982,64 @@ export default function Products({ user, nicho }) {
                       <Input
                         value={editingProduct.cor || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, cor: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
+                    </div>
+                    <div>
+                      <Label className="text-white/80">Combustível</Label>
+                      <select
+                        value={editingProduct.combustivel || 'Flex'}
+                        onChange={(e) => setEditingProduct({...editingProduct, combustivel: e.target.value})}
+                        className="w-full bg-white/5 border border-white/10 rounded-md p-2 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
+                      >
+                        <option value="Flex">Flex</option>
+                        <option value="Gasolina">Gasolina</option>
+                        <option value="Etanol">Etanol</option>
+                        <option value="Diesel">Diesel</option>
+                        <option value="Elétrico">Elétrico</option>
+                        <option value="Híbrido">Híbrido</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-white/80">Câmbio</Label>
+                      <select
+                        value={editingProduct.cambio || 'Manual'}
+                        onChange={(e) => setEditingProduct({...editingProduct, cambio: e.target.value})}
+                        className="w-full bg-white/5 border border-white/10 rounded-md p-2 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
+                      >
+                        <option value="Manual">Manual</option>
+                        <option value="Automático">Automático</option>
+                        <option value="Automatizado">Automatizado</option>
+                        <option value="CVT">CVT</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-white/80">Motor</Label>
+                      <Input
+                        value={editingProduct.motor || ''}
+                        onChange={(e) => setEditingProduct({...editingProduct, motor: e.target.value})}
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
+                        placeholder="ex: 1.0, 2.0"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white/80">Portas</Label>
+                      <select
+                        value={editingProduct.portas || 4}
+                        onChange={(e) => setEditingProduct({...editingProduct, portas: parseInt(e.target.value)})}
+                        className="w-full bg-white/5 border border-white/10 rounded-md p-2 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
+                      >
+                        <option value={2}>2 portas</option>
+                        <option value={4}>4 portas</option>
+                      </select>
                     </div>
                   </div>
 
@@ -845,40 +1048,55 @@ export default function Products({ user, nicho }) {
                     <textarea
                       value={editingProduct.descricao || ''}
                       onChange={(e) => setEditingProduct({...editingProduct, descricao: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-md p-3 text-white mt-2"
+                      className="w-full bg-white/5 border border-white/10 rounded-md p-3 text-white mt-2 disabled:opacity-60"
                       rows={4}
+                      disabled={modalMode === 'view'}
+                      placeholder="Detalhes, opcionais, observações..."
                     />
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-white/80 cursor-pointer">
+                    <label className={`flex items-center gap-2 text-white/80 ${modalMode === 'view' ? 'opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={editingProduct.disponivel || false}
                         onChange={(e) => setEditingProduct({...editingProduct, disponivel: e.target.checked})}
                         className="rounded"
+                        disabled={modalMode === 'view'}
                       />
                       Disponível
                     </label>
-                    <label className="flex items-center gap-2 text-white/80 cursor-pointer">
+                    <label className={`flex items-center gap-2 text-white/80 ${modalMode === 'view' ? 'opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={editingProduct.destaque || false}
                         onChange={(e) => setEditingProduct({...editingProduct, destaque: e.target.checked})}
                         className="rounded"
+                        disabled={modalMode === 'view'}
                       />
                       Destaque
+                    </label>
+                    <label className={`flex items-center gap-2 text-white/80 ${modalMode === 'view' ? 'opacity-60' : 'cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={editingProduct.oferta_especial || false}
+                        onChange={(e) => setEditingProduct({...editingProduct, oferta_especial: e.target.checked})}
+                        className="rounded"
+                        disabled={modalMode === 'view'}
+                      />
+                      Oferta Especial
                     </label>
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <Label className="text-white/80">Nome</Label>
+                    <Label className="text-white/80">Nome *</Label>
                     <Input
                       value={editingProduct.nome || ''}
                       onChange={(e) => setEditingProduct({...editingProduct, nome: e.target.value})}
-                      className="bg-white/5 border-white/10 text-white mt-2"
+                      className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                      disabled={modalMode === 'view'}
                     />
                   </div>
 
@@ -888,7 +1106,8 @@ export default function Products({ user, nicho }) {
                       <Input
                         value={editingProduct.categoria || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, categoria: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                     <div>
@@ -896,19 +1115,21 @@ export default function Products({ user, nicho }) {
                       <Input
                         value={editingProduct.marca || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, marca: e.target.value})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-white/80">Preço</Label>
+                      <Label className="text-white/80">Preço *</Label>
                       <Input
                         type="number"
                         value={editingProduct.preco || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, preco: parseFloat(e.target.value)})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                     <div>
@@ -917,7 +1138,8 @@ export default function Products({ user, nicho }) {
                         type="number"
                         value={editingProduct.estoque || ''}
                         onChange={(e) => setEditingProduct({...editingProduct, estoque: parseInt(e.target.value)})}
-                        className="bg-white/5 border-white/10 text-white mt-2"
+                        className="bg-white/5 border-white/10 text-white mt-2 disabled:opacity-60"
+                        disabled={modalMode === 'view'}
                       />
                     </div>
                   </div>
@@ -927,18 +1149,20 @@ export default function Products({ user, nicho }) {
                     <textarea
                       value={editingProduct.descricao || ''}
                       onChange={(e) => setEditingProduct({...editingProduct, descricao: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-md p-3 text-white mt-2"
+                      className="w-full bg-white/5 border border-white/10 rounded-md p-3 text-white mt-2 disabled:opacity-60"
                       rows={4}
+                      disabled={modalMode === 'view'}
                     />
                   </div>
 
                   <div>
-                    <label className="flex items-center gap-2 text-white/80 cursor-pointer">
+                    <label className={`flex items-center gap-2 text-white/80 ${modalMode === 'view' ? 'opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={editingProduct.disponivel || false}
                         onChange={(e) => setEditingProduct({...editingProduct, disponivel: e.target.checked})}
                         className="rounded"
+                        disabled={modalMode === 'view'}
                       />
                       Disponível
                     </label>
@@ -953,19 +1177,22 @@ export default function Products({ user, nicho }) {
               onClick={() => {
                 setIsEditDialogOpen(false);
                 setEditingProduct(null);
+                setModalMode('edit');
               }}
               variant="outline"
               className="bg-white/5 border-white/10 hover:bg-white/10 text-white"
             >
-              Cancelar
+              {modalMode === 'view' ? 'Fechar' : 'Cancelar'}
             </Button>
-            <Button
-              onClick={handleEditProduct}
-              disabled={isSaving}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-            >
-              {isSaving ? 'Salvando...' : 'Salvar'}
-            </Button>
+            {modalMode !== 'view' && (
+              <Button
+                onClick={handleSaveProduct}
+                disabled={isSaving}
+                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+              >
+                {isSaving ? 'Salvando...' : modalMode === 'create' ? 'Criar' : 'Salvar'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

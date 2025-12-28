@@ -1,0 +1,287 @@
+@import "tailwindcss";
+
+/* ========================================
+   REGRAS GLOBAIS PARA RESPONSIVIDADE
+   Previne scroll horizontal em TODOS os dispositivos
+   ======================================== */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+/* ========================================
+   LAYOUT COMPACTO - Elementos 20% menores
+   ======================================== */
+:root {
+  font-size: 13px; /* Base 16px * 0.8 = ~13px */
+}
+
+/* Cards menores */
+.card, [class*="Card"] {
+  padding: 0.75rem !important;
+}
+
+/* Botões menores */
+button, .btn, [class*="Button"] {
+  padding: 0.4rem 0.8rem !important;
+  font-size: 0.85rem !important;
+}
+
+/* Inputs menores */
+input, select, textarea {
+  padding: 0.4rem 0.6rem !important;
+  font-size: 0.85rem !important;
+}
+
+/* Headers menores */
+h1 { font-size: 1.6rem !important; }
+h2 { font-size: 1.35rem !important; }
+h3 { font-size: 1.15rem !important; }
+h4 { font-size: 1rem !important; }
+
+/* Espaçamentos menores */
+.p-6 { padding: 1rem !important; }
+.p-4 { padding: 0.75rem !important; }
+.gap-6 { gap: 1rem !important; }
+.gap-4 { gap: 0.75rem !important; }
+.space-y-6 > * + * { margin-top: 1rem !important; }
+.space-y-4 > * + * { margin-top: 0.75rem !important; }
+
+/* Ícones menores */
+.h-6 { height: 1.25rem !important; width: 1.25rem !important; }
+.h-5 { height: 1.1rem !important; width: 1.1rem !important; }
+.h-8 { height: 1.5rem !important; width: 1.5rem !important; }
+.h-12 { height: 2.5rem !important; width: 2.5rem !important; }
+.w-6 { height: 1.25rem !important; width: 1.25rem !important; }
+.w-5 { height: 1.1rem !important; width: 1.1rem !important; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  background-color: #000;
+  color: #fff;
+}
+
+/* Container principal - nunca ultrapassa a tela */
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Imagens responsivas */
+img, video, iframe, embed, object {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Tabelas responsivas */
+table {
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+
+/* Textos longos quebram corretamente */
+p, h1, h2, h3, h4, h5, h6, li, td, th, label, span {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Container responsivo */
+.container-responsive {
+  width: 100%;
+  max-width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 640px) {
+  .container-responsive {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-responsive {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Layout principal com sidebar */
+.layout-main {
+  display: flex;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Sidebar responsiva */
+.sidebar-responsive {
+  flex-shrink: 0;
+  width: 280px;
+  min-width: 280px;
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 1024px) {
+  .sidebar-responsive {
+    width: 240px;
+    min-width: 240px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-responsive {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 50;
+    transform: translateX(-100%);
+  }
+
+  .sidebar-responsive.open {
+    transform: translateX(0);
+  }
+}
+
+/* Área de conteúdo principal */
+.content-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Grid responsivo para cards */
+.grid-responsive {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+}
+
+.grid-responsive-2 {
+  grid-template-columns: 1fr;
+}
+
+.grid-responsive-3 {
+  grid-template-columns: 1fr;
+}
+
+.grid-responsive-4 {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .grid-responsive-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-responsive-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-responsive-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-responsive-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .grid-responsive-4 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .grid-responsive-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Tabela com scroll horizontal quando necessário */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive table {
+  min-width: 600px;
+}
+
+/* Modal responsivo */
+.modal-responsive {
+  width: 95vw;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  .modal-responsive {
+    width: 90vw;
+    max-width: 800px;
+  }
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.5);
+}
+
+/* Esconde em mobile */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Esconde em desktop */
+@media (min-width: 769px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+/* Full width em mobile */
+@media (max-width: 768px) {
+  .full-mobile {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

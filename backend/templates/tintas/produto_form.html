@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar' if produto else 'Novo' }} Produto de Tinta{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-paint-bucket me-2"></i>
+            {{ 'Editar' if produto else 'Novo' }} Produto de Tinta
+        </h2>
+        <a href="{{ url_for('tintas.listar_produtos') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+    </div>
+
+    <form method="POST" action="{{ url_for('tintas.editar_produto', id=produto.id) if produto else url_for('tintas.novo_produto') }}">
+        <div class="row">
+            <!-- Identificacao -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-tag me-2"></i>Identificacao</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Codigo</label>
+                                <input type="text" class="form-control" name="codigo"
+                                       value="{{ produto.codigo if produto else '' }}" placeholder="SKU-001">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Nome do Produto *</label>
+                                <input type="text" class="form-control" name="nome" required
+                                       value="{{ produto.nome if produto else '' }}" placeholder="Tinta Acrilica Premium">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Marca</label>
+                                <select class="form-select" name="marca">
+                                    <option value="">Selecione...</option>
+                                    <option value="Suvinil" {{ 'selected' if produto and produto.marca == 'Suvinil' else '' }}>Suvinil</option>
+                                    <option value="Coral" {{ 'selected' if produto and produto.marca == 'Coral' else '' }}>Coral</option>
+                                    <option value="Sherwin-Williams" {{ 'selected' if produto and produto.marca == 'Sherwin-Williams' else '' }}>Sherwin-Williams</option>
+                                    <option value="Lukscolor" {{ 'selected' if produto and produto.marca == 'Lukscolor' else '' }}>Lukscolor</option>
+                                    <option value="Eucatex" {{ 'selected' if produto and produto.marca == 'Eucatex' else '' }}>Eucatex</option>
+                                    <option value="Outra" {{ 'selected' if produto and produto.marca not in ['Suvinil', 'Coral', 'Sherwin-Williams', 'Lukscolor', 'Eucatex', None, ''] else '' }}>Outra</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Linha</label>
+                                <input type="text" class="form-control" name="linha"
+                                       value="{{ produto.linha if produto else '' }}" placeholder="Premium, Standard, etc">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Categoria</label>
+                                <select class="form-select" name="categoria_id">
+                                    <option value="">Sem categoria</option>
+                                    {% for cat in categorias %}
+                                    <option value="{{ cat.id }}" {{ 'selected' if produto and produto.categoria_id == cat.id else '' }}>{{ cat.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Estoque</label>
+                                <input type="number" class="form-control" name="estoque"
+                                       value="{{ produto.estoque if produto else 0 }}" min="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Caracteristicas -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-sliders me-2"></i>Caracteristicas</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" name="tipo">
+                                    <option value="">Selecione...</option>
+                                    <option value="latex" {{ 'selected' if produto and produto.tipo == 'latex' else '' }}>Latex</option>
+                                    <option value="acrilica" {{ 'selected' if produto and produto.tipo == 'acrilica' else '' }}>Acrilica</option>
+                                    <option value="esmalte" {{ 'selected' if produto and produto.tipo == 'esmalte' else '' }}>Esmalte</option>
+                                    <option value="verniz" {{ 'selected' if produto and produto.tipo == 'verniz' else '' }}>Verniz</option>
+                                    <option value="textura" {{ 'selected' if produto and produto.tipo == 'textura' else '' }}>Textura</option>
+                                    <option value="epoxi" {{ 'selected' if produto and produto.tipo == 'epoxi' else '' }}>Epoxi</option>
+                                    <option value="primer" {{ 'selected' if produto and produto.tipo == 'primer' else '' }}>Primer/Fundo</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Acabamento</label>
+                                <select class="form-select" name="acabamento">
+                                    <option value="">Selecione...</option>
+                                    <option value="fosco" {{ 'selected' if produto and produto.acabamento == 'fosco' else '' }}>Fosco</option>
+                                    <option value="semi-brilho" {{ 'selected' if produto and produto.acabamento == 'semi-brilho' else '' }}>Semi-brilho</option>
+                                    <option value="brilhante" {{ 'selected' if produto and produto.acabamento == 'brilhante' else '' }}>Brilhante</option>
+                                    <option value="acetinado" {{ 'selected' if produto and produto.acabamento == 'acetinado' else '' }}>Acetinado</option>
+                                    <option value="metalico" {{ 'selected' if produto and produto.acabamento == 'metalico' else '' }}>Metalico</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Ambiente</label>
+                                <select class="form-select" name="ambiente">
+                                    <option value="">Selecione...</option>
+                                    <option value="interno" {{ 'selected' if produto and produto.ambiente == 'interno' else '' }}>Interno</option>
+                                    <option value="externo" {{ 'selected' if produto and produto.ambiente == 'externo' else '' }}>Externo</option>
+                                    <option value="ambos" {{ 'selected' if produto and produto.ambiente == 'ambos' else '' }}>Interno e Externo</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Base</label>
+                                <select class="form-select" name="base">
+                                    <option value="">Selecione...</option>
+                                    <option value="agua" {{ 'selected' if produto and produto.base == 'agua' else '' }}>Base Agua</option>
+                                    <option value="solvente" {{ 'selected' if produto and produto.base == 'solvente' else '' }}>Base Solvente</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="destaque" id="destaque"
+                                           {{ 'checked' if produto and produto.destaque else '' }}>
+                                    <label class="form-check-label" for="destaque">
+                                        <i class="bi bi-star-fill text-warning me-1"></i> Produto em Destaque
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cores -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-palette me-2"></i>Cor</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Nome da Cor</label>
+                                <input type="text" class="form-control" name="cor_nome"
+                                       value="{{ produto.cor_nome if produto else '' }}" placeholder="Branco Neve">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Codigo da Cor</label>
+                                <input type="text" class="form-control" name="cor_codigo"
+                                       value="{{ produto.cor_codigo if produto else '' }}" placeholder="N420">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Cor Hex</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" id="corPicker"
+                                           value="{{ produto.cor_hex if produto and produto.cor_hex else '#ffffff' }}"
+                                           onchange="document.getElementById('corHex').value = this.value">
+                                    <input type="text" class="form-control" name="cor_hex" id="corHex"
+                                           value="{{ produto.cor_hex if produto else '#ffffff' }}" placeholder="#FFFFFF">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch mt-4">
+                                    <input class="form-check-input" type="checkbox" name="permite_tingimento" id="permite_tingimento"
+                                           {{ 'checked' if produto and produto.permite_tingimento else 'checked' }}>
+                                    <label class="form-check-label" for="permite_tingimento">
+                                        Permite Tingimento
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Precos -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-currency-dollar me-2"></i>Precos por Tamanho</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Lata 900ml</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" name="preco_900ml" step="0.01" min="0"
+                                           value="{{ produto.tamanhos_precos.get('0.9L', '') if produto and produto.tamanhos_precos else '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Galao 3.6L</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" name="preco_3600ml" step="0.01" min="0"
+                                           value="{{ produto.tamanhos_precos.get('3.6L', '') if produto and produto.tamanhos_precos else '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Lata 18L</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" name="preco_18l" step="0.01" min="0"
+                                           value="{{ produto.tamanhos_precos.get('18L', '') if produto and produto.tamanhos_precos else '' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rendimento -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-rulers me-2"></i>Rendimento e Secagem</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Rendimento (m2/litro)</label>
+                                <input type="number" class="form-control" name="rendimento_m2_litro" step="0.1" min="0"
+                                       value="{{ produto.rendimento_m2_litro if produto else 10 }}" placeholder="10">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Demaos Recomendadas</label>
+                                <select class="form-select" name="rendimento_demaos">
+                                    <option value="1" {{ 'selected' if produto and produto.rendimento_demaos == 1 else '' }}>1 demao</option>
+                                    <option value="2" {{ 'selected' if (produto and produto.rendimento_demaos == 2) or not produto else '' }}>2 demaos</option>
+                                    <option value="3" {{ 'selected' if produto and produto.rendimento_demaos == 3 else '' }}>3 demaos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Secagem Toque</label>
+                                <input type="text" class="form-control" name="tempo_secagem_toque"
+                                       value="{{ produto.tempo_secagem_toque if produto else '' }}" placeholder="1 hora">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Secagem Final</label>
+                                <input type="text" class="form-control" name="tempo_secagem_final"
+                                       value="{{ produto.tempo_secagem_final if produto else '' }}" placeholder="4 horas">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Entre Demaos</label>
+                                <input type="text" class="form-control" name="tempo_entre_demaos"
+                                       value="{{ produto.tempo_entre_demaos if produto else '' }}" placeholder="4 horas">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informacoes Tecnicas -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informacoes Tecnicas</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Diluicao</label>
+                                <input type="text" class="form-control" name="diluicao"
+                                       value="{{ produto.diluicao if produto else '' }}" placeholder="Ate 20% com agua">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Formas de Aplicacao</label>
+                                <input type="text" class="form-control" name="aplicacao"
+                                       value="{{ produto.aplicacao if produto else '' }}" placeholder="Rolo, pincel, pistola">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Superficies</label>
+                                <input type="text" class="form-control" name="superficie"
+                                       value="{{ produto.superficie if produto else '' }}" placeholder="Alvenaria, gesso, drywall">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Preparo da Superficie</label>
+                                <textarea class="form-control" name="preparo_superficie" rows="2"
+                                          placeholder="Lixar, limpar, aplicar fundo preparador...">{{ produto.preparo_superficie if produto else '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Midia -->
+            <div class="col-lg-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-image me-2"></i>Midia</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">URL da Imagem</label>
+                                <input type="url" class="form-control" name="imagem_url"
+                                       value="{{ produto.imagem_url if produto else '' }}" placeholder="https://...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">URL da Ficha Tecnica (PDF)</label>
+                                <input type="url" class="form-control" name="ficha_tecnica_url"
+                                       value="{{ produto.ficha_tecnica_url if produto else '' }}" placeholder="https://...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-end">
+            <a href="{{ url_for('tintas.listar_produtos') }}" class="btn btn-outline-secondary me-2">Cancelar</a>
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-check-lg me-2"></i>{{ 'Salvar Alteracoes' if produto else 'Cadastrar Produto' }}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.getElementById('corHex').addEventListener('input', function() {
+    document.getElementById('corPicker').value = this.value;
+});
+</script>
+{% endblock %}

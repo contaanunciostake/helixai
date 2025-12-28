@@ -35,8 +35,10 @@ class PlanoAssinatura(enum.Enum):
 
 class NichoEmpresa(enum.Enum):
     """Nicho de atuação da empresa"""
-    VEICULOS = "veiculos"       # Vendas de veículos (AIra Auto)
-    IMOVEIS = "imoveis"         # Vendas de imóveis (AIra Imob)
+    VEICULOS = "veiculos"           # Vendas de veículos (AIra Auto)
+    IMOVEIS = "imoveis"             # Vendas de imóveis (AIra Imob)
+    ATACADO_VAREJO = "atacado_varejo"  # Atacado/Varejo (distribuidores, lojas)
+    LOJA_TINTAS = "loja_tintas"     # Loja de Tintas (AIra Tintas)
 
 
 class StatusLead(enum.Enum):
@@ -138,7 +140,7 @@ class Usuario(UserMixin, Base):
     nome = Column(String(200), nullable=False)
     email = Column(String(200), unique=True, nullable=False, index=True)
     senha_hash = Column(String(256), nullable=False)
-    tipo = Column(SQLEnum(TipoUsuario), default=TipoUsuario.USUARIO)
+    tipo = Column(String(20), default='usuario')  # Valores: super_admin, admin_empresa, usuario, visualizador
     ativo = Column(Boolean, default=True)
 
     # Relacionamento com empresa
@@ -162,6 +164,20 @@ class Usuario(UserMixin, Base):
     def check_senha(self, senha):
         """Verifica senha"""
         return check_password_hash(self.senha_hash, senha)
+
+    @property
+    def tipo_enum(self):
+        """Retorna o tipo como enum TipoUsuario"""
+        try:
+            tipo_map = {
+                'super_admin': TipoUsuario.SUPER_ADMIN,
+                'admin_empresa': TipoUsuario.ADMIN_EMPRESA,
+                'usuario': TipoUsuario.USUARIO,
+                'visualizador': TipoUsuario.VISUALIZADOR
+            }
+            return tipo_map.get(self.tipo, TipoUsuario.USUARIO)
+        except:
+            return TipoUsuario.USUARIO
 
     # Métodos requeridos pelo Flask-Login
     @property
@@ -203,6 +219,14 @@ class Empresa(Base):
 
     # Nicho de atuação
     nicho = Column(SQLEnum(NichoEmpresa), nullable=True)  # veiculos ou imoveis
+    tipo_negocio = Column(String(50), default='veiculos')  # veiculos, loja_tintas, imoveis, etc
+
+    # Notificações para Gerente via WhatsApp
+    numero_gerente = Column(String(20))  # Número WhatsApp do gerente
+    notificar_vendas = Column(Boolean, default=True)
+    notificar_leads = Column(Boolean, default=True)
+    notificar_entregas = Column(Boolean, default=True)
+    notificar_estoque = Column(Boolean, default=False)
 
     # Assinatura
     plano = Column(SQLEnum(PlanoAssinatura), default=PlanoAssinatura.GRATUITO)
@@ -269,6 +293,14 @@ class ConfiguracaoBot(Base):
     tempo_resposta_segundos = Column(Integer, default=5)
     max_tentativas_contato = Column(Integer, default=3)
     intervalo_entre_mensagens = Column(Integer, default=10)  # segundos
+
+    # Persona da atendente (NUNCA revelar que é IA)
+    nome_atendente = Column(String(100), default='AIra')  # Nome humano da atendente
+    cargo_atendente = Column(String(100), default='Atendente')  # Ex: Consultora de Vendas
+    personalidade = Column(Text)  # Descrição da personalidade (simpática, profissional, etc)
+    estilo_linguagem = Column(Text)  # Como ela fala (informal, usa gírias, etc)
+    conhecimentos_especiais = Column(Text)  # Conhecimentos técnicos específicos
+    respostas_pergunta_ia = Column(Text)  # Como responder se perguntarem se é robô
 
     # Integrações de IA
     openai_api_key = Column(String(200))
@@ -675,6 +707,7 @@ class Produto(Base):
     sku = Column(String(100))
     codigo_barras = Column(String(100))
     marca = Column(String(100))
+    aplicacao = Column(String(100))  # Ex: Carro e SUV, Moto, Caminhão, Máquinas Pesadas
     peso = Column(Float)  # em kg
     dimensoes = Column(String(100))  # formato: LxAxP em cm
 
@@ -1024,10 +1057,522 @@ class ConfiguracaoAfiliados(Base):
 
 # ==================== DATABASE MANAGER ====================
 
-class DatabaseManager:
-    """Gerenciador de banco de dados unificado"""
+# ==================== SISTEMA DE VAREJO ====================
 
-    def __init__(self, connection_string='sqlite:///vendeai.db'):
+class Cliente(Base):
+    """Clientes da empresa (para nicho Varejo/Atacado)"""
+    __tablename__ = 'clientes'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+
+    # Dados básicos
+    nome = Column(String(200), nullable=False)
+    tipo = Column(String(10), default='PJ')  # PJ ou PF
+    cpf_cnpj = Column(String(20))
+    email = Column(String(200))
+    telefone = Column(String(20))
+    celular = Column(String(20))
+
+    # Endereço
+    endereco = Column(String(300))
+    numero = Column(String(20))
+    complemento = Column(String(100))
+    bairro = Column(String(100))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+    cep = Column(String(10))
+
+    # Observações
+    observacoes = Column(Text)
+
+    # Métricas
+    total_compras = Column(Float, default=0.0)
+    ultima_compra = Column(DateTime)
+
+    # Status
+    ativo = Column(Boolean, default=True)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    pedidos = relationship("Pedido", back_populates="cliente")
+
+    def __repr__(self):
+        return f'<Cliente {self.nome}>'
+
+
+class Pedido(Base):
+    """Pedidos de venda (para nicho Varejo/Atacado)"""
+    __tablename__ = 'pedidos'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    cliente_id = Column(Integer, ForeignKey('clientes.id'), nullable=False, index=True)
+
+    # Status
+    status = Column(String(50), default='pendente')  # pendente, confirmado, em_separacao, enviado, entregue, cancelado
+
+    # Datas
+    data_entrega = Column(DateTime)
+
+    # Pagamento
+    forma_pagamento = Column(String(50))  # boleto, pix, cartao_credito, cartao_debito, dinheiro, prazo
+    desconto = Column(Float, default=0.0)
+    total = Column(Float, default=0.0)
+
+    # Observações
+    observacoes = Column(Text)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    cliente = relationship("Cliente", back_populates="pedidos")
+    itens = relationship("ItemPedido", back_populates="pedido", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<Pedido {self.id} - Cliente:{self.cliente_id}>'
+
+
+class ItemPedido(Base):
+    """Itens de um pedido"""
+    __tablename__ = 'itens_pedido'
+
+    id = Column(Integer, primary_key=True)
+    pedido_id = Column(Integer, ForeignKey('pedidos.id'), nullable=False, index=True)
+    produto_id = Column(Integer, ForeignKey('produtos.id'), nullable=False)
+
+    # Dados do item
+    quantidade = Column(Integer, default=1)
+    preco_unitario = Column(Float, nullable=False)
+
+    # Relacionamentos
+    pedido = relationship("Pedido", back_populates="itens")
+    produto = relationship("Produto")
+
+    def __repr__(self):
+        return f'<ItemPedido Pedido:{self.pedido_id} Produto:{self.produto_id}>'
+
+
+class Entregador(Base):
+    """Entregadores/Motoristas para entregas"""
+    __tablename__ = 'entregadores'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+
+    # Dados básicos
+    nome = Column(String(200), nullable=False)
+    telefone = Column(String(20))
+    whatsapp = Column(String(20))
+    email = Column(String(200))
+    documento = Column(String(20))  # CPF ou CNH
+
+    # Veículo
+    tipo_veiculo = Column(String(50), default='moto')  # moto, carro, van, caminhao
+    placa_veiculo = Column(String(10))
+    foto_url = Column(String(500))
+
+    # Status
+    ativo = Column(Boolean, default=True)
+    disponivel = Column(Boolean, default=True)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    entregas = relationship("Entrega", back_populates="entregador")
+
+    def __repr__(self):
+        return f'<Entregador {self.nome}>'
+
+
+class Entrega(Base):
+    """Entregas/Orçamentos - Registros de entregas do bot e do CRM"""
+    __tablename__ = 'entregas'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    pedido_id = Column(Integer, ForeignKey('pedidos.id'), index=True)
+    cliente_id = Column(Integer, ForeignKey('clientes.id'), index=True)
+    entregador_id = Column(Integer, ForeignKey('entregadores.id'), index=True)
+
+    # Dados do cliente (cache para quando não há cliente_id)
+    cliente_nome = Column(String(200))
+    cliente_telefone = Column(String(20))
+    cliente_whatsapp = Column(String(20))
+
+    # Endereço de entrega
+    endereco = Column(String(300))
+    numero = Column(String(20))
+    complemento = Column(String(100))
+    bairro = Column(String(100))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+    cep = Column(String(10))
+    ponto_referencia = Column(Text)
+
+    # Detalhes da entrega
+    descricao_itens = Column(Text)  # Lista de produtos
+    quantidade_volumes = Column(Integer, default=1)
+    peso_total = Column(Float)
+
+    # Valores
+    valor_pedido = Column(Float, default=0.0)
+    valor_frete = Column(Float, default=0.0)
+
+    # Pagamento
+    forma_pagamento = Column(String(50), default='pago')  # pago, pix, cartao, dinheiro, a_combinar
+    troco_para = Column(Float)
+
+    # Status da entrega
+    status = Column(String(50), default='pendente', index=True)
+    # pendente, aguardando_coleta, em_transito, entregue, cancelada, devolvida
+
+    # Prioridade
+    prioridade = Column(String(20), default='normal')  # baixa, normal, alta, urgente
+
+    # Agendamento
+    data_agendada = Column(DateTime)
+    hora_agendada = Column(String(5))  # HH:MM
+
+    # Timestamps de status
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    data_coleta = Column(DateTime)  # Quando o entregador coletou
+    data_saida = Column(DateTime)   # Quando saiu para entrega
+    data_entrega = Column(DateTime) # Quando foi entregue
+    data_cancelamento = Column(DateTime)
+
+    # Observações e extras
+    observacoes = Column(Text)
+    motivo_cancelamento = Column(Text)
+    foto_comprovante = Column(String(500))  # URL da foto de comprovante
+
+    # Avaliação do cliente
+    avaliacao_cliente = Column(Integer)  # 1-5 estrelas
+    comentario_cliente = Column(Text)
+
+    # Origem do registro
+    origem = Column(String(50), default='manual')  # manual, bot_whatsapp, api
+    conversa_id = Column(String(50))  # ID da conversa do WhatsApp (telefone)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    pedido = relationship("Pedido", foreign_keys=[pedido_id])
+    cliente = relationship("Cliente", foreign_keys=[cliente_id])
+    entregador = relationship("Entregador", back_populates="entregas")
+
+    def __repr__(self):
+        return f'<Entrega {self.id} - {self.cliente_nome} - {self.status}>'
+
+
+class Fornecedor(Base):
+    """Fornecedores da empresa (para nicho Varejo/Atacado)"""
+    __tablename__ = 'fornecedores'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+
+    # Dados básicos
+    nome = Column(String(200), nullable=False)
+    cnpj = Column(String(20))
+    email = Column(String(200))
+    telefone = Column(String(20))
+
+    # Endereço
+    endereco = Column(String(300))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+
+    # Contato
+    contato = Column(String(100))  # Nome do contato na empresa
+
+    # Observações
+    observacoes = Column(Text)
+
+    # Status
+    ativo = Column(Boolean, default=True)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+
+    def __repr__(self):
+        return f'<Fornecedor {self.nome}>'
+
+
+class NotaFiscal(Base):
+    """Notas fiscais emitidas"""
+    __tablename__ = 'notas_fiscais'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    pedido_id = Column(Integer, ForeignKey('pedidos.id'))
+    cliente_id = Column(Integer, ForeignKey('clientes.id'))
+
+    # Dados da NF
+    numero = Column(String(50))
+    serie = Column(String(10))
+    chave_acesso = Column(String(50))
+    tipo = Column(String(20), default='NFe')  # NFe, NFCe, NFSe
+
+    # Valores
+    valor_total = Column(Float, default=0.0)
+    valor_icms = Column(Float, default=0.0)
+
+    # Status
+    status = Column(String(20), default='emitida')  # emitida, cancelada, inutilizada
+
+    # Datas
+    data_emissao = Column(DateTime, default=datetime.utcnow)
+    data_cancelamento = Column(DateTime)
+
+    # XML
+    xml_nfe = Column(Text)
+    pdf_danfe = Column(String(500))  # URL do PDF
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    pedido = relationship("Pedido")
+    cliente = relationship("Cliente")
+
+    def __repr__(self):
+        return f'<NotaFiscal {self.numero}>'
+
+
+# ==================== MÓDULO LOJA DE TINTAS ====================
+
+class CategoriaTinta(Base):
+    """Categorias de tintas (Látex, Acrílica, Esmalte, etc.)"""
+    __tablename__ = 'categorias_tinta'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False)
+    nome = Column(String(100), nullable=False)
+    descricao = Column(Text)
+    ordem = Column(Integer, default=0)
+    ativo = Column(Boolean, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    empresa = relationship("Empresa", backref="categorias_tinta")
+    produtos = relationship("ProdutoTinta", back_populates="categoria")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'descricao': self.descricao,
+            'ordem': self.ordem,
+            'ativo': self.ativo
+        }
+
+
+class ProdutoTinta(Base):
+    """Produtos de tinta"""
+    __tablename__ = 'produtos_tinta'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False)
+    categoria_id = Column(Integer, ForeignKey('categorias_tinta.id'))
+
+    nome = Column(String(200), nullable=False)
+    marca = Column(String(100))
+    codigo = Column(String(50))
+    descricao = Column(Text)
+
+    # Tamanhos e preços (JSON: {"0.9L": 45.90, "3.6L": 150.00, "18L": 450.00})
+    tamanhos_precos = Column(JSON)
+
+    # Características
+    tipo = Column(String(50))  # latex, acrilica, esmalte, verniz
+    acabamento = Column(String(50))  # fosco, acetinado, semi-brilho, brilhante
+    ambiente = Column(String(50))  # interno, externo, ambos
+    rendimento_m2_litro = Column(Float, default=10.0)
+    tempo_secagem = Column(String(100))
+    demaos_recomendadas = Column(Integer, default=2)
+
+    # Cores disponíveis (JSON: ["branco", "gelo", "palha", ...])
+    cores_disponiveis = Column(JSON)
+
+    estoque = Column(Integer, default=0)
+    ativo = Column(Boolean, default=True)
+    destaque = Column(Boolean, default=False)
+    imagem_url = Column(String(500))
+
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    empresa = relationship("Empresa", backref="produtos_tinta")
+    categoria = relationship("CategoriaTinta", back_populates="produtos")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'marca': self.marca,
+            'codigo': self.codigo,
+            'descricao': self.descricao,
+            'tamanhos_precos': self.tamanhos_precos,
+            'tipo': self.tipo,
+            'acabamento': self.acabamento,
+            'ambiente': self.ambiente,
+            'rendimento_m2_litro': self.rendimento_m2_litro,
+            'cores_disponiveis': self.cores_disponiveis,
+            'estoque': self.estoque,
+            'ativo': self.ativo,
+            'destaque': self.destaque,
+            'imagem_url': self.imagem_url,
+            'categoria': self.categoria.nome if self.categoria else None
+        }
+
+
+class PaletaCores(Base):
+    """Paleta de cores disponíveis"""
+    __tablename__ = 'paleta_cores'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False)
+
+    nome = Column(String(100), nullable=False)
+    codigo = Column(String(20))
+    hex_color = Column(String(7))  # #FFFFFF
+    familia = Column(String(50))  # neutros, quentes, frios, pasteis
+    tendencia = Column(Boolean, default=False)
+    mais_vendida = Column(Boolean, default=False)
+
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    empresa = relationship("Empresa", backref="paleta_cores")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'codigo': self.codigo,
+            'hex_color': self.hex_color,
+            'familia': self.familia,
+            'tendencia': self.tendencia,
+            'mais_vendida': self.mais_vendida
+        }
+
+
+class OrcamentoTinta(Base):
+    """Orçamentos gerados pelo bot"""
+    __tablename__ = 'orcamentos_tinta'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False)
+    lead_id = Column(Integer, ForeignKey('leads.id'))
+    conversa_id = Column(Integer, ForeignKey('conversas.id'))
+
+    # Dados do projeto
+    tipo_projeto = Column(String(100))  # pintura_interna, pintura_externa, etc
+    ambiente = Column(String(100))
+    area_m2 = Column(Float)
+    area_total_pintura = Column(Float)
+    litros_necessarios = Column(Float)
+    numero_latas = Column(JSON)  # {"18L": 2, "3.6L": 1}
+
+    # Itens do orçamento (JSON)
+    itens = Column(JSON)
+
+    # Valores
+    subtotal = Column(Float, default=0)
+    desconto_percentual = Column(Float, default=0)
+    desconto_valor = Column(Float, default=0)
+    valor_total = Column(Float, default=0)
+
+    # Status
+    status = Column(String(50), default='pendente')  # pendente, aprovado, rejeitado, expirado
+    validade = Column(DateTime)
+
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    empresa = relationship("Empresa", backref="orcamentos_tinta")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tipo_projeto': self.tipo_projeto,
+            'ambiente': self.ambiente,
+            'area_m2': self.area_m2,
+            'litros_necessarios': self.litros_necessarios,
+            'itens': self.itens,
+            'subtotal': self.subtotal,
+            'desconto_percentual': self.desconto_percentual,
+            'valor_total': self.valor_total,
+            'status': self.status,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+        }
+
+
+class ConfiguracaoBotTintas(Base):
+    """Configurações específicas do bot de tintas"""
+    __tablename__ = 'config_bot_tintas'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), unique=True, nullable=False)
+
+    nome_atendente = Column(String(50), default='Laura')
+    tom_conversa = Column(String(50), default='amigavel_profissional')
+
+    # Configurações de negócio
+    frete_gratis_acima = Column(Float, default=500.0)
+    prazo_entrega = Column(String(100), default='1-2 dias úteis')
+    desconto_maximo = Column(Float, default=15.0)
+    margem_seguranca_calculo = Column(Float, default=1.1)  # 10% extra
+
+    # Mensagens personalizadas
+    msg_boas_vindas = Column(Text)
+    msg_orcamento = Column(Text)
+    msg_despedida = Column(Text)
+
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    empresa = relationship("Empresa", backref="config_tintas")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome_atendente': self.nome_atendente,
+            'tom_conversa': self.tom_conversa,
+            'frete_gratis_acima': self.frete_gratis_acima,
+            'prazo_entrega': self.prazo_entrega,
+            'desconto_maximo': self.desconto_maximo
+        }
+
+
+class DatabaseManager:
+    """Gerenciador de banco de dados unificado - Multi-Tenant"""
+
+    def __init__(self, connection_string=None):
+        # Se não especificado, usar o banco do backend (ÚNICO BANCO)
+        if connection_string is None:
+            from pathlib import Path
+            # Encontrar a raiz do projeto
+            current = Path(__file__).resolve().parent
+            while current.name != 'HelixAI' and current.parent != current:
+                current = current.parent
+            # USAR BANCO DO BACKEND - único banco multi-tenant
+            db_path = current / 'backend' / 'vendeai.db'
+            connection_string = f'sqlite:///{db_path}'
+
         self.engine = create_engine(connection_string, echo=False)
         self.Session = sessionmaker(bind=self.engine)
 

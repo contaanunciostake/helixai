@@ -6,6 +6,7 @@
  * Sistema que seleciona o bot correto baseado no nicho da empresa:
  * - VEICULOS → VendeAI Bot (bot completo com IA avançada)
  * - IMOVEIS → AIra Imob Bot (em desenvolvimento)
+ * - ATACADO_VAREJO → Bot para distribuidoras e lojas (lubrificantes, filtros, etc)
  * - Outros → Bot genérico
  *
  * ARQUITETURA:
@@ -17,45 +18,54 @@
  * ════════════════════════════════════════════════════════════════════════════
  */
 
-import mysql from 'mysql2/promise';
+import sqlite3 from 'sqlite3';
+import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Carregar variáveis de ambiente
+dotenv.config({ path: join(__dirname, '..', '.env') });
+
+// Path do banco SQLite (mesmo que o Flask usa)
+const SQLITE_DB_PATH = join(__dirname, '..', 'backend', 'vendeai.db');
+
 class BotSelector {
   constructor() {
-    this.dbPool = null;
+    this.db = null;
     this.botInstances = new Map(); // empresa_id → bot instance
     this.nicheCache = new Map(); // empresa_id → { nicho, timestamp }
     this.CACHE_TTL = 60000; // 1 minuto
 
     console.log('✅ [BOT-SELECTOR] Inicializado');
+    console.log(`[BOT-SELECTOR] 📂 SQLite DB: ${SQLITE_DB_PATH}`);
   }
 
   /**
-   * Inicializar conexão com banco de dados
+   * Inicializar conexão com banco de dados SQLite
    */
   async init() {
-    if (!this.dbPool) {
-      this.dbPool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'helixai_db',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
+    if (!this.db) {
+      return new Promise((resolve, reject) => {
+        this.db = new sqlite3.Database(SQLITE_DB_PATH, (err) => {
+          if (err) {
+            console.error('[BOT-SELECTOR] ❌ Erro ao conectar SQLite:', err);
+            reject(err);
+          } else {
+            console.log('[BOT-SELECTOR] ✅ Conectado ao SQLite');
+            resolve();
+          }
+        });
       });
-      console.log('[BOT-SELECTOR] ✅ Pool de banco de dados criado');
     }
   }
 
   /**
-   * Obter nicho da empresa do banco de dados
+   * Obter nicho da empresa do banco de dados SQLite
    * @param {number} empresaId - ID da empresa
-   * @returns {Promise<string|null>} Nicho da empresa (veiculos, imoveis, null)
+   * @returns {Promise<string|null>} Nicho da empresa (veiculos, imoveis, loja_tintas, atacado_varejo, null)
    */
   async getNichoEmpresa(empresaId) {
     try {
@@ -67,26 +77,36 @@ class BotSelector {
 
       await this.init();
 
-      const [rows] = await this.dbPool.query(
-        'SELECT nicho FROM empresas WHERE id = ?',
-        [empresaId]
-      );
+      return new Promise((resolve, reject) => {
+        this.db.get(
+          'SELECT nicho FROM empresas WHERE id = ?',
+          [empresaId],
+          (err, row) => {
+            if (err) {
+              console.error(`[BOT-SELECTOR] ❌ Erro ao buscar nicho:`, err);
+              resolve(null);
+              return;
+            }
 
-      if (rows.length === 0) {
-        console.warn(`[BOT-SELECTOR] ⚠️ Empresa ${empresaId} não encontrada`);
-        return null;
-      }
+            if (!row) {
+              console.warn(`[BOT-SELECTOR] ⚠️ Empresa ${empresaId} não encontrada`);
+              resolve(null);
+              return;
+            }
 
-      const nicho = rows[0].nicho;
+            const nicho = row.nicho;
 
-      // Atualizar cache
-      this.nicheCache.set(empresaId, {
-        nicho,
-        timestamp: Date.now()
+            // Atualizar cache
+            this.nicheCache.set(empresaId, {
+              nicho,
+              timestamp: Date.now()
+            });
+
+            console.log(`[BOT-SELECTOR] 📊 Empresa ${empresaId} → Nicho: ${nicho || 'GENÉRICO'}`);
+            resolve(nicho);
+          }
+        );
       });
-
-      console.log(`[BOT-SELECTOR] 📊 Empresa ${empresaId} → Nicho: ${nicho || 'GENÉRICO'}`);
-      return nicho;
 
     } catch (error) {
       console.error(`[BOT-SELECTOR] ❌ Erro ao buscar nicho da empresa ${empresaId}:`, error);
@@ -110,16 +130,27 @@ class BotSelector {
 
       let botInstance;
 
-      switch (nicho) {
-        case 'veiculos':
+      switch (nicho?.toUpperCase()) {
+        case 'VEICULOS':
           console.log('[BOT-SELECTOR] 🚗 Carregando VendeAI Bot (Veículos)...');
           botInstance = await this._loadVendeAIBot(empresaId, sock, config);
           break;
 
-        case 'imoveis':
+        case 'IMOVEIS':
           console.log('[BOT-SELECTOR] 🏠 Carregando AIra Imob Bot (Imóveis)...');
           // TODO: Implementar bot de imóveis
           botInstance = await this._loadGenericBot(empresaId, sock, config);
+          break;
+
+        case 'ATACADO_VAREJO':
+          console.log('[BOT-SELECTOR] 🏪 Carregando Bot Atacado/Varejo...');
+          botInstance = await this._loadAtacadoVarejoBot(empresaId, sock, config);
+          break;
+
+        case 'LOJA_TINTAS':
+          console.log('[BOT-SELECTOR] 🎨 Carregando Bot Loja de Tintas (Laura IA)...');
+          // Por enquanto usa o bot de atacado/varejo que tem as mesmas funcionalidades
+          botInstance = await this._loadAtacadoVarejoBot(empresaId, sock, config);
           break;
 
         default:
@@ -149,98 +180,43 @@ class BotSelector {
    */
   async _loadVendeAIBot(empresaId, sock, config) {
     try {
-      // Caminho para o bot VendeAI
-      const vendeAIBotPath = join(__dirname, '..', 'VendeAI', 'bot_engine', 'main.js');
+      console.log(`[BOT-SELECTOR] 🚗 Carregando VendeAI Bot para empresa ${empresaId}`);
 
-      console.log(`[BOT-SELECTOR] 📁 Importando VendeAI Bot de: ${vendeAIBotPath}`);
+      // Importar módulo de integração do VendeAI
+      const { createVendeAIBot } = await import('./vendeai-bot-integration.js');
 
-      // Importar módulo VendeAI
-      const VendeAIModule = await import(vendeAIBotPath);
+      // Criar instância do bot VendeAI
+      const botInstance = await createVendeAIBot(empresaId, sock, this.db, config);
 
-      // Criar wrapper para adaptar o bot VendeAI ao nosso sistema
-      return {
-        type: 'vendeai',
-        nicho: 'veiculos',
-        empresaId,
-
-        /**
-         * Processar mensagem recebida
-         */
-        async processMessage(message) {
-          try {
-            // O VendeAI Bot já tem toda a lógica de processamento
-            // Apenas precisamos garantir que usa as credenciais corretas da empresa
-
-            const telefone = message.key.remoteJid.replace('@s.whatsapp.net', '');
-            const mensagemTexto = message.message?.conversation ||
-                                  message.message?.extendedTextMessage?.text || '';
-
-            console.log(`[VENDEAI-BOT] 📨 Mensagem recebida de ${telefone}: ${mensagemTexto.substring(0, 50)}...`);
-
-            // A lógica completa do VendeAI está em main.js
-            // Ele já possui:
-            // - IA Master com análise de intenções
-            // - Busca inteligente de veículos
-            // - Simulador de financiamento
-            // - Integração com FIPE
-            // - Agendamento de visitas
-            // - Geração de áudio (ElevenLabs)
-
-            // Por enquanto, retornar true indicando que foi processado
-            // O main.js do VendeAI já possui toda a lógica
-            return true;
-
-          } catch (error) {
-            console.error(`[VENDEAI-BOT] ❌ Erro ao processar mensagem:`, error);
-            return false;
-          }
-        },
-
-        /**
-         * Enviar mensagem
-         */
-        async sendMessage(to, content, options = {}) {
-          try {
-            const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-
-            if (options.audio && options.audioUrl) {
-              // Enviar áudio
-              await sock.sendMessage(jid, {
-                audio: { url: options.audioUrl },
-                mimetype: 'audio/mp4',
-                ptt: true
-              });
-            } else {
-              // Enviar texto
-              await sock.sendMessage(jid, { text: content });
-            }
-
-            return true;
-          } catch (error) {
-            console.error(`[VENDEAI-BOT] ❌ Erro ao enviar mensagem:`, error);
-            return false;
-          }
-        },
-
-        /**
-         * Obter configuração específica do bot
-         */
-        getConfig() {
-          return {
-            ...config,
-            features: {
-              fipe: true,
-              financiamento: true,
-              agendamento: true,
-              audioMessages: config.enviar_audio || false,
-              aiAnalysis: true
-            }
-          };
-        }
-      };
+      console.log(`[BOT-SELECTOR] ✅ VendeAI Bot inicializado para empresa ${empresaId}`);
+      return botInstance;
 
     } catch (error) {
       console.error(`[BOT-SELECTOR] ❌ Erro ao carregar VendeAI Bot:`, error);
+      throw error;
+    }
+  }
+
+
+  /**
+   * Carregar Bot Atacado/Varejo (para distribuidoras e lojas)
+   * @private
+   */
+  async _loadAtacadoVarejoBot(empresaId, sock, config) {
+    try {
+      console.log(`[BOT-SELECTOR] 🏪 Carregando Bot Atacado/Varejo para empresa ${empresaId}`);
+
+      // Importar módulo do bot atacado/varejo
+      const { createAtacadoVarejoBot } = await import('./atacado-varejo-bot.js');
+
+      // Criar instância do bot
+      const botInstance = await createAtacadoVarejoBot(empresaId, sock, this.db, config);
+
+      console.log(`[BOT-SELECTOR] ✅ Bot Atacado/Varejo inicializado para empresa ${empresaId}`);
+      return botInstance;
+
+    } catch (error) {
+      console.error(`[BOT-SELECTOR] ❌ Erro ao carregar Bot Atacado/Varejo:`, error);
       throw error;
     }
   }

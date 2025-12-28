@@ -153,3 +153,230 @@ def api_arquivar(conversa_id):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         session.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# API REST PARA FRONTEND CRM - CONVERSAS EM TEMPO REAL
+# ════════════════════════════════════════════════════════════════════════════
+
+@bp.route('/api/conversations/<int:empresa_id>', methods=['GET'])
+def api_get_conversations(empresa_id):
+    """
+    GET /conversas/api/conversations/:empresaId
+    Retorna todas as conversas formatadas para o Kanban do CRM
+    """
+    session = db_manager.get_session()
+    try:
+        # Buscar todas as conversas da empresa
+        conversas = session.query(Conversa).filter_by(
+            empresa_id=empresa_id
+        ).order_by(desc(Conversa.ultima_mensagem)).all()
+
+        # Organizar em colunas do Kanban
+        kanban = {
+            'novo': [],
+            'emAtendimento': [],
+            'proposta': [],
+            'fechado': []
+        }
+
+        for conv in conversas:
+            # Buscar últimas mensagens
+            mensagens = session.query(Mensagem).filter_by(
+                conversa_id=conv.id
+            ).order_by(Mensagem.enviada_em).all()
+
+            # Buscar lead associado
+            lead = None
+            if conv.lead_id:
+                lead = session.query(Lead).get(conv.lead_id)
+
+            # Formatar histórico
+            historico = []
+            for msg in mensagens[-20:]:  # Últimas 20 mensagens
+                historico.append({
+                    'tipo': 'resposta' if msg.enviada_por_bot else 'mensagem',
+                    'mensagem': msg.conteudo,
+                    'hora': msg.enviada_em.strftime('%d/%m %H:%M') if msg.enviada_em else ''
+                })
+
+            # Determinar temperatura baseado no lead ou interações
+            temperatura = 'MORNO'
+            if lead:
+                temperatura = lead.temperatura.value if hasattr(lead.temperatura, 'value') else str(lead.temperatura)
+
+            # Calcular hora relativa
+            hora = ''
+            if conv.ultima_mensagem:
+                delta = datetime.utcnow() - conv.ultima_mensagem
+                if delta.days == 0:
+                    hora = conv.ultima_mensagem.strftime('%H:%M')
+                elif delta.days == 1:
+                    hora = 'Ontem'
+                else:
+                    hora = f'{delta.days} dias'
+
+            # Última mensagem
+            ultima_msg = mensagens[-1].conteudo if mensagens else ''
+
+            # Determinar status/coluna
+            # Por padrão, novas conversas vão para 'novo'
+            # Pode ser expandido para usar um campo status no banco
+            status = 'novo'
+            if conv.total_mensagens and conv.total_mensagens > 2:
+                status = 'emAtendimento'
+            if not conv.ativa:
+                status = 'fechado'
+
+            # Montar objeto da conversa
+            conv_data = {
+                'id': f'conv-{conv.id}',
+                'db_id': conv.id,
+                'nome': conv.nome_contato or conv.telefone,
+                'telefone': conv.telefone,
+                'email': lead.email if lead else '',
+                'mensagem': ultima_msg[:100] if ultima_msg else '',
+                'hora': hora,
+                'origem': 'WhatsApp',
+                'localizacao': '',
+                'temperatura': temperatura.upper() if temperatura else 'MORNO',
+                'historico': historico,
+                'total_mensagens': conv.total_mensagens or len(mensagens),
+                'bot_ativo': conv.bot_ativo
+            }
+
+            kanban[status].append(conv_data)
+
+        return jsonify({
+            'success': True,
+            'data': kanban
+        })
+
+    except Exception as e:
+        print(f'[CONVERSAS API] Erro: {str(e)}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@bp.route('/api/conversations/<int:empresa_id>/<int:conversa_id>', methods=['GET'])
+def api_get_conversation_detail(empresa_id, conversa_id):
+    """
+    GET /conversas/api/conversations/:empresaId/:conversaId
+    Retorna detalhes de uma conversa específica com todas as mensagens
+    """
+    session = db_manager.get_session()
+    try:
+        conversa = session.query(Conversa).filter_by(
+            id=conversa_id,
+            empresa_id=empresa_id
+        ).first()
+
+        if not conversa:
+            return jsonify({
+                'success': False,
+                'error': 'Conversa não encontrada'
+            }), 404
+
+        # Buscar todas as mensagens
+        mensagens = session.query(Mensagem).filter_by(
+            conversa_id=conversa_id
+        ).order_by(Mensagem.enviada_em).all()
+
+        # Buscar lead
+        lead = None
+        if conversa.lead_id:
+            lead = session.query(Lead).get(conversa.lead_id)
+
+        # Formatar mensagens
+        mensagens_list = []
+        for msg in mensagens:
+            mensagens_list.append({
+                'id': msg.id,
+                'tipo': msg.tipo.value if hasattr(msg.tipo, 'value') else str(msg.tipo),
+                'conteudo': msg.conteudo,
+                'enviada_por_bot': msg.enviada_por_bot,
+                'enviada_em': msg.enviada_em.isoformat() if msg.enviada_em else None,
+                'lida': msg.lida
+            })
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': conversa.id,
+                'telefone': conversa.telefone,
+                'nome_contato': conversa.nome_contato,
+                'ativa': conversa.ativa,
+                'bot_ativo': conversa.bot_ativo,
+                'total_mensagens': conversa.total_mensagens or len(mensagens),
+                'iniciada_em': conversa.iniciada_em.isoformat() if conversa.iniciada_em else None,
+                'ultima_mensagem': conversa.ultima_mensagem.isoformat() if conversa.ultima_mensagem else None,
+                'lead': {
+                    'id': lead.id,
+                    'nome': lead.nome,
+                    'email': lead.email,
+                    'telefone': lead.telefone,
+                    'temperatura': lead.temperatura.value if hasattr(lead.temperatura, 'value') else str(lead.temperatura)
+                } if lead else None,
+                'mensagens': mensagens_list
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@bp.route('/api/conversations/<int:empresa_id>/<int:conversa_id>/status', methods=['PUT'])
+def api_update_conversation_status(empresa_id, conversa_id):
+    """
+    PUT /conversas/api/conversations/:empresaId/:conversaId/status
+    Atualiza o status da conversa (para mover no Kanban)
+    """
+    session = db_manager.get_session()
+    try:
+        data = request.json
+        novo_status = data.get('status')
+
+        conversa = session.query(Conversa).filter_by(
+            id=conversa_id,
+            empresa_id=empresa_id
+        ).first()
+
+        if not conversa:
+            return jsonify({
+                'success': False,
+                'error': 'Conversa não encontrada'
+            }), 404
+
+        # Atualizar status
+        if novo_status == 'fechado':
+            conversa.ativa = False
+        else:
+            conversa.ativa = True
+
+        # Aqui poderia adicionar um campo status_kanban na tabela
+        # Por enquanto, usamos ativa/inativa
+
+        session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Status atualizado para {novo_status}'
+        })
+
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()

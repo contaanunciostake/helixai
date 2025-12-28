@@ -1,0 +1,132 @@
+╔═══════════════════════════════════════════════════════════════════════╗
+║                                                                       ║
+║              🚀 HelixAI - Scripts de Sistema Organizados              ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+📁 PASTA SystemScripts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Esta pasta contém TODOS os scripts organizados para gerenciar o sistema
+HelixAI de forma profissional e eficiente.
+
+
+🎯 SCRIPTS DISPONÍVEIS (EXECUTE NA ORDEM!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+00_PARAR_SISTEMA.bat
+   └─ Para TODOS os processos do HelixAI
+   └─ Use ANTES de reiniciar ou ao finalizar o trabalho
+
+01_LIMPAR_SISTEMA.bat
+   └─ Limpa cache, sessões WhatsApp, logs
+   └─ Use quando houver problemas de cache
+
+02_VERIFICAR_SISTEMA.bat
+   └─ Faz diagnóstico completo
+   └─ Verifica Node.js, Python, MySQL, portas, etc
+   └─ Use ANTES de iniciar para garantir que está tudo OK
+
+03_INICIAR_SISTEMA_COMPLETO.bat ⭐ PRINCIPAL
+   └─ Inicia TODOS os componentes do HelixAI
+   └─ Backend, Bot, WhatsApp, CRMs, Landing, Afiliados, etc
+   └─ Use para iniciar TODO o sistema
+
+
+📖 DOCUMENTAÇÃO COMPLETA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Leia: README.md (abre com qualquer editor de texto)
+   └─ Instruções detalhadas de uso
+   └─ Mapa de portas
+   └─ Troubleshooting
+   └─ Arquitetura do sistema
+
+
+🚀 ATALHOS NA RAIZ (ACESSO RÁPIDO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Na pasta raiz D:\Helix\HelixAI\ você encontra:
+
+   🚀_INICIAR_TUDO.bat  → Inicia sistema completo
+   🛑_PARAR_TUDO.bat    → Para tudo
+
+
+⚡ FLUXO RÁPIDO DE USO DIÁRIO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPÇÃO 1 - Atalho Rápido:
+   Duplo clique em: 🚀_INICIAR_TUDO.bat (na raiz)
+
+OPÇÃO 2 - Completo com Verificação:
+   1. Execute: 02_VERIFICAR_SISTEMA.bat
+   2. Execute: 03_INICIAR_SISTEMA_COMPLETO.bat
+
+Ao Finalizar:
+   1. Execute: 00_PARAR_SISTEMA.bat
+   OU
+   Duplo clique em: 🛑_PARAR_TUDO.bat (na raiz)
+
+
+🌐 SISTEMA COMPLETO INCLUI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Backend Flask (5000) - API principal + Mercado Pago
+✅ VendeAI Bot Engine (3010) - Bot IA + WebSocket
+✅ WhatsApp Service (3002) - Conexão WhatsApp
+✅ AIra Auto (4000) - Bot de Veículos + ElevenLabs
+✅ AIra Imob (4001) - Bot de Imóveis + ElevenLabs
+✅ ElevenLabs Webhook - Túnel LocalTunnel
+✅ Landing Page (5173) - Site + Checkout MP
+✅ CRM Admin (5175) - Painel administrativo
+✅ CRM Cliente (5177) - Painel do cliente
+✅ Painel Afiliados (5178) - Gestão de afiliados
+
+
+❓ PROBLEMAS COMUNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Porta já está em uso"
+   → Execute: 00_PARAR_SISTEMA.bat
+
+"Erro ao conectar WhatsApp"
+   → Execute: 01_LIMPAR_SISTEMA.bat (escolha limpar sessões)
+   → Escaneie QR Code novamente
+
+"MySQL não está rodando"
+   → Abra XAMPP Control Panel
+   → Inicie MySQL
+
+"Erro ao instalar dependências"
+   → Execute: npm cache clean --force
+   → Delete node_modules e rode npm install novamente
+
+
+💡 DICAS IMPORTANTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Mantenha TODAS as janelas abertas durante o uso
+• Aguarde 30 segundos após iniciar para tudo carregar
+• Sempre pare o sistema antes de desligar o computador
+• Faça backup antes de limpar sessões do WhatsApp
+• Configure arquivos .env antes da primeira execução
+
+
+📊 URLs DO SISTEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Landing Page:       http://localhost:5173/
+CRM Admin:          http://localhost:5175/
+CRM Cliente:        http://localhost:5177/
+Painel Afiliados:   http://localhost:5178/
+Backend API:        http://localhost:5000/
+Bot API:            http://localhost:3010/api/bot/*
+
+
+═══════════════════════════════════════════════════════════════════════
+
+Versão: 1.0.0
+Data: 2025-01-30
+Desenvolvido por: HelixAI Team
+
+═══════════════════════════════════════════════════════════════════════

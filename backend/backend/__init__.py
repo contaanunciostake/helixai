@@ -37,13 +37,18 @@ allowed_origins = [
     "http://localhost:5175",
     "http://localhost:5176",
     "http://localhost:5177",
+    "http://localhost:5178",
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://localhost:3010",
     "http://localhost:4000",
-    # Production domains
-    "https://helixai-landing.onrender.com",
-    "https://helixai-admin.onrender.com",
-    "https://helixai-client.onrender.com",
+    # Production Render.com domains
+    "https://vendefacil-landing.onrender.com",
+    "https://vendefacil-admin.onrender.com",
+    "https://vendefacil-client.onrender.com",
+    "https://vendefacil-afiliados.onrender.com",
+    "https://vendefacil-backend.onrender.com",
+    "https://vendefacil-whatsapp.onrender.com",
 ]
 
 CORS(app,
@@ -51,21 +56,31 @@ CORS(app,
          r"/*": {
              "origins": allowed_origins,
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "X-API-Key"],
+             "allow_headers": ["Content-Type", "Authorization", "X-API-Key", "X-Empresa-ID", "X-Empresa-Id"],
              "supports_credentials": True
          }
      },
      supports_credentials=True)
 
-# Database Manager - Usar gerenciador híbrido se remoto estiver habilitado
-use_remote = os.getenv('USE_REMOTE_DB', 'False').lower() == 'true'
+# Database Manager - Usar DATABASE_URL do ambiente (PostgreSQL em produção)
+database_url = os.getenv('DATABASE_URL')
 
-if use_remote:
-    db_manager = get_hybrid_db_manager()
-    print("[INFO] Usando gerenciador híbrido de banco de dados (Local + Remoto)")
+if database_url:
+    # Render.com usa postgres:// mas SQLAlchemy precisa de postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    # Adicionar SSL para conexões remotas PostgreSQL
+    if 'postgresql://' in database_url and 'sslmode' not in database_url:
+        database_url += '?sslmode=require'
+
+    db_manager = DatabaseManager(database_url)
+    print(f"[INFO] Usando banco de dados remoto: PostgreSQL")
 else:
-    db_manager = DatabaseManager('sqlite:///vendeai.db')
-    print("[INFO] Usando gerenciador de banco de dados local (SQLite)")
+    # Fallback para SQLite local (desenvolvimento)
+    db_path = Path(__file__).resolve().parent.parent / 'vendeai.db'
+    db_manager = DatabaseManager(f'sqlite:///{db_path}')
+    print(f"[INFO] Usando banco de dados local: {db_path}")
 
 # Login Manager
 login_manager = LoginManager()
@@ -99,31 +114,40 @@ def after_request(response):
     origin = request.headers.get('Origin')
 
     # Lista de origens permitidas
-    allowed_origins = [
+    cors_origins = [
         'http://localhost:5173',
         'http://localhost:5174',
         'http://localhost:5175',
         'http://localhost:5176',
         'http://localhost:5177',
+        'http://localhost:5178',
         'http://localhost:3000',
         'http://localhost:3001',
-        'http://localhost:4000'
+        'http://localhost:3010',
+        'http://localhost:4000',
+        'https://vendefacil-landing.onrender.com',
+        'https://vendefacil-admin.onrender.com',
+        'https://vendefacil-client.onrender.com',
+        'https://vendefacil-afiliados.onrender.com',
+        'https://vendefacil-backend.onrender.com',
+        'https://vendefacil-whatsapp.onrender.com',
     ]
 
-    if origin in allowed_origins:
+    if origin in cors_origins:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-API-Key'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-API-Key, X-Empresa-ID, X-Empresa-Id'
 
     return response
 
 
 # Importar rotas
-from backend.routes import auth, dashboard, leads, conversas, campanhas, admin, api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos, dashboard_api, assinatura
+from backend.routes import auth, auth_api, dashboard, leads, conversas, campanhas, admin, api, bot_api, produtos, whatsapp, configuracoes, webhook, robo_disparador, veiculos, dashboard_api, assinatura, admin_api, varejo_api, entregas_api
 
 # Registrar blueprints
 app.register_blueprint(auth.bp)
+app.register_blueprint(auth_api.bp)  # Auth API (JSON) - /api/auth/*
 app.register_blueprint(dashboard.bp)
 app.register_blueprint(dashboard_api.bp)  # Dashboard API (JSON)
 app.register_blueprint(leads.bp)
@@ -139,6 +163,9 @@ app.register_blueprint(webhook.webhook_bp)
 app.register_blueprint(robo_disparador.robo_bp)
 app.register_blueprint(veiculos.veiculos_bp)
 app.register_blueprint(assinatura.assinatura_bp)  # Sistema de Assinaturas
+app.register_blueprint(admin_api.admin_api_bp)  # Admin API (JSON) - /api/admin/*
+app.register_blueprint(varejo_api.varejo_api_bp)  # Varejo API (JSON) - /api/produtos, /api/clientes, /api/pedidos
+app.register_blueprint(entregas_api.entregas_api_bp)  # Entregas API (JSON) - /api/entregas
 
 
 # Health check route para Render.com (DEPOIS dos blueprints)

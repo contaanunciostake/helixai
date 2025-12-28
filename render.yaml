@@ -1,10 +1,149 @@
+# VendeFacil - Render.com Configuration
+# Deploy completo: Backend + WhatsApp Service + 4 Frontends + PostgreSQL
+
+databases:
+  - name: vendefacil-db
+    databaseName: vendefacil
+    user: vendefacil
+    plan: free
+    region: oregon
+
 services:
+  # ========== BACKEND FLASK (Python) ==========
   - type: web
-    name: helixai-landing
-    env: static
-    buildCommand: cd AIra_Landing && npm ci && npm run build
-    staticPublishPath: ./AIra_Landing/dist
+    name: vendefacil-backend
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vendefacil-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "False"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_PUBLIC_KEY
+        sync: false
+      - key: WHATSAPP_SERVICE_URL
+        value: https://vendefacil-whatsapp.onrender.com
+
+  # ========== WHATSAPP SERVICE (Node.js) ==========
+  - type: web
+    name: vendefacil-whatsapp
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd whatsapp_service && npm install
+    startCommand: cd whatsapp_service && node integrated-bot-server.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_VERSION
+        value: "18.19.0"
+      - key: PORT
+        value: "3010"
+      - key: API_URL
+        value: https://vendefacil-backend.onrender.com
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+
+  # ========== LANDING PAGE (Static Site) ==========
+  - type: web
+    name: vendefacil-landing
+    runtime: static
+    region: oregon
+    plan: free
+    buildCommand: cd AIra_Landing && npm install && npm run build
+    staticPublishPath: AIra_Landing/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # ========== CRM ADMIN (Static Site) ==========
+  - type: web
+    name: vendefacil-admin
+    runtime: static
+    region: oregon
+    plan: free
+    buildCommand: cd CRM_Admin/crm-admin-app && npm install && npm run build
+    staticPublishPath: CRM_Admin/crm-admin-app/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://vendefacil-backend.onrender.com
+      - key: VITE_WHATSAPP_SERVICE_URL
+        value: https://vendefacil-whatsapp.onrender.com
+
+  # ========== CRM CLIENT (Static Site) ==========
+  - type: web
+    name: vendefacil-client
+    runtime: static
+    region: oregon
+    plan: free
+    buildCommand: cd CRM_Client/crm-client-app && npm install && npm run build
+    staticPublishPath: CRM_Client/crm-client-app/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://vendefacil-backend.onrender.com
+      - key: VITE_BOT_API_URL
+        value: https://vendefacil-whatsapp.onrender.com
+      - key: VITE_WS_URL
+        value: wss://vendefacil-whatsapp.onrender.com/ws
+
+  # ========== AFILIADOS PANEL (Static Site) ==========
+  - type: web
+    name: vendefacil-afiliados
+    runtime: static
+    region: oregon
+    plan: free
+    buildCommand: cd Afiliados_Panel && npm install && npm run build
+    staticPublishPath: Afiliados_Panel/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://vendefacil-backend.onrender.com

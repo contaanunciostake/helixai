@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Car, Home, ShoppingBag, Wrench, Briefcase,
-  Bot, Smartphone, CheckCircle, ArrowRight, ArrowLeft,
+  Car, Home, ShoppingBag, Wrench, Briefcase, Package,
+  Bot, CheckCircle, ArrowRight, ArrowLeft,
   Loader2, Zap, MessageSquare, Settings, Sparkles, Brain,
-  Network, Cpu, Orbit, Waves, Hexagon, Star, CircuitBoard
+  Network, Cpu, Orbit, Waves, Hexagon, Star, CircuitBoard,
+  Palette
 } from 'lucide-react';
 
 const Setup = ({ onComplete }) => {
@@ -18,8 +19,6 @@ const Setup = ({ onComplete }) => {
     nicho: '',
     nomeEmpresa: '',
     nomeBot: '',
-    numeroWhatsApp: '',
-    conectarAgora: true,
     temCatalogo: false,
     uploadCatalogo: null,
   });
@@ -49,15 +48,26 @@ const Setup = ({ onComplete }) => {
       neuronPath: 'M50,50 Q60,80 80,90'
     },
     {
-      id: 'varejo',
-      nome: 'Varejo',
-      descricao: 'Lojas e comércio em geral',
-      icon: ShoppingBag,
-      cor: 'from-purple-500 via-pink-500 to-purple-600',
-      glowColor: 'rgba(168, 85, 247, 0.5)',
-      disponivel: false,
-      emBreve: true,
+      id: 'atacado_varejo',
+      nome: 'Atacado/Varejo',
+      descricao: 'Distribuição e venda de produtos (lubrificantes, filtros, peças)',
+      icon: Package,
+      cor: 'from-orange-500 via-amber-500 to-yellow-600',
+      glowColor: 'rgba(245, 158, 11, 0.5)',
+      disponivel: true,
+      exemploBot: 'AIra Vendas',
       neuronPath: 'M50,50 Q120,60 140,80'
+    },
+    {
+      id: 'loja_tintas',
+      nome: 'Loja de Tintas',
+      descricao: 'Vendas de tintas, cores e materiais de pintura',
+      icon: Palette,
+      cor: 'from-purple-500 via-pink-500 to-rose-600',
+      glowColor: 'rgba(168, 85, 247, 0.5)',
+      disponivel: true,
+      exemploBot: 'Laura Tintas',
+      neuronPath: 'M50,50 Q90,40 110,60'
     },
     {
       id: 'servicos',
@@ -83,7 +93,7 @@ const Setup = ({ onComplete }) => {
     }
   ];
 
-  const totalSteps = 5;
+  const totalSteps = 4;
 
   const handleNext = () => {
     if (currentStep < totalSteps) {
@@ -116,7 +126,7 @@ const Setup = ({ onComplete }) => {
       const user = JSON.parse(userStr);
       const token = localStorage.getItem('crm_token') || user.token;
 
-      const response = await fetch('http://localhost:5000/api/empresa/setup', {
+      const response = await fetch('/api/empresa/setup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,7 +137,6 @@ const Setup = ({ onComplete }) => {
           nicho: setupData.nicho,
           nome_empresa: setupData.nomeEmpresa,
           nome_bot: setupData.nomeBot,
-          numero_whatsapp: setupData.numeroWhatsApp,
           tem_catalogo: setupData.temCatalogo
         })
       });
@@ -138,7 +147,8 @@ const Setup = ({ onComplete }) => {
         setSetupComplete(true);
         setTimeout(() => {
           if (onComplete) {
-            onComplete();
+            // Passar o nicho selecionado de volta para o App.jsx
+            onComplete(setupData.nicho);
           }
         }, 3000);
       } else {
@@ -159,8 +169,6 @@ const Setup = ({ onComplete }) => {
         return setupData.nicho !== '';
       case 2:
         return setupData.nomeEmpresa && setupData.nomeBot;
-      case 3:
-        return setupData.numeroWhatsApp.length >= 10;
       default:
         return true;
     }
@@ -786,103 +794,10 @@ const Setup = ({ onComplete }) => {
                     </motion.div>
                   )}
 
-                  {/* Step 3: WhatsApp com Efeito de Ondas */}
+                  {/* Step 3: Catálogo com Circuit Board */}
                   {currentStep === 3 && (
                     <motion.div
                       key="step3"
-                      initial={{ opacity: 0, x: 50 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -50 }}
-                      transition={{ type: "spring", stiffness: 100 }}
-                    >
-                      <div className="mb-8 text-center">
-                        <motion.div
-                          className="inline-block p-4 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl mb-4 backdrop-blur-xl border border-green-500/30 relative"
-                        >
-                          <Smartphone className="h-12 w-12 text-green-400" />
-                          {/* Signal waves */}
-                          {[...Array(3)].map((_, i) => (
-                            <motion.div
-                              key={i}
-                              className="absolute top-0 right-0 h-3 w-3 border-2 border-green-400 rounded-full"
-                              animate={{
-                                scale: [1, 2, 3],
-                                opacity: [1, 0.5, 0]
-                              }}
-                              transition={{
-                                duration: 2,
-                                repeat: Infinity,
-                                delay: i * 0.6
-                              }}
-                            />
-                          ))}
-                        </motion.div>
-                        <h2 className="text-3xl font-black text-white mb-2">
-                          Conecte o WhatsApp
-                        </h2>
-                        <p className="text-gray-400">
-                          Configure o número para atendimento automático
-                        </p>
-                      </div>
-
-                      <div className="max-w-2xl mx-auto space-y-6">
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                        >
-                          <label className="block text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
-                            <Smartphone className="h-4 w-4 text-green-400" />
-                            Número do WhatsApp Business
-                          </label>
-                          <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                              <Smartphone className="h-6 w-6 text-gray-500 group-focus-within:text-green-400 transition-colors" />
-                            </div>
-                            <input
-                              type="tel"
-                              value={setupData.numeroWhatsApp}
-                              onChange={(e) => setSetupData({ ...setupData, numeroWhatsApp: e.target.value.replace(/\D/g, '') })}
-                              placeholder="5511999999999"
-                              className="w-full pl-16 pr-6 py-4 bg-gradient-to-r from-white/[0.05] to-white/[0.02] border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/50 transition-all backdrop-blur-xl text-lg font-mono"
-                            />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2 ml-2">
-                            Formato: Código do país + DDD + Número (Ex: 5511999999999)
-                          </p>
-                        </motion.div>
-
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="p-6 bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border border-yellow-500/30 rounded-2xl backdrop-blur-xl"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="relative">
-                              <MessageSquare className="h-6 w-6 text-yellow-400" />
-                              <motion.div
-                                className="absolute -top-1 -right-1 h-3 w-3 bg-yellow-400 rounded-full"
-                                animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                              />
-                            </div>
-                            <div>
-                              <p className="text-sm text-yellow-400 font-bold mb-1">
-                                Próxima Etapa
-                              </p>
-                              <p className="text-sm text-gray-300">
-                                Após finalizar, você irá escanear um QR Code para vincular seu WhatsApp ao sistema de IA
-                              </p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Step 4: Catálogo com Circuit Board */}
-                  {currentStep === 4 && (
-                    <motion.div
-                      key="step4"
                       initial={{ opacity: 0, x: 50 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -50 }}
@@ -986,10 +901,10 @@ const Setup = ({ onComplete }) => {
                     </motion.div>
                   )}
 
-                  {/* Step 5: Review com Holographic Display */}
-                  {currentStep === 5 && (
+                  {/* Step 4: Review com Holographic Display */}
+                  {currentStep === 4 && (
                     <motion.div
-                      key="step5"
+                      key="step4"
                       initial={{ opacity: 0, x: 50 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -50 }}
@@ -1020,7 +935,6 @@ const Setup = ({ onComplete }) => {
                           { label: 'Segmento', value: nichos.find(n => n.id === setupData.nicho)?.nome, icon: Network, color: 'blue' },
                           { label: 'Empresa', value: setupData.nomeEmpresa, icon: Briefcase, color: 'purple' },
                           { label: 'Nome da IA', value: setupData.nomeBot, icon: Bot, color: 'pink' },
-                          { label: 'WhatsApp', value: `+${setupData.numeroWhatsApp}`, icon: Smartphone, color: 'green' },
                         ].map((item, index) => {
                           const Icon = item.icon;
                           return (

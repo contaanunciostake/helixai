@@ -1,0 +1,71 @@
+nome;descricao;categoria;subcategoria;marca;preco;estoque;sku;aplicacao;disponivel
+Oleo Motor 5W30 Semisintetico 1L;Oleo de motor semisintetico para veiculos leves, indicado para motores flex e gasolina;Lubrificantes;Oleos de Motor;Ipiranga;45.90;150;IPR-5W30-1L;Carro e SUV;sim
+Oleo Motor 5W30 Semisintetico 4L;Oleo de motor semisintetico galao 4 litros para veiculos leves;Lubrificantes;Oleos de Motor;Ipiranga;159.90;80;IPR-5W30-4L;Carro e SUV;sim
+Oleo Motor 5W40 Sintetico 1L;Oleo de motor 100% sintetico alta performance para veiculos modernos;Lubrificantes;Oleos de Motor;Ipiranga;69.90;100;IPR-5W40-1L;Carro e SUV;sim
+Oleo Motor 10W40 Semisintetico 1L;Oleo de motor semisintetico para veiculos com mais de 100 mil km;Lubrificantes;Oleos de Motor;Ipiranga;42.90;120;IPR-10W40-1L;Carro e SUV;sim
+Oleo Motor 15W40 Diesel 1L;Oleo de motor para motores diesel linha leve;Lubrificantes;Oleos de Motor;Texaco;52.90;90;TEX-15W40-1L;Carro e SUV;sim
+Oleo Motor 15W40 Diesel 5L;Oleo de motor diesel balde 5 litros;Lubrificantes;Oleos de Motor;Texaco;189.90;60;TEX-15W40-5L;Caminhao;sim
+Oleo Motor 20W50 Mineral 1L;Oleo mineral para motores antigos e com alta quilometragem;Lubrificantes;Oleos de Motor;Ipiranga;32.90;100;IPR-20W50-1L;Carro e SUV;sim
+Oleo Motor 2T para Moto 500ml;Oleo para motores 2 tempos de motos e roçadeiras;Lubrificantes;Oleos de Motor;Ipiranga;28.90;80;IPR-2T-500;Moto;sim
+Oleo Motor 4T para Moto 10W30 1L;Oleo semisintetico para motos 4 tempos;Lubrificantes;Oleos de Motor;Ipiranga;48.90;90;IPR-4T-10W30;Moto;sim
+Oleo Cambio ATF Automatico 1L;Fluido para transmissao automatica ATF tipo A;Lubrificantes;Fluidos de Transmissao;Texaco;59.90;70;TEX-ATF-1L;Carro e SUV;sim
+Oleo Cambio 75W90 Manual 1L;Oleo para cambio manual e diferencial;Lubrificantes;Fluidos de Transmissao;Ipiranga;69.90;60;IPR-75W90-1L;Carro e SUV;sim
+Oleo Hidraulico ATF 1L;Fluido para direcao hidraulica e sistemas hidraulicos;Lubrificantes;Fluidos Hidraulicos;Texaco;49.90;80;TEX-HIDRA-1L;Carro e SUV;sim
+Fluido de Freio DOT4 500ml;Fluido de freio alta performance DOT4;Lubrificantes;Fluido de Freio;Texaco;35.90;100;TEX-DOT4-500;Carro e SUV;sim
+Fluido de Freio DOT3 500ml;Fluido de freio padrao DOT3;Lubrificantes;Fluido de Freio;Texaco;28.90;120;TEX-DOT3-500;Carro e SUV;sim
+Coolant Radiador Pronto Uso 1L;Fluido de arrefecimento pronto para uso cor verde;Lubrificantes;Arrefecimento;Texaco;25.90;90;TEX-COOL-1L;Carro e SUV;sim
+Coolant Radiador Concentrado 1L;Fluido de arrefecimento concentrado para diluir;Lubrificantes;Arrefecimento;Texaco;45.90;70;TEX-COOL-CONC;Carro e SUV;sim
+Aditivo Radiador Organico 1L;Aditivo organico OAT para radiador longa duracao;Lubrificantes;Arrefecimento;Texaco;55.90;50;TEX-OAT-1L;Carro e SUV;sim
+Graxa Multiuso Castanha 500g;Graxa para rolamentos e uso geral;Lubrificantes;Graxas;Ipiranga;28.50;80;IPR-GRX-500;Maquinas Pesadas;sim
+Graxa para Chassis 1kg;Graxa preta para lubrificacao de chassis e articulacoes;Lubrificantes;Graxas;Ipiranga;45.90;50;IPR-GRX-CHS;Caminhao;sim
+Graxa Azul para Rolamentos 500g;Graxa azul especial para rolamentos de alta rotacao;Lubrificantes;Graxas;Ipiranga;38.90;60;IPR-GRX-AZL;Maquinas Pesadas;sim
+Filtro de Oleo Mann W712/95;Filtro de oleo para VW Golf, Audi A3 1.0 a 2.0;Filtros;Linha Leve;Mann;38.50;60;MANN-W712;Carro e SUV;sim
+Filtro de Oleo Mann W610/3;Filtro de oleo para Honda Civic, Fit, City;Filtros;Linha Leve;Mann;42.90;50;MANN-W610;Carro e SUV;sim
+Filtro de Oleo Mann W719/45;Filtro de oleo para Toyota Corolla, Hilux, SW4;Filtros;Linha Leve;Mann;45.90;55;MANN-W719;Carro e SUV;sim
+Filtro de Oleo Mann W940/25;Filtro de oleo para Ford Ka, Fiesta, EcoSport;Filtros;Linha Leve;Mann;36.90;70;MANN-W940;Carro e SUV;sim
+Filtro de Oleo Tecfil PH6017;Filtro de oleo para GM Onix, Prisma, Cobalt;Filtros;Linha Leve;Tecfil;32.90;80;TEC-PH6017;Carro e SUV;sim
+Filtro de Oleo Tecfil PSL134;Filtro de oleo para Fiat Uno, Palio, Siena;Filtros;Linha Leve;Tecfil;29.90;90;TEC-PSL134;Carro e SUV;sim
+Filtro de Ar Mann C2852;Filtro de ar para VW Gol, Voyage, Saveiro G5/G6;Filtros;Linha Leve;Mann;65.90;45;MANN-C2852;Carro e SUV;sim
+Filtro de Ar Tecfil ARL5811;Filtro de ar para Toyota Corolla 2014 em diante;Filtros;Linha Leve;Tecfil;55.90;50;TEC-ARL5811;Carro e SUV;sim
+Filtro de Ar Tecfil ARS8854;Filtro de ar para Honda Civic 2012 em diante;Filtros;Linha Leve;Tecfil;58.90;40;TEC-ARS8854;Carro e SUV;sim
+Filtro de Combustivel Tecfil GI04;Filtro de combustivel para carros flex e gasolina;Filtros;Linha Leve;Tecfil;35.90;70;TEC-GI04;Carro e SUV;sim
+Filtro de Cabine Mann CUK2939;Filtro de ar condicionado com carvao ativado VW;Filtros;Linha Leve;Mann;89.90;35;MANN-CUK2939;Carro e SUV;sim
+Filtro de Cabine Tecfil ACP001;Filtro de ar condicionado para GM Onix Prisma;Filtros;Linha Leve;Tecfil;49.90;55;TEC-ACP001;Carro e SUV;sim
+Filtro de Oleo Fleetguard LF3345;Filtro de oleo para caminhoes Volvo, Scania;Filtros;Linha Pesada;Fleetguard;89.90;40;FG-LF3345;Caminhao;sim
+Filtro de Oleo Fleetguard LF670;Filtro de oleo para caminhoes Mercedes, VW;Filtros;Linha Pesada;Fleetguard;79.90;45;FG-LF670;Caminhao;sim
+Filtro Diesel Fleetguard FF5052;Filtro de combustivel diesel primario para caminhoes;Filtros;Linha Pesada;Fleetguard;95.90;35;FG-FF5052;Caminhao;sim
+Filtro Diesel Fleetguard FS1212;Filtro separador de agua diesel para caminhoes;Filtros;Linha Pesada;Fleetguard;120.90;30;FG-FS1212;Caminhao;sim
+Filtro de Ar Donaldson P181050;Filtro de ar primario para tratores e maquinas;Filtros;Linha Agricola;Donaldson;189.90;25;DON-P181050;Maquinas Pesadas;sim
+Filtro de Ar Donaldson P828889;Filtro de ar secundario para tratores John Deere;Filtros;Linha Agricola;Donaldson;149.90;20;DON-P828889;Maquinas Pesadas;sim
+Filtro Hidraulico Donaldson P551551;Filtro de oleo hidraulico para maquinas;Filtros;Linha Agricola;Donaldson;159.90;25;DON-P551551;Maquinas Pesadas;sim
+Militec-1 200ml;Condicionador de metais original protege motor e reduz atrito;Aditivos;Condicionadores de Metais;Militec;89.90;80;MIL-200ML;Carro e SUV;sim
+Militec-1 500ml;Condicionador de metais tamanho profissional;Aditivos;Condicionadores de Metais;Militec;189.90;40;MIL-500ML;Carro e SUV;sim
+Aditivo para Combustivel Flex 500ml;Limpa bicos injetores e sistema de combustivel;Aditivos;Aditivos de Combustivel;Tecbril;29.90;90;TBR-ADTV-500;Carro e SUV;sim
+Aditivo Descarbonizante 300ml;Remove carbonizacao do motor spray;Aditivos;Limpeza de Motor;Tecbril;45.90;60;TBR-DESC-300;Carro e SUV;sim
+Limpa Radiador 500ml;Remove ferrugem e residuos do sistema de arrefecimento;Limpeza;Radiador;Tecbril;22.90;100;TBR-LIMRAD;Carro e SUV;sim
+Limpa Parabrisa Concentrado 100ml;Limpa parabrisa concentrado rende ate 5 litros;Limpeza;Parabrisa;Tecbril;9.90;200;TBR-LIMP100;Carro e SUV;sim
+Limpa Parabrisa Pronto Uso 500ml;Limpa parabrisa pronto para uso;Limpeza;Parabrisa;Tecbril;12.90;150;TBR-LIMP500;Carro e SUV;sim
+Desengraxante Multiuso 500ml;Desengraxante para limpeza de motor e pecas;Limpeza;Desengraxante;Tecbril;18.90;100;TBR-DESGR;Carro e SUV;sim
+Limpa Ar Condicionado 300ml;Higienizador de ar condicionado automotivo;Limpeza;Ar Condicionado;Tecbril;35.90;80;TBR-LIMAC;Carro e SUV;sim
+Silicone Spray 300ml;Silicone em spray para borrachas e plasticos;Limpeza;Conservacao;Tecbril;19.90;120;TBR-SILI300;Carro e SUV;sim
+WD-40 Spray 300ml;Desengripante e lubrificante multiuso;Limpeza;Desengripante;WD-40;32.90;100;WD40-300;Carro e SUV;sim
+Camara de Ar Aro 17 para Moto;Camara para moto 110/80-17 e 120/80-17;Camaras de Ar;Moto;Levorin;32.90;60;LEV-CAM17;Moto;sim
+Camara de Ar Aro 18 para Moto;Camara para moto 90/90-18 e 100/90-18;Camaras de Ar;Moto;Levorin;35.90;55;LEV-CAM18;Moto;sim
+Camara de Ar Aro 19 para Moto;Camara para moto 90/90-19;Camaras de Ar;Moto;Levorin;38.90;40;LEV-CAM19;Moto;sim
+Camara de Ar Aro 21 para Moto Off Road;Camara para moto trilha 90/90-21;Camaras de Ar;Moto Off Road;Levorin;45.90;30;LEV-CAM21;Moto;sim
+Vela de Ignicao NGK BKR6E;Vela para VW, GM, Fiat motores 1.0 a 1.6;Ignicao;Velas;NGK;29.90;100;NGK-BKR6E;Carro e SUV;sim
+Vela de Ignicao NGK BPR6ES;Vela para Honda, Toyota motores aspirados;Ignicao;Velas;NGK;32.90;80;NGK-BPR6ES;Carro e SUV;sim
+Vela de Ignicao Iridium NGK BKR6EIX;Vela de iridio longa duracao para carros modernos;Ignicao;Velas;NGK;79.90;50;NGK-BKR6EIX;Carro e SUV;sim
+Cabo de Vela NGK SCG67;Jogo de cabos para VW Gol, Voyage 1.0 1.6;Ignicao;Cabos de Vela;NGK;159.90;30;NGK-SCG67;Carro e SUV;sim
+Cabo de Vela NGK SCC06;Jogo de cabos para GM Corsa, Celta 1.0 1.4;Ignicao;Cabos de Vela;NGK;149.90;35;NGK-SCC06;Carro e SUV;sim
+Palheta Limpador Bosch Aerofit 22;Palheta aerodynamica 22 polegadas 550mm;Limpador;Palhetas;Bosch;49.90;60;BSH-AF22;Carro e SUV;sim
+Palheta Limpador Bosch Aerofit 18;Palheta aerodynamica 18 polegadas 450mm;Limpador;Palhetas;Bosch;39.90;70;BSH-AF18;Carro e SUV;sim
+Palheta Limpador Bosch Aerofit 16;Palheta aerodynamica 16 polegadas 400mm;Limpador;Palhetas;Bosch;35.90;80;BSH-AF16;Carro e SUV;sim
+Bateria Moura 60Ah;Bateria automotiva 60 amperes para carros medios;Baterias;Automotiva;Moura;459.90;20;MRA-60AH;Carro e SUV;sim
+Bateria Moura 48Ah;Bateria automotiva 48 amperes para carros populares;Baterias;Automotiva;Moura;389.90;25;MRA-48AH;Carro e SUV;sim
+Bateria Moura 70Ah;Bateria automotiva 70 amperes para SUVs e picapes;Baterias;Automotiva;Moura;549.90;15;MRA-70AH;Carro e SUV;sim
+Bateria Moura 150Ah Diesel;Bateria para caminhoes e maquinas diesel;Baterias;Diesel;Moura;899.90;10;MRA-150AH;Caminhao;sim
+Oleo 15W40 CI-4 Diesel 20L;Balde 20 litros oleo diesel para frota de caminhoes;Lubrificantes;Oleos de Motor;Texaco;389.90;40;TEX-15W40-20L;Caminhao;sim
+Oleo 10W30 Diesel Sintetico 1L;Oleo sintetico para motores diesel modernos;Lubrificantes;Oleos de Motor;Texaco;89.90;50;TEX-10W30D-1L;Caminhao;sim
+Arla 32 20L;Agente redutor de NOx para caminhoes Euro 5 e 6;Arla;Arla 32;Ipiranga;69.90;80;IPR-ARLA-20L;Caminhao;sim
+Arla 32 200L;Tambor 200 litros Arla 32 para postos e frotas;Arla;Arla 32;Ipiranga;599.90;15;IPR-ARLA-200L;Caminhao;sim

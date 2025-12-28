@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Categorias de Tintas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-folder me-2"></i>Categorias de Tintas</h2>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCategoria">
+            <i class="bi bi-plus-lg me-1"></i> Nova Categoria
+        </button>
+    </div>
+
+    <div class="row g-4">
+        {% for cat in categorias %}
+        <div class="col-md-6 col-lg-4 col-xl-3">
+            <div class="card h-100 shadow-sm {{ 'opacity-50' if not cat.ativo else '' }}">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-3">
+                        <i class="bi bi-{{ cat.icone or 'paint-bucket' }} text-primary"></i>
+                    </div>
+                    <h5 class="card-title">{{ cat.nome }}</h5>
+                    {% if cat.descricao %}
+                    <p class="card-text text-muted small">{{ cat.descricao }}</p>
+                    {% endif %}
+                    {% if not cat.ativo %}
+                    <span class="badge bg-secondary">Inativa</span>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent text-center">
+                    <button class="btn btn-sm btn-outline-primary me-1"
+                            onclick="editarCategoria({{ cat.id }}, '{{ cat.nome }}', '{{ cat.descricao or '' }}', '{{ cat.icone or 'paint-bucket' }}')">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="excluirCategoria({{ cat.id }})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Nenhuma categoria cadastrada. Crie categorias para organizar seus produtos!
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal Categoria -->
+<div class="modal fade" id="modalCategoria" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('tintas.nova_categoria') }}" id="formCategoria">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-folder me-2"></i>Nova Categoria</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome da Categoria *</label>
+                        <input type="text" class="form-control" name="nome" id="nomeCategoria" required placeholder="Ex: Tintas Acrilicas">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descricao</label>
+                        <textarea class="form-control" name="descricao" id="descricaoCategoria" rows="2" placeholder="Descricao opcional..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Icone</label>
+                        <select class="form-select" name="icone" id="iconeCategoria">
+                            <option value="paint-bucket">Paint Bucket</option>
+                            <option value="droplet">Droplet</option>
+                            <option value="brush">Brush</option>
+                            <option value="palette">Palette</option>
+                            <option value="house">House</option>
+                            <option value="building">Building</option>
+                            <option value="box">Box</option>
+                            <option value="gear">Gear</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editarCategoria(id, nome, descricao, icone) {
+    document.getElementById('nomeCategoria').value = nome;
+    document.getElementById('descricaoCategoria').value = descricao;
+    document.getElementById('iconeCategoria').value = icone;
+
+    document.getElementById('formCategoria').action = `/tintas/categorias/${id}/editar`;
+    document.querySelector('#modalCategoria .modal-title').innerHTML = '<i class="bi bi-folder me-2"></i>Editar Categoria';
+
+    new bootstrap.Modal(document.getElementById('modalCategoria')).show();
+}
+
+function excluirCategoria(id) {
+    if (confirm('Tem certeza que deseja remover esta categoria?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/tintas/categorias/${id}/excluir`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Reset form on modal close
+document.getElementById('modalCategoria').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('formCategoria').reset();
+    document.getElementById('formCategoria').action = "{{ url_for('tintas.nova_categoria') }}";
+    document.querySelector('#modalCategoria .modal-title').innerHTML = '<i class="bi bi-folder me-2"></i>Nova Categoria';
+});
+</script>
+{% endblock %}

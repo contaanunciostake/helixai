@@ -64,6 +64,7 @@ def get_current_empresa_id():
 # ══════════════════════════════════════════════════════════════
 
 @produtos_api_bp.route('/', methods=['GET'])
+@produtos_api_bp.route('/listar', methods=['GET'])
 def listar_produtos():
     """
     GET /api/produtos?empresa_id=X&page=1&limit=20&search=termo
@@ -80,14 +81,19 @@ def listar_produtos():
         try:
             # Parâmetros de paginação e busca
             page = int(request.args.get('page', 1))
-            limit = int(request.args.get('limit', 20))
-            search = request.args.get('search', '').strip()
+            limit = int(request.args.get('limit', 100))  # Aumentar limite para bot
+            search = request.args.get('search', '').strip() or request.args.get('busca', '').strip()
             categoria = request.args.get('categoria', '').strip()
+            subcategoria = request.args.get('subcategoria', '').strip()
+            marca = request.args.get('marca', '').strip()
+            aplicacao = request.args.get('aplicacao', '').strip()
             disponivel = request.args.get('disponivel')  # 'true' ou 'false'
 
             # Verificar nicho da empresa
             empresa = session.query(Empresa).get(empresa_id)
-            nicho = empresa.nicho if empresa else None
+            nicho_obj = empresa.nicho if empresa else None
+            # Converter enum para string se necessário
+            nicho = nicho_obj.value if hasattr(nicho_obj, 'value') else str(nicho_obj) if nicho_obj else None
 
             # Se for veículos, usar tabela veiculos
             if nicho == 'veiculos':
@@ -142,11 +148,22 @@ def listar_produtos():
                     query = query.filter(
                         (Produto.nome.like(f'%{search}%')) |
                         (Produto.descricao.like(f'%{search}%')) |
-                        (Produto.marca.like(f'%{search}%'))
+                        (Produto.marca.like(f'%{search}%')) |
+                        (Produto.palavras_chave.like(f'%{search}%')) |
+                        (Produto.sku.like(f'%{search}%'))
                     )
 
                 if categoria:
-                    query = query.filter_by(categoria=categoria)
+                    query = query.filter(Produto.categoria.like(f'%{categoria}%'))
+
+                if subcategoria:
+                    query = query.filter(Produto.subcategoria.like(f'%{subcategoria}%'))
+
+                if marca:
+                    query = query.filter(Produto.marca.like(f'%{marca}%'))
+
+                if aplicacao:
+                    query = query.filter(Produto.aplicacao.like(f'%{aplicacao}%'))
 
                 if disponivel is not None:
                     disp_bool = disponivel.lower() == 'true'
@@ -163,11 +180,15 @@ def listar_produtos():
                         'nome': p.nome,
                         'descricao': p.descricao,
                         'categoria': p.categoria,
+                        'subcategoria': p.subcategoria,
                         'preco': float(p.preco) if p.preco else None,
                         'preco_promocional': float(p.preco_promocional) if p.preco_promocional else None,
                         'estoque': p.estoque,
                         'disponivel': p.disponivel,
+                        'ativo': p.ativo,
                         'marca': p.marca,
+                        'aplicacao': p.aplicacao,
+                        'palavras_chave': p.palavras_chave,
                         'imagem_url': p.imagem_url,
                         'link': p.link,
                         'sku': p.sku,
@@ -211,7 +232,8 @@ def estatisticas_produtos():
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
-            nicho = empresa.nicho if empresa else None
+            nicho_obj = empresa.nicho if empresa else None
+            nicho = nicho_obj.value if hasattr(nicho_obj, 'value') else str(nicho_obj) if nicho_obj else None
 
             if nicho == 'veiculos':
                 total = session.query(Veiculo).filter_by(empresa_id=empresa_id).count()
@@ -274,7 +296,8 @@ def obter_produto(produto_id):
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
-            nicho = empresa.nicho if empresa else None
+            nicho_obj = empresa.nicho if empresa else None
+            nicho = nicho_obj.value if hasattr(nicho_obj, 'value') else str(nicho_obj) if nicho_obj else None
 
             if nicho == 'veiculos':
                 veiculo = session.query(Veiculo).filter_by(id=produto_id, empresa_id=empresa_id).first()
@@ -325,12 +348,15 @@ def obter_produto(produto_id):
                         'nome': produto.nome,
                         'descricao': produto.descricao,
                         'categoria': produto.categoria,
+                        'subcategoria': produto.subcategoria,
                         'preco': float(produto.preco) if produto.preco else None,
                         'preco_promocional': float(produto.preco_promocional) if produto.preco_promocional else None,
                         'estoque': produto.estoque,
                         'disponivel': produto.disponivel,
                         'marca': produto.marca,
                         'sku': produto.sku,
+                        'aplicacao': produto.aplicacao,
+                        'palavras_chave': produto.palavras_chave,
                         'imagem_url': produto.imagem_url,
                         'link': produto.link,
                         'tags': json.loads(produto.tags) if produto.tags and isinstance(produto.tags, str) else produto.tags
@@ -362,7 +388,8 @@ def atualizar_produto(produto_id):
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
-            nicho = empresa.nicho if empresa else None
+            nicho_obj = empresa.nicho if empresa else None
+            nicho = nicho_obj.value if hasattr(nicho_obj, 'value') else str(nicho_obj) if nicho_obj else None
 
             if nicho == 'veiculos':
                 veiculo = session.query(Veiculo).filter_by(id=produto_id, empresa_id=empresa_id).first()
@@ -403,12 +430,15 @@ def atualizar_produto(produto_id):
                 if 'nome' in data: produto.nome = data['nome']
                 if 'descricao' in data: produto.descricao = data['descricao']
                 if 'categoria' in data: produto.categoria = data['categoria']
+                if 'subcategoria' in data: produto.subcategoria = data['subcategoria']
                 if 'preco' in data: produto.preco = float(data['preco'])
                 if 'preco_promocional' in data: produto.preco_promocional = float(data['preco_promocional']) if data['preco_promocional'] else None
                 if 'estoque' in data: produto.estoque = int(data['estoque'])
                 if 'disponivel' in data: produto.disponivel = data['disponivel']
                 if 'marca' in data: produto.marca = data['marca']
                 if 'sku' in data: produto.sku = data['sku']
+                if 'aplicacao' in data: produto.aplicacao = data['aplicacao']
+                if 'palavras_chave' in data: produto.palavras_chave = data['palavras_chave']
                 if 'imagem_url' in data: produto.imagem_url = data['imagem_url']
                 if 'link' in data: produto.link = data['link']
 
@@ -444,7 +474,8 @@ def deletar_produto(produto_id):
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
-            nicho = empresa.nicho if empresa else None
+            nicho_obj = empresa.nicho if empresa else None
+            nicho = nicho_obj.value if hasattr(nicho_obj, 'value') else str(nicho_obj) if nicho_obj else None
 
             if nicho == 'veiculos':
                 veiculo = session.query(Veiculo).filter_by(id=produto_id, empresa_id=empresa_id).first()
@@ -470,6 +501,63 @@ def deletar_produto(produto_id):
             return jsonify({
                 'success': True,
                 'message': 'Produto removido com sucesso'
+            })
+
+        finally:
+            session.close()
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# CRIAR PRODUTO
+# ══════════════════════════════════════════════════════════════
+
+@produtos_api_bp.route('/criar', methods=['POST'])
+def criar_produto():
+    """
+    POST /api/produtos/criar
+    Criar novo produto
+    """
+    try:
+        empresa_id = get_current_empresa_id()
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'Empresa não identificada'}), 400
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Dados não fornecidos'}), 400
+
+        db = DatabaseManager()
+        session = db.get_session()
+
+        try:
+            produto = Produto(
+                empresa_id=empresa_id,
+                nome=data.get('nome', ''),
+                descricao=data.get('descricao', ''),
+                categoria=data.get('categoria', ''),
+                subcategoria=data.get('subcategoria', ''),
+                preco=float(data.get('preco', 0)) if data.get('preco') else 0,
+                preco_promocional=float(data.get('preco_promocional')) if data.get('preco_promocional') else None,
+                estoque=int(data.get('estoque', 0)) if data.get('estoque') else 0,
+                marca=data.get('marca', ''),
+                sku=data.get('sku', ''),
+                aplicacao=data.get('aplicacao', ''),
+                palavras_chave=data.get('palavras_chave', ''),
+                imagem_url=data.get('imagem_url', ''),
+                link=data.get('link', ''),
+                disponivel=data.get('disponivel', True),
+                ativo=True
+            )
+            session.add(produto)
+            session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': 'Produto criado com sucesso',
+                'produto_id': produto.id
             })
 
         finally:
@@ -519,7 +607,8 @@ def importar_csv():
 
         try:
             empresa = session.query(Empresa).get(empresa_id)
-            nicho = empresa.nicho if empresa else None
+            nicho_obj = empresa.nicho if empresa else None
+            nicho = nicho_obj.value if hasattr(nicho_obj, 'value') else str(nicho_obj) if nicho_obj else None
 
             # Criar registro de importação
             arquivo_import = ArquivoImportacao(
@@ -538,7 +627,16 @@ def importar_csv():
             erros_detalhes = []
 
             with open(filepath, 'r', encoding='utf-8-sig') as csvfile:
-                reader = csv.DictReader(csvfile)
+                # Detectar delimitador (virgula ou ponto e virgula)
+                sample = csvfile.read(2048)
+                csvfile.seek(0)
+
+                # Contar ocorrencias para detectar delimitador
+                semicolon_count = sample.count(';')
+                comma_count = sample.count(',')
+                delimiter = ';' if semicolon_count > comma_count else ','
+
+                reader = csv.DictReader(csvfile, delimiter=delimiter)
                 total_linhas = 0
 
                 for row in reader:
@@ -570,20 +668,27 @@ def importar_csv():
                             session.add(veiculo)
 
                         else:
-                            # Importar como produto genérico
+                            # Importar como produto genérico (inclui atacado_varejo)
+                            # Tratar campo disponivel (pode ser "sim", "true", "1", etc)
+                            disponivel_str = row.get('disponivel', 'sim').lower().strip()
+                            disponivel_bool = disponivel_str in ['sim', 'true', '1', 's', 'yes', 'y', '']
+
                             produto = Produto(
                                 empresa_id=empresa_id,
                                 nome=row.get('nome', ''),
                                 descricao=row.get('descricao', ''),
                                 categoria=row.get('categoria', ''),
-                                preco=float(row.get('preco', 0)),
-                                preco_promocional=float(row.get('preco_promocional', 0)) if row.get('preco_promocional') else None,
-                                estoque=int(row.get('estoque', 0)),
+                                subcategoria=row.get('subcategoria', ''),
+                                preco=float(row.get('preco', 0).replace(',', '.')) if row.get('preco') else 0,
+                                preco_promocional=float(row.get('preco_promocional', '0').replace(',', '.')) if row.get('preco_promocional') else None,
+                                estoque=int(row.get('estoque', 0)) if row.get('estoque') else 0,
                                 marca=row.get('marca', ''),
                                 sku=row.get('sku', ''),
+                                aplicacao=row.get('aplicacao', ''),
+                                palavras_chave=row.get('palavras_chave', ''),
                                 imagem_url=row.get('imagem', row.get('imagem_url', '')),
                                 link=row.get('link', ''),
-                                disponivel=True,
+                                disponivel=disponivel_bool,
                                 ativo=True,
                                 importado_csv=True
                             )
@@ -638,6 +743,12 @@ def obter_template_csv():
             template = "marca,modelo,versao,ano_modelo,preco,quilometragem,cor,combustivel,cambio,motor,portas,descricao,imagem,destaque\n"
             template += "Volkswagen,Gol,1.0 Flex,2023,45000,25000,Branco,Flex,Manual,1.0,4,Completo único dono,https://exemplo.com/img.jpg,sim\n"
             template += "Fiat,Argo,Drive 1.0,2024,62000,0,Vermelho,Flex,Automático,1.0,4,Zero km,https://exemplo.com/img2.jpg,sim"
+        elif nicho == 'atacado_varejo':
+            # Template para distribuidores/atacado (lubrificantes, filtros, peças, etc)
+            template = "nome,descricao,categoria,subcategoria,marca,preco,estoque,sku,aplicacao,palavras_chave\n"
+            template += "Óleo Motor 5W30 Semissintético 1L,Óleo de motor para veículos leves,Lubrificantes,Óleos de Motor,Ipiranga,45.90,100,IPR-5W30-1L,Carro e SUV,oleo motor 5w30 semi sintetico\n"
+            template += "Filtro de Óleo Mann W712/95,Filtro para VW/Audi 1.0-2.0,Filtros,Linha Leve,Mann,38.50,50,MANN-W712,Carro e SUV,filtro oleo vw audi golf polo\n"
+            template += "Filtro Diesel Fleetguard FF5052,Filtro para caminhões Volvo/Scania,Filtros,Linha Pesada,Fleetguard,89.90,30,FG-FF5052,Caminhão,filtro diesel volvo scania caminhao"
         else:
             template = "nome,descricao,categoria,preco,preco_promocional,estoque,marca,sku,imagem,link\n"
             template += "Produto Exemplo,Descrição do produto,Categoria 1,100.00,89.90,50,Marca X,SKU123,https://exemplo.com/img.jpg,https://loja.com/produto\n"

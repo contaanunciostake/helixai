@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Configuracoes - Loja de Tintas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h2 class="mb-4"><i class="bi bi-gear me-2"></i>Configuracoes do Bot de Tintas</h2>
+
+    <form method="POST" action="{{ url_for('tintas.configuracoes') }}">
+        <div class="row">
+            <!-- Personalidade -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-person-circle me-2"></i>Personalidade da Atendente</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Atendente Virtual</label>
+                            <input type="text" class="form-control" name="nome_atendente"
+                                   value="{{ config.nome_atendente or 'Laura' }}" placeholder="Ex: Laura, Ana, Julia">
+                            <small class="text-muted">Nome que aparecera nas conversas</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tom de Conversa</label>
+                            <select class="form-select" name="tom_conversa">
+                                <option value="amigavel_profissional" {% if config.tom_conversa == 'amigavel_profissional' %}selected{% endif %}>
+                                    Amigavel e Profissional
+                                </option>
+                                <option value="informal" {% if config.tom_conversa == 'informal' %}selected{% endif %}>
+                                    Informal e Descontraido
+                                </option>
+                                <option value="formal" {% if config.tom_conversa == 'formal' %}selected{% endif %}>
+                                    Formal e Tecnico
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mensagem de Boas-Vindas</label>
+                            <textarea class="form-control" name="msg_boas_vindas" rows="3"
+                                      placeholder="Ola! Eu sou a Laura, sua consultora de tintas...">{{ config.msg_boas_vindas or '' }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mensagem de Orcamento</label>
+                            <textarea class="form-control" name="msg_orcamento" rows="2"
+                                      placeholder="Mensagem enviada junto com orcamentos...">{{ config.msg_orcamento or '' }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mensagem Cores Tendencia</label>
+                            <textarea class="form-control" name="msg_cores_tendencia" rows="2"
+                                      placeholder="Mensagem sobre cores em alta...">{{ config.msg_cores_tendencia or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Funcionalidades -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-tools me-2"></i>Funcionalidades</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" name="calculadora_rendimento"
+                                   id="calculadora" {% if config.calculadora_rendimento %}checked{% endif %}>
+                            <label class="form-check-label" for="calculadora">
+                                <strong>Calculadora de Rendimento</strong><br>
+                                <small class="text-muted">Calcula quantidade de tinta por m2</small>
+                            </label>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" name="sugestao_cores"
+                                   id="cores" {% if config.sugestao_cores %}checked{% endif %}>
+                            <label class="form-check-label" for="cores">
+                                <strong>Sugestao de Cores</strong><br>
+                                <small class="text-muted">Recomenda combinacoes de cores</small>
+                            </label>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" name="orcamento_automatico"
+                                   id="orcamento" {% if config.orcamento_automatico %}checked{% endif %}>
+                            <label class="form-check-label" for="orcamento">
+                                <strong>Orcamento Automatico</strong><br>
+                                <small class="text-muted">Gera orcamentos via WhatsApp</small>
+                            </label>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" name="enviar_ficha_tecnica"
+                                   id="ficha" {% if config.enviar_ficha_tecnica %}checked{% endif %}>
+                            <label class="form-check-label" for="ficha">
+                                <strong>Enviar Ficha Tecnica</strong><br>
+                                <small class="text-muted">Envia PDF de ficha tecnica</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comercial -->
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-currency-dollar me-2"></i>Configuracoes Comerciais</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Margem de Seguranca (%)</label>
+                            <input type="number" class="form-control" name="margem_seguranca"
+                                   value="{{ ((config.margem_seguranca_tinta or 1.1) - 1) * 100 | round | int }}" min="0" max="30" step="1">
+                            <small class="text-muted">Extra adicionado ao calculo (padrao: 10%)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Desconto Maximo Permitido (%)</label>
+                            <input type="number" class="form-control" name="desconto_maximo"
+                                   value="{{ config.desconto_maximo or 15 }}" min="0" max="50" step="1">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Frete Gratis Acima de (R$)</label>
+                            <input type="number" class="form-control" name="frete_gratis_acima"
+                                   value="{{ config.frete_gratis_acima or 500 }}" min="0" step="50">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entrega -->
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Entrega e Atendimento</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Prazo de Entrega Padrao</label>
+                            <input type="text" class="form-control" name="prazo_entrega"
+                                   value="{{ config.prazo_entrega_padrao or '1-2 dias uteis' }}"
+                                   placeholder="Ex: 1-2 dias uteis">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Horario de Atendimento</label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <input type="text" class="form-control" name="horario_seg_sex"
+                                           value="{{ config.horario_atendimento.get('seg-sex', '') if config.horario_atendimento else '' }}"
+                                           placeholder="Seg-Sex: 08:00-18:00">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" class="form-control" name="horario_sab"
+                                           value="{{ config.horario_atendimento.get('sab', '') if config.horario_atendimento else '' }}"
+                                           placeholder="Sab: 08:00-12:00">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-check-lg me-2"></i>Salvar Configuracoes
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

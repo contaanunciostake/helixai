@@ -2,15 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+/* ========================================
+   REGRAS GLOBAIS PARA RESPONSIVIDADE
+   Previne scroll horizontal em TODOS os dispositivos
+   ======================================== */
+*,
+*::before,
+*::after {
   margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
 }
 
-* {
-  box-sizing: border-box;
+/* Container principal - nunca ultrapassa a tela */
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Imagens responsivas */
+img, video, iframe, embed, object {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Textos longos quebram corretamente */
+p, h1, h2, h3, h4, h5, h6, li, td, th, label, span {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Esconde em mobile */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Full width em mobile */
+@media (max-width: 768px) {
+  .full-mobile {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }

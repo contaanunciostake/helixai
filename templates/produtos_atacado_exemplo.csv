@@ -1,0 +1,52 @@
+nome,descricao,categoria,subcategoria,marca,preco,estoque,sku,aplicacao,palavras_chave
+Óleo Motor 5W30 Semissintético 1L,Óleo de motor semissintético para veículos leves gasolina e flex,Lubrificantes,Óleos de Motor,Ipiranga,45.90,100,IPR-5W30-1L,Carro e SUV,oleo motor 5w30 semi sintetico ipiranga carro
+Óleo Motor 5W30 Sintético 1L,Óleo 100% sintético para motores de alta performance,Lubrificantes,Óleos de Motor,Ipiranga,68.90,80,IPR-5W30-SIN-1L,Carro e SUV,oleo sintetico 5w30 premium ipiranga
+Óleo Motor 5W40 Sintético 1L,Óleo sintético para veículos europeus VW Audi BMW,Lubrificantes,Óleos de Motor,Texaco,72.50,60,TEX-5W40-1L,Carro e SUV,oleo 5w40 sintetico texaco europeu vw audi
+Óleo Motor 10W40 Semissintético 1L,Óleo semissintético para motores flex e gasolina,Lubrificantes,Óleos de Motor,Ipiranga,42.90,120,IPR-10W40-1L,Carro e SUV,oleo 10w40 semi sintetico ipiranga
+Óleo Motor 15W40 Diesel 1L,Óleo mineral para motores diesel leves,Lubrificantes,Óleos de Motor,Texaco,38.50,90,TEX-15W40-1L,Carro e SUV,oleo 15w40 diesel texaco hilux ranger
+Óleo Motor 15W40 Diesel CI-4 5L,Óleo diesel para caminhões e máquinas pesadas,Lubrificantes,Óleos de Motor,Ipiranga,189.90,40,IPR-15W40-5L,Caminhão,oleo 15w40 diesel caminhao ipiranga ci4
+Óleo Motor 20W50 Mineral 1L,Óleo mineral para motores mais antigos,Lubrificantes,Óleos de Motor,Texaco,32.90,70,TEX-20W50-1L,Carro e SUV,oleo 20w50 mineral texaco antigo
+Óleo Motor 10W30 Moto 4T 1L,Óleo para motos 4 tempos,Lubrificantes,Óleos de Motor,Ipiranga,38.90,85,IPR-10W30-MOTO,Moto,oleo moto 4t 10w30 ipiranga honda yamaha
+Óleo Motor 20W50 Moto 4T 1L,Óleo para motos 4 tempos alta quilometragem,Lubrificantes,Óleos de Motor,Texaco,34.90,95,TEX-20W50-MOTO,Moto,oleo moto 20w50 4t texaco
+Óleo 2T Mineral 500ml,Óleo para motos 2 tempos,Lubrificantes,Óleos de Motor,Ipiranga,28.50,60,IPR-2T-500ML,Moto,oleo 2t dois tempos moto ipiranga
+Fluido ATF Dexron III 1L,Fluido para transmissão automática,Lubrificantes,Fluidos,Texaco,48.90,55,TEX-ATF-1L,Carro e SUV,fluido atf cambio automatico dexron texaco
+Fluido ATF Multivehicle 1L,Fluido ATF universal para câmbios automáticos,Lubrificantes,Fluidos,Ipiranga,52.90,45,IPR-ATF-MULTI,Carro e SUV,atf universal cambio automatico ipiranga
+Fluido de Freio DOT 4 500ml,Fluido de freio para sistemas ABS,Lubrificantes,Fluidos,Texaco,32.90,80,TEX-DOT4-500,Carro e SUV,fluido freio dot4 abs texaco
+Fluido de Freio DOT 3 500ml,Fluido de freio convencional,Lubrificantes,Fluidos,Ipiranga,24.90,100,IPR-DOT3-500,Carro e SUV,fluido freio dot3 ipiranga
+Coolant Concentrado 1L,Aditivo de arrefecimento concentrado,Lubrificantes,Coolants,Texaco,35.90,70,TEX-COOL-CONC,Carro e SUV,coolant aditivo radiador concentrado texaco
+Coolant Pronto Uso 1L,Fluido de arrefecimento pronto para uso,Lubrificantes,Coolants,Ipiranga,25.90,90,IPR-COOL-PRONTO,Carro e SUV,coolant pronto uso radiador ipiranga
+Coolant Orgânico Rosa 1L,Aditivo orgânico para radiador vida longa,Lubrificantes,Coolants,Texaco,42.90,50,TEX-COOL-ORG,Carro e SUV,coolant organico rosa vida longa texaco
+Graxa Multiuso EP2 500g,Graxa para rolamentos e articulações,Lubrificantes,Graxas,Ipiranga,28.50,65,IPR-GRAXA-500,Máquinas Pesadas,graxa multiuso ep2 rolamento ipiranga
+Graxa Azul EP2 1kg,Graxa de lítio para uso industrial,Lubrificantes,Graxas,Texaco,52.90,40,TEX-GRAXA-1KG,Máquinas Pesadas,graxa azul litio industrial texaco
+Graxa Chassis 500g,Graxa para chassis de caminhões e ônibus,Lubrificantes,Graxas,Ipiranga,24.90,55,IPR-GRAXA-CHAS,Caminhão,graxa chassis caminhao onibus ipiranga
+Filtro de Óleo Mann W712/95,Filtro de óleo para VW Golf Polo Audi A3,Filtros,Linha Leve,Mann,38.50,50,MANN-W712,Carro e SUV,filtro oleo mann vw golf polo audi a3
+Filtro de Óleo Mann W713/36,Filtro de óleo para Honda Civic Fit City,Filtros,Linha Leve,Mann,42.90,45,MANN-W713,Carro e SUV,filtro oleo mann honda civic fit city
+Filtro de Óleo Mann W68/3,Filtro de óleo para Toyota Corolla Etios,Filtros,Linha Leve,Mann,36.90,55,MANN-W68,Carro e SUV,filtro oleo mann toyota corolla etios
+Filtro de Óleo Tecfil PH6020,Filtro de óleo para GM Onix Prisma Cobalt,Filtros,Linha Leve,Tecfil,28.90,70,TEC-PH6020,Carro e SUV,filtro oleo tecfil gm onix prisma cobalt
+Filtro de Óleo Tecfil PH5548,Filtro de óleo para Fiat Argo Cronos Mobi,Filtros,Linha Leve,Tecfil,26.90,65,TEC-PH5548,Carro e SUV,filtro oleo tecfil fiat argo cronos mobi
+Filtro de Ar Mann C27192,Filtro de ar para VW Gol Fox Voyage,Filtros,Linha Leve,Mann,48.90,40,MANN-C27192,Carro e SUV,filtro ar mann vw gol fox voyage
+Filtro de Ar Tecfil ARL6096,Filtro de ar para Hyundai HB20 Creta,Filtros,Linha Leve,Tecfil,42.90,50,TEC-ARL6096,Carro e SUV,filtro ar tecfil hyundai hb20 creta
+Filtro de Ar Tecfil ARL5811,Filtro de ar para Toyota Corolla Hilux,Filtros,Linha Leve,Tecfil,45.00,45,TEC-ARL5811,Carro e SUV,filtro ar tecfil toyota corolla hilux
+Filtro de Combustível Mann WK730/1,Filtro de combustível para VW,Filtros,Linha Leve,Mann,35.90,55,MANN-WK730,Carro e SUV,filtro combustivel gasolina mann vw
+Filtro de Cabine Mann CU2545,Filtro de ar condicionado VW Polo Virtus,Filtros,Linha Leve,Mann,58.90,35,MANN-CU2545,Carro e SUV,filtro cabine ar condicionado mann vw polo
+Filtro de Cabine Tecfil ACP305,Filtro de ar condicionado Fiat Argo Cronos,Filtros,Linha Leve,Tecfil,48.90,40,TEC-ACP305,Carro e SUV,filtro cabine ar condicionado tecfil fiat argo
+Filtro de Óleo Fleetguard LF3970,Filtro de óleo para Cummins ISB,Filtros,Linha Pesada,Fleetguard,78.90,30,FG-LF3970,Caminhão,filtro oleo fleetguard cummins isb caminhao
+Filtro Diesel Fleetguard FF5052,Filtro de combustível diesel Volvo Scania,Filtros,Linha Pesada,Fleetguard,89.90,25,FG-FF5052,Caminhão,filtro diesel fleetguard volvo scania caminhao
+Filtro Diesel Fleetguard FS19551,Filtro separador de água diesel,Filtros,Linha Pesada,Fleetguard,125.90,20,FG-FS19551,Caminhão,filtro separador agua diesel fleetguard caminhao
+Filtro de Ar Donaldson P181137,Filtro de ar primário para caminhões,Filtros,Linha Pesada,Donaldson,158.90,18,DON-P181137,Caminhão,filtro ar primario donaldson caminhao pesado
+Filtro de Ar Donaldson P119375,Filtro de ar secundário para caminhões,Filtros,Linha Pesada,Donaldson,98.90,22,DON-P119375,Caminhão,filtro ar secundario donaldson caminhao
+Filtro Hidráulico Donaldson P173238,Filtro para sistemas hidráulicos,Filtros,Linha Industrial,Donaldson,189.90,15,DON-P173238,Máquinas Pesadas,filtro hidraulico donaldson retroescavadeira pa carregadeira
+Filtro de Óleo Donaldson P550162,Filtro de óleo para tratores e máquinas,Filtros,Linha Agrícola,Donaldson,68.90,25,DON-P550162,Máquinas Pesadas,filtro oleo donaldson trator maquina agricola
+Militec-1 200ml,Condicionador de metais para motor e câmbio,Aditivos,Condicionadores,Militec,89.00,60,MIL-200ML,Carro e SUV,militec condicionador metais motor cambio
+Militec-1 40ml,Condicionador de metais para motos,Aditivos,Condicionadores,Militec,42.00,80,MIL-40ML,Moto,militec moto condicionador metais 40ml
+Aditivo Combustível Flex 500ml,Aditivo limpador de bicos injetores,Aditivos,Combustível,Tecbril,28.90,70,TBR-ADIT-500,Carro e SUV,aditivo combustivel limpador bico injetor tecbril
+Aditivo Radiador Stop Leak 300ml,Aditivo para vedar vazamentos no radiador,Aditivos,Radiador,Tecbril,22.90,55,TBR-STOPLEAK,Carro e SUV,aditivo radiador stop leak vazamento tecbril
+Limpador de Parabrisa 500ml,Limpador concentrado para parabrisa,Limpeza Automotiva,Parabrisa,Tecbril,12.90,120,TBR-LIMP-500,Carro e SUV,limpador parabrisa concentrado tecbril
+Limpador de Parabrisa 5L,Limpador pronto uso galão,Limpeza Automotiva,Parabrisa,Tecbril,35.90,40,TBR-LIMP-5L,Carro e SUV,limpador parabrisa pronto uso galao tecbril
+Silicone Líquido 500ml,Silicone para borrachas e plásticos,Limpeza Automotiva,Conservação,Tecbril,18.90,85,TBR-SILIC-500,Carro e SUV,silicone liquido borracha plastico tecbril
+Silicone Spray 300ml,Silicone em spray multiuso,Limpeza Automotiva,Conservação,Tecbril,24.90,75,TBR-SILIC-SPRAY,Carro e SUV,silicone spray multiuso tecbril
+Limpa Ar Condicionado 250ml,Higienizador de ar condicionado automotivo,Limpeza Automotiva,Ar Condicionado,Tecbril,32.90,50,TBR-LIMPA-AC,Carro e SUV,limpa ar condicionado higienizador tecbril
+Desengripante WD 300ml,Desengripante lubrificante multiuso,Limpeza Automotiva,Lubrificantes,Tecbril,28.90,65,TBR-WD-300,Carro e SUV,desengripante wd lubrificante multiuso tecbril
+Câmara de Ar Aro 17,Câmara de ar para moto 110/80-17,Câmaras de Ar,Moto,Levorin,32.00,50,LEV-CAM-17,Moto,camara ar moto aro 17 levorin
+Câmara de Ar Aro 18,Câmara de ar para moto 90/90-18,Câmaras de Ar,Moto,Levorin,35.00,45,LEV-CAM-18,Moto,camara ar moto aro 18 levorin
+Câmara de Ar Aro 19,Câmara de ar para moto 90/90-19,Câmaras de Ar,Moto,Levorin,38.00,40,LEV-CAM-19,Moto,camara ar moto aro 19 levorin trail

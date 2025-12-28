@@ -31,8 +31,10 @@ class MercadoPagoService:
         # Inicializar SDK
         self.sdk = mercadopago.SDK(self.access_token)
 
-        # Database manager
-        self.db_manager = DatabaseManager('sqlite:///vendeai.db')
+        # Database manager - usar path absoluto para garantir consistência com Flask
+        # O Flask usa o db em backend/vendeai.db quando roda de HelixAI/
+        db_path = Path(__file__).parent.parent / 'vendeai.db'
+        self.db_manager = DatabaseManager(f'sqlite:///{db_path}')
 
         print(f"[MercadoPago] SDK inicializado com sucesso")
 
@@ -471,33 +473,58 @@ class MercadoPagoService:
                         token_definir_senha = secrets.token_urlsafe(32)
                         print(f"[MercadoPago] Usuário existente com senha temporária - gerando token")
                 else:
-                    # Criar usuário temporário
+                    # Criar usuário temporário e empresa
                     import secrets
                     token_definir_senha = secrets.token_urlsafe(32)  # Gerar token seguro
+                    nome_temp = payer.get('first_name', email.split('@')[0])
 
+                    # 1. Criar nova empresa primeiro
+                    insert_empresa = text("""
+                        INSERT INTO empresas (nome, nome_fantasia, email, plano, plano_ativo, setup_completo, criado_em)
+                        VALUES (:nome, :nome_fantasia, :email, :plano, :plano_ativo, :setup_completo, :criado_em)
+                    """)
+
+                    session.execute(insert_empresa, {
+                        'nome': f"Empresa {nome_temp}",
+                        'nome_fantasia': f"Empresa {nome_temp}",
+                        'email': email,
+                        'plano': plano.nome.upper() if plano else 'STARTER',  # Usar nome do plano
+                        'plano_ativo': True,
+                        'setup_completo': False,  # Precisa passar pelo wizard!
+                        'criado_em': datetime.now()
+                    })
+                    session.flush()
+
+                    # Buscar ID da empresa recém criada
+                    empresa_nova_query = text("SELECT id FROM empresas WHERE email = :email ORDER BY id DESC LIMIT 1")
+                    empresa_nova = session.execute(empresa_nova_query, {'email': email}).fetchone()
+                    nova_empresa_id = empresa_nova.id
+
+                    print(f"[MercadoPago] Nova empresa criada - ID: {nova_empresa_id}")
+
+                    # 2. Criar usuário vinculado à nova empresa
                     insert_usuario = text("""
                         INSERT INTO usuarios (nome, email, senha_hash, tipo, ativo, empresa_id, criado_em)
                         VALUES (:nome, :email, :senha_hash, :tipo, :ativo, :empresa_id, :criado_em)
                     """)
 
-                    nome_temp = payer.get('first_name', email.split('@')[0])
                     session.execute(insert_usuario, {
                         'nome': nome_temp,
                         'email': email,
                         'senha_hash': 'temp_' + str(datetime.now().timestamp()),  # Senha temporária
-                        'tipo': 'cliente',  # Tipo de usuário
-                        'ativo': True,  # Usuário ativo
-                        'empresa_id': 1,  # Empresa padrão (pode ser ajustado depois)
+                        'tipo': 'admin_empresa',  # Admin da empresa
+                        'ativo': True,
+                        'empresa_id': nova_empresa_id,  # Vincular à nova empresa!
                         'criado_em': datetime.now()
                     })
-                    session.flush()  # Flush para obter o ID
+                    session.flush()
 
                     # Buscar o ID do usuário recém criado
                     usuario_novo_query = text("SELECT id FROM usuarios WHERE email = :email LIMIT 1")
                     usuario_novo = session.execute(usuario_novo_query, {'email': email}).fetchone()
                     final_usuario_id = usuario_novo.id
 
-                    print(f"[MercadoPago] Usuário temporário criado - ID: {final_usuario_id}, Email: {email}, Token: {token_definir_senha[:20]}...")
+                    print(f"[MercadoPago] Usuário criado - ID: {final_usuario_id}, Email: {email}, Empresa: {nova_empresa_id}, Token: {token_definir_senha[:20]}...")
 
             # Salvar pagamento no banco
             insert_pagamento = text("""

@@ -14,10 +14,14 @@ import {
   Zap, Eye, EyeOff, Copy, LogOut, Phone, Bot, Sparkles
 } from 'lucide-react';
 
-const BOT_API_URL = 'http://localhost:3010';
-const WS_URL = 'ws://localhost:3010/ws';
+// URLs padrão (usadas se botConfig não for passado)
+const DEFAULT_BOT_API_URL = 'http://localhost:3010';
+const DEFAULT_WS_URL = 'ws://localhost:3010/ws';
 
 export default function WhatsAppConnection({ user, showNotification, botConfig }) {
+  // Usar URLs do botConfig se disponível, senão usar padrão
+  const BOT_API_URL = botConfig?.apiUrl || DEFAULT_BOT_API_URL;
+  const WS_URL = botConfig?.wsUrl || DEFAULT_WS_URL;
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [qrCode, setQrCode] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(null);
@@ -32,6 +36,15 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
   const [botAtivo, setBotAtivo] = useState(false);
   const [togglingBot, setTogglingBot] = useState(false);
 
+  // Estados para Notificações do Gerente
+  const [numeroGerente, setNumeroGerente] = useState('');
+  const [notificarVendas, setNotificarVendas] = useState(true);
+  const [notificarLeads, setNotificarLeads] = useState(true);
+  const [notificarEntregas, setNotificarEntregas] = useState(true);
+  const [notificarEstoque, setNotificarEstoque] = useState(false);
+  const [salvandoNotificacoes, setSalvandoNotificacoes] = useState(false);
+  const [testandoNotificacao, setTestandoNotificacao] = useState(false);
+
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
@@ -44,11 +57,13 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     fetchStatus();
     fetchBotActiveStatus();
     fetchRealStats();
+    fetchNotificacoesGerente();
 
-    // Auto-refresh estatísticas a cada 30 segundos
-    const statsInterval = setInterval(() => {
+    // Auto-refresh status e estatísticas a cada 5 segundos
+    const statusInterval = setInterval(() => {
+      fetchStatus();
       fetchRealStats();
-    }, 30000);
+    }, 5000);
 
     return () => {
       if (wsRef.current) {
@@ -57,7 +72,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      clearInterval(statsInterval);
+      clearInterval(statusInterval);
     };
   }, []);
 
@@ -75,18 +90,33 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('[WS] 📨 Mensagem recebida:', message);
+          console.log('[WS] 📨 Mensagem recebida:', message.type, message.data);
 
           if (message.type === 'status') {
-            handleStatusUpdate(message.data);
+            // Só processar status se NÃO estiver já conectado (evita sobrescrever)
+            if (connectionStatus !== 'connected' || message.data?.connected === true) {
+              handleStatusUpdate(message.data);
+            }
           } else if (message.type === 'qr') {
             setQrCode(message.data.qrCode);
             setConnectionStatus('connecting');
+            console.log('[WS] QR Code recebido, exibindo...');
+          } else if (message.type === 'qr_scanned') {
+            // QR Code foi lido, mostrar "conectando" mas manter QR visível por mais 2 segundos
+            console.log('[WS] QR Code escaneado! Aguardando autenticação...');
+            setConnectionStatus('authenticating');
+            setQrCode(null); // Remover QR imediatamente
+            showNotification('📱 QR Code lido! Aguarde a autenticação...');
           } else if (message.type === 'connected') {
+            console.log('[WS] ✅ Conectado!', message.data);
             setConnectionStatus('connected');
             setQrCode(null);
-            setPhoneNumber(message.data.phoneNumber);
+            setPhoneNumber(message.data?.phoneNumber || null);
+            setSessionInfo(message.data);
             showNotification('✅ WhatsApp conectado com sucesso!');
+            // Buscar estatísticas após conectar
+            fetchRealStats();
+            fetchBotActiveStatus();
           } else if (message.type === 'disconnected') {
             handleDisconnection();
           }
@@ -104,10 +134,11 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
         console.log('[WS] ❌ Desconectado');
         setWsConnected(false);
 
+        // Tentar reconectar imediatamente
         reconnectTimeoutRef.current = setTimeout(() => {
           console.log('[WS] 🔄 Tentando reconectar...');
           connectWebSocket();
-        }, 5000);
+        }, 2000); // Reduzido para 2 segundos
       };
 
       wsRef.current = ws;
@@ -118,9 +149,37 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
   };
 
   const handleStatusUpdate = (data) => {
-    setConnectionStatus(data.connected ? 'connected' : 'disconnected');
-    setPhoneNumber(data.phoneNumber);
-    setSessionInfo(data.sessionInfo);
+    console.log('[STATUS-UPDATE] Dados recebidos:', data);
+
+    // Se dados indicam conectado, atualizar tudo
+    if (data.connected === true || data.connectionStatus === 'connected') {
+      console.log('[STATUS-UPDATE] ✅ Detectado CONECTADO');
+      setConnectionStatus('connected');
+      setPhoneNumber(data.phoneNumber || null);
+      setQrCode(null);
+      setSessionInfo(data);
+      fetchRealStats();
+      return;
+    }
+
+    // Determinar novo status com base nos dados
+    let newStatus = 'disconnected';
+
+    if (data.qrCode) {
+      newStatus = 'connecting';
+      setQrCode(data.qrCode);
+    } else if (data.connectionStatus === 'connecting' || data.connectionStatus === 'qr_generated') {
+      newStatus = 'connecting';
+    } else if (data.connectionStatus === 'authenticating') {
+      newStatus = 'authenticating';
+      setQrCode(null);
+    } else if (data.connectionStatus === 'reconnecting') {
+      newStatus = 'connecting';
+    }
+
+    console.log('[STATUS-UPDATE] Novo status:', newStatus);
+    setConnectionStatus(newStatus);
+    setSessionInfo(data.sessionInfo || data);
 
     // Atualizar estatísticas se disponíveis
     if (data.mensagensHoje !== undefined || data.conversasAtivas !== undefined) {
@@ -129,11 +188,6 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
         conversasAtivas: data.conversasAtivas || 0,
         ultimaAtividade: data.ultimaAtividade || null
       });
-    }
-
-    // Se conectado, buscar estatísticas reais
-    if (data.connected) {
-      fetchRealStats();
     }
   };
 
@@ -153,8 +207,15 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     try {
       const empresaId = user?.empresa_id || 9;
       const response = await fetch(`${BOT_API_URL}/api/bot/status/${empresaId}`);
-      const data = await response.json();
-      handleStatusUpdate(data);
+      const result = await response.json();
+      console.log('[API] Status recebido:', result);
+
+      // API retorna { success: true, data: { ... } }
+      if (result.success && result.data) {
+        handleStatusUpdate(result.data);
+      } else {
+        handleStatusUpdate(result);
+      }
     } catch (error) {
       console.error('[API] Erro ao buscar status:', error);
     }
@@ -163,12 +224,16 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
   const fetchBotActiveStatus = async () => {
     try {
       const empresaId = user?.empresa_id || 9;
-      const apiUrl = botConfig?.apiUrl || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/bot-config/${empresaId}`);
+      // Usar backend Flask (localhost:5000), não o bot server
+      const backendApiUrl = 'http://localhost:5000';
+      console.log('[WhatsApp] Buscando status do bot para empresa:', empresaId);
+      const response = await fetch(`${backendApiUrl}/api/bot-config/${empresaId}`);
       const data = await response.json();
 
+      console.log('[WhatsApp] Status do bot recebido:', data);
       if (data.success && data.data) {
         setBotAtivo(data.data.bot_ativo || false);
+        console.log('[WhatsApp] Bot ativo definido como:', data.data.bot_ativo);
       }
     } catch (error) {
       console.error('[API] Erro ao buscar status ativo do bot:', error);
@@ -196,6 +261,106 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
       }
     } catch (error) {
       console.error('[API] Erro ao buscar estatísticas:', error);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // NOTIFICAÇÕES DO GERENTE
+  // ══════════════════════════════════════════════════════════════
+
+  const fetchNotificacoesGerente = async () => {
+    try {
+      const empresaId = user?.empresa_id || 9;
+      const backendApiUrl = 'http://localhost:5000';
+      const response = await fetch(`${backendApiUrl}/api/empresa/notificacoes/${empresaId}`);
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        setNumeroGerente(data.data.numero_gerente || '');
+        setNotificarVendas(data.data.notificar_vendas ?? true);
+        setNotificarLeads(data.data.notificar_leads ?? true);
+        setNotificarEntregas(data.data.notificar_entregas ?? true);
+        setNotificarEstoque(data.data.notificar_estoque ?? false);
+        console.log('[WhatsApp] Configurações de notificação carregadas');
+      }
+    } catch (error) {
+      console.error('[API] Erro ao buscar configurações de notificação:', error);
+    }
+  };
+
+  const salvarNotificacoesGerente = async () => {
+    setSalvandoNotificacoes(true);
+    try {
+      const empresaId = user?.empresa_id || 9;
+      const backendApiUrl = 'http://localhost:5000';
+
+      const response = await fetch(`${backendApiUrl}/api/empresa/notificacoes/${empresaId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero_gerente: numeroGerente,
+          notificar_vendas: notificarVendas,
+          notificar_leads: notificarLeads,
+          notificar_entregas: notificarEntregas,
+          notificar_estoque: notificarEstoque
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showNotification('✅ Configurações de notificação salvas!');
+      } else {
+        showNotification(`❌ ${data.error || 'Erro ao salvar'}`);
+      }
+    } catch (error) {
+      console.error('[API] Erro ao salvar notificações:', error);
+      showNotification('❌ Erro ao salvar configurações');
+    } finally {
+      setSalvandoNotificacoes(false);
+    }
+  };
+
+  const testarNotificacao = async () => {
+    if (!numeroGerente) {
+      showNotification('⚠️ Configure o número do gerente primeiro');
+      return;
+    }
+
+    setTestandoNotificacao(true);
+    try {
+      const empresaId = user?.empresa_id || 9;
+      const backendApiUrl = 'http://localhost:5000';
+
+      const response = await fetch(`${backendApiUrl}/api/empresa/notificacoes/enviar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empresa_id: empresaId,
+          tipo: 'venda',
+          dados: {
+            cliente_nome: 'Cliente Teste',
+            cliente_telefone: '(11) 99999-9999',
+            produtos_texto: '• 2x Tinta Branca 18L - R$ 89,90\n• 1x Rolo de Pintura - R$ 29,90',
+            valor_total: '209,70',
+            forma_pagamento: 'PIX',
+            tipo_entrega: 'Entrega em domicílio'
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showNotification('✅ Notificação de teste enviada!');
+      } else {
+        showNotification(`❌ ${data.error || 'Erro ao enviar teste'}`);
+      }
+    } catch (error) {
+      console.error('[API] Erro ao testar notificação:', error);
+      showNotification('❌ Erro ao enviar notificação de teste');
+    } finally {
+      setTestandoNotificacao(false);
     }
   };
 
@@ -240,39 +405,6 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     }
   };
 
-  // Função para remover/trocar número do WhatsApp
-  const handleRemoveNumber = async () => {
-    if (!confirm('⚠️ Tem certeza que deseja desconectar este número?\n\nVocê precisará escanear um novo QR Code para reconectar.')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const empresaId = user?.empresa_id || 9;
-
-      // Desconectar WhatsApp
-      const response = await fetch(`${BOT_API_URL}/api/bot/disconnect/${empresaId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Limpar todos os estados
-        handleDisconnection();
-        showNotification('✅ Número removido! Você pode conectar um novo número agora.');
-      } else {
-        throw new Error(data.error || 'Erro ao remover número');
-      }
-    } catch (error) {
-      console.error('[API] Erro ao remover número:', error);
-      showNotification('❌ Erro ao remover número');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleConnect = async () => {
     try {
       setLoading(true);
@@ -280,16 +412,25 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
       setConnectionStatus('connecting');
 
       const empresaId = user?.empresa_id || 9;
+      console.log('[CONNECT] Tentando conectar empresa:', empresaId);
+
       const response = await fetch(`${BOT_API_URL}/api/bot/connect/${empresaId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
 
       const data = await response.json();
+      console.log('[CONNECT] Resposta:', data);
 
       if (data.success) {
         showNotification('🔄 Gerando QR Code...');
-        // Status já está como 'connecting', aguardar QR Code via WebSocket
+        // Iniciar polling de status a cada 2 segundos durante a conexão
+        const pollInterval = setInterval(() => {
+          fetchStatus();
+        }, 2000);
+
+        // Parar polling após 60 segundos
+        setTimeout(() => clearInterval(pollInterval), 60000);
       } else {
         throw new Error(data.error || 'Erro ao conectar');
       }
@@ -303,9 +444,15 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
   };
 
   const handleDisconnect = async () => {
+    if (!confirm('⚠️ Tem certeza que deseja desconectar este número?\n\nIsso fará logout no WhatsApp do seu celular e você precisará escanear um novo QR Code para reconectar.')) {
+      return;
+    }
+
     try {
       setLoading(true);
       const empresaId = user?.empresa_id || 9;
+
+      // Desconectar WhatsApp com logout completo
       const response = await fetch(`${BOT_API_URL}/api/bot/disconnect/${empresaId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -314,8 +461,9 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
       const data = await response.json();
 
       if (data.success) {
+        // Limpar todos os estados
         handleDisconnection();
-        showNotification('✅ WhatsApp desconectado');
+        showNotification('✅ WhatsApp desconectado! O logout foi feito no seu celular também.');
       } else {
         throw new Error(data.error || 'Erro ao desconectar');
       }
@@ -450,6 +598,15 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
                         <CheckCircle2 className="h-6 w-6 text-white" />
                       </div>
                     </div>
+                  ) : connectionStatus === 'authenticating' ? (
+                    <div className="relative">
+                      <div className="h-32 w-32 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mx-auto animate-pulse shadow-2xl shadow-amber-500/50">
+                        <Loader2 className="h-16 w-16 text-white animate-spin" />
+                      </div>
+                      {/* Círculos animados ao redor */}
+                      <div className="absolute inset-0 rounded-full border-4 border-amber-400/30 animate-ping" />
+                      <div className="absolute inset-0 rounded-full border-4 border-amber-400/20" style={{ animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
+                    </div>
                   ) : connectionStatus === 'connecting' ? (
                     <div className="relative">
                       <div className="h-32 w-32 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mx-auto animate-pulse shadow-2xl shadow-cyan-500/50">
@@ -467,6 +624,8 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
                   <h3 className="text-2xl font-bold text-white mt-6">
                     {connectionStatus === 'connected'
                       ? 'Conectado'
+                      : connectionStatus === 'authenticating'
+                      ? 'Conectando...'
                       : connectionStatus === 'connecting'
                       ? qrCode ? 'Aguardando QR Code' : 'Preparando conexão...'
                       : 'Desconectado'}
@@ -474,6 +633,10 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
                   <p className="text-white/60 mt-2">
                     {connectionStatus === 'connected' && phoneNumber ? (
                       <span className="font-mono text-green-400">{phoneNumber}</span>
+                    ) : connectionStatus === 'authenticating' ? (
+                      <span className="text-amber-400 animate-pulse">
+                        ⏳ Autenticando seu WhatsApp... Não clique em conectar novamente!
+                      </span>
                     ) : connectionStatus === 'connecting' ? (
                       <span className="text-cyan-400 animate-pulse">
                         {qrCode ? '📱 Escaneie o QR Code no seu celular' : '⏳ Iniciando conexão com WhatsApp...'}
@@ -517,6 +680,85 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
                 )}
               </div>
 
+              {/* Notificações do Gerente */}
+              <div className="card-glass rounded-2xl p-4 space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Phone className="h-5 w-5 text-green-400" />
+                  <h3 className="text-white font-semibold">Alertas para Gerente</h3>
+                </div>
+
+                <div>
+                  <label className="text-white/60 text-xs block mb-1">WhatsApp do Gerente</label>
+                  <input
+                    type="text"
+                    value={numeroGerente}
+                    onChange={(e) => setNumeroGerente(e.target.value)}
+                    placeholder="(42) 99930-0611"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 text-sm"
+                  />
+                  <p className="text-white/40 text-xs mt-1">Receba alertas de vendas, leads e entregas</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificarVendas}
+                      onChange={(e) => setNotificarVendas(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-green-500 focus:ring-green-500"
+                    />
+                    <span className="text-white/80 text-sm">Notificar novas vendas</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificarLeads}
+                      onChange={(e) => setNotificarLeads(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-green-500 focus:ring-green-500"
+                    />
+                    <span className="text-white/80 text-sm">Notificar novos leads</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificarEntregas}
+                      onChange={(e) => setNotificarEntregas(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-green-500 focus:ring-green-500"
+                    />
+                    <span className="text-white/80 text-sm">Notificar status de entregas</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificarEstoque}
+                      onChange={(e) => setNotificarEstoque(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-green-500 focus:ring-green-500"
+                    />
+                    <span className="text-white/80 text-sm">Alertar estoque baixo</span>
+                  </label>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={salvarNotificacoesGerente}
+                    disabled={salvandoNotificacoes}
+                    className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {salvandoNotificacoes ? 'Salvando...' : 'Salvar'}
+                  </button>
+                  <button
+                    onClick={testarNotificacao}
+                    disabled={testandoNotificacao || !numeroGerente}
+                    className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+                  >
+                    {testandoNotificacao ? 'Enviando...' : 'Testar'}
+                  </button>
+                </div>
+              </div>
+
               {/* Botões de Ação */}
               <div className="space-y-3">
                 {connectionStatus === 'disconnected' && (
@@ -549,23 +791,6 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
                       Copiar Número
                     </Button>
                     <Button
-                      onClick={handleRemoveNumber}
-                      disabled={loading}
-                      className="w-full h-12 bg-amber-600/80 hover:bg-amber-600 text-white"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Removendo...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Trocar Número
-                        </>
-                      )}
-                    </Button>
-                    <Button
                       onClick={handleDisconnect}
                       disabled={loading}
                       className="w-full h-12 bg-red-600/80 hover:bg-red-600 text-white"
@@ -585,7 +810,19 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
                   </>
                 )}
 
-                {connectionStatus === 'connecting' && (
+                {connectionStatus === 'authenticating' && (
+                  <div className="card-glass rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+                      <div className="flex-1 text-left">
+                        <p className="text-white font-semibold">Autenticando...</p>
+                        <p className="text-white/60 text-sm">Aguarde, não clique em conectar novamente</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(connectionStatus === 'connecting' || connectionStatus === 'authenticating') && (
                   <Button
                     onClick={fetchStatus}
                     className="w-full h-12 bg-white/5 hover:bg-white/10 text-white border border-white/10"

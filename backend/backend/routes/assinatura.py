@@ -16,6 +16,13 @@ from sqlalchemy import text
 assinatura_bp = Blueprint('assinatura', __name__, url_prefix='/api/assinatura')
 db_manager = DatabaseManager('sqlite:///vendeai.db')
 
+print("\n" + "="*60)
+print("   ASSINATURA ROUTES - BACKEND/BACKEND - MODULO CARREGADO")
+print("="*60)
+print(f"[ASSINATURA] Blueprint registrado: /api/assinatura")
+print(f"[ASSINATURA] Arquivo: {__file__}")
+print("="*60 + "\n")
+
 
 @assinatura_bp.route('/planos', methods=['GET'])
 def listar_planos():
@@ -432,7 +439,32 @@ def verificar_status_pagamento(payment_id):
         }), 500
 
 
-@assinatura_bp.route('/test', methods=['GET'])
+@assinatura_bp.route('/config', methods=['GET', 'OPTIONS'])
+def get_mercadopago_config():
+    """
+    Retorna configurações públicas do Mercado Pago
+
+    Returns:
+        JSON com public_key
+    """
+    # Handle OPTIONS request for CORS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'success': True}), 200
+
+    try:
+        return jsonify({
+            'success': True,
+            'public_key': mp_service.public_key
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@assinatura_bp.route('/test', methods=['GET', 'OPTIONS'])
 def test_integracao():
     """
     Endpoint de teste da integração com Mercado Pago
@@ -440,6 +472,10 @@ def test_integracao():
     Returns:
         JSON com status do serviço
     """
+    # Handle OPTIONS request for CORS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'success': True}), 200
+
     try:
         return jsonify({
             'success': True,

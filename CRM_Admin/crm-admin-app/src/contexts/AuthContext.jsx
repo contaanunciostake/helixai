@@ -14,9 +14,12 @@ export function AuthProvider({ children }) {
     if (authParam) {
       try {
         console.log('[AuthContext] 📨 Dados recebidos via URL da Landing Page')
-        // Decodificar dados da URL
-        const userData = JSON.parse(atob(authParam))
+        console.log('[AuthContext] 🔑 Auth param (encoded):', authParam.substring(0, 50) + '...')
+        // Decodificar dados da URL (primeiro decodeURIComponent, depois atob)
+        const decodedParam = decodeURIComponent(authParam)
+        const userData = JSON.parse(atob(decodedParam))
         console.log('[AuthContext] ✅ Dados decodificados:', userData)
+        console.log('[AuthContext] 👤 tipo:', userData.tipo)
 
         // Salvar no localStorage DESTA porta (5175)
         localStorage.setItem('admin_user', JSON.stringify(userData))
@@ -88,15 +91,19 @@ export function AuthProvider({ children }) {
   // Login
   const login = (userData) => {
     const adminData = {
+      id: userData.id,
       nome: userData.nome || 'Administrador',
       email: userData.email,
-      funcao: userData.funcao || 'Administrador',
+      tipo: userData.tipo || 'super_admin',
+      funcao: userData.funcao || 'Super Administrador',
       avatar: userData.avatar || null,
-      loginTime: new Date().toISOString()
+      token: userData.token,
+      loginTime: userData.loginTime || new Date().toISOString()
     }
 
     setUser(adminData)
     localStorage.setItem('admin_user', JSON.stringify(adminData))
+    localStorage.setItem('admin_token', adminData.token || '')
     localStorage.setItem('admin_isLoggedIn', 'true')
   }
 
@@ -104,6 +111,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null)
     localStorage.removeItem('admin_user')
+    localStorage.removeItem('admin_token')
     localStorage.removeItem('admin_isLoggedIn')
     // Redirecionar para a landing page
     window.location.href = 'http://localhost:5174'

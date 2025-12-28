@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const API_URL = 'http://localhost:5000/api/auth'
+const API_URL = '/api/auth' // Usando proxy do Vite
 
 export function Login({ onLogin }) {
   // Estados gerais
@@ -176,6 +176,16 @@ export function Login({ onLogin }) {
           ...result.usuario,
           token: result.token,
           loginTime: new Date().toISOString()
+        }
+
+        // Verificar se e super_admin - redirecionar para painel admin
+        if (userData.tipo === 'super_admin') {
+          // Salvar dados no localStorage do admin e redirecionar
+          localStorage.setItem('admin_user', JSON.stringify(userData))
+          localStorage.setItem('admin_token', result.token)
+          localStorage.setItem('admin_isLoggedIn', 'true')
+          window.location.replace('http://localhost:5175/dashboard')
+          return
         }
 
         localStorage.setItem('crm_user', JSON.stringify(userData))
