@@ -1,6 +1,6 @@
 """
 API REST para Varejo - CRUD de Clientes, Pedidos, Agendamentos
-Endpoints JSON usando SQLite
+Endpoints JSON - Compativel com SQLite (dev) e PostgreSQL (prod)
 """
 
 from flask import Blueprint, request, jsonify
@@ -15,6 +15,13 @@ from database.models import (
     DatabaseManager, Cliente, Pedido, ItemPedido
 )
 
+# Importar db_manager global para usar PostgreSQL em producao
+try:
+    from backend import db_manager
+except ImportError:
+    db_path = Path(__file__).parent.parent / 'vendeai.db'
+    db_manager = DatabaseManager(f'sqlite:///{db_path}')
+
 varejo_api_bp = Blueprint('varejo_api', __name__, url_prefix='/api')
 
 print('\n============================================================')
@@ -25,10 +32,6 @@ print('[VAREJO API]   GET  /api/clientes/listar')
 print('[VAREJO API]   GET  /api/pedidos/listar')
 print('[VAREJO API]   GET  /api/agendamentos/listar')
 print('============================================================\n')
-
-# Database Manager - SQLite
-db_path = Path(__file__).parent.parent / 'vendeai.db'
-db_manager = DatabaseManager(f'sqlite:///{db_path}')
 
 
 def get_empresa_id():
