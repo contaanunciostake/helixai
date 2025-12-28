@@ -211,6 +211,227 @@ else:
     print("[INIT] AVISO assinatura nao foi importado, blueprint nao registrado")
 
 
+# ==================== MIGRACAO AUTOMATICA DO BANCO ====================
+def run_database_migrations():
+    """
+    Executa migrações automáticas para criar tabelas e colunas faltantes.
+    Roda apenas em produção (PostgreSQL) na inicialização.
+    """
+    if not database_url or 'postgresql' not in database_url:
+        print("[MIGRATION] Pulando migracao - ambiente local SQLite")
+        return
+
+    print("\n" + "=" * 50)
+    print("[MIGRATION] Iniciando migracoes do banco de dados...")
+    print("=" * 50)
+
+    from sqlalchemy import text
+    session = db_manager.get_session()
+
+    try:
+        # 1. Adicionar colunas faltantes na tabela empresas
+        colunas_empresas = [
+            ("tipo_negocio", "VARCHAR(50)"),
+            ("numero_gerente", "TEXT"),
+            ("notificar_vendas", "INTEGER DEFAULT 1"),
+            ("notificar_leads", "INTEGER DEFAULT 1"),
+            ("notificar_entregas", "INTEGER DEFAULT 1"),
+            ("notificar_estoque", "INTEGER DEFAULT 0"),
+        ]
+
+        for col_name, col_type in colunas_empresas:
+            try:
+                session.execute(text(f"ALTER TABLE empresas ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+                session.commit()
+                print(f"[MIGRATION] OK coluna empresas.{col_name}")
+            except Exception as e:
+                session.rollback()
+                if 'already exists' not in str(e).lower():
+                    print(f"[MIGRATION] Aviso {col_name}: {e}")
+
+        # 2. Criar tabela PLANOS
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS planos (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(50) NOT NULL UNIQUE,
+                descricao TEXT,
+                preco DECIMAL(10,2) NOT NULL,
+                periodicidade VARCHAR(20) NOT NULL DEFAULT 'mensal',
+                limite_mensagens INTEGER NOT NULL DEFAULT 1000,
+                limite_tokens BIGINT NOT NULL DEFAULT 500000,
+                recursos_extras TEXT,
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela planos")
+
+        # 3. Criar tabela ASSINATURAS
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS assinaturas (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                plano_id INTEGER NOT NULL,
+                mercadopago_subscription_id VARCHAR(100) UNIQUE,
+                mercadopago_preapproval_id VARCHAR(100) UNIQUE,
+                mercadopago_preference_id VARCHAR(100),
+                status VARCHAR(20) DEFAULT 'pending',
+                data_inicio DATE,
+                data_fim DATE,
+                proximo_pagamento DATE,
+                valor_pago DECIMAL(10,2),
+                metodo_pagamento VARCHAR(50),
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela assinaturas")
+
+        # 4. Criar tabela PAGAMENTOS
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS pagamentos (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                assinatura_id INTEGER,
+                mercadopago_payment_id VARCHAR(100) UNIQUE,
+                tipo VARCHAR(20) DEFAULT 'subscription',
+                status VARCHAR(20) DEFAULT 'pending',
+                valor DECIMAL(10,2) NOT NULL,
+                metodo_pagamento VARCHAR(50),
+                descricao TEXT,
+                data_pagamento TIMESTAMP,
+                data_expiracao TIMESTAMP,
+                webhook_data TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela pagamentos")
+
+        # 5. Criar tabela USO_MENSAL
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS uso_mensal (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                mes_referencia DATE NOT NULL,
+                mensagens_usadas INTEGER DEFAULT 0,
+                tokens_usados BIGINT DEFAULT 0,
+                conversas_criadas INTEGER DEFAULT 0,
+                ultima_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(usuario_id, mes_referencia)
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela uso_mensal")
+
+        # 6. Criar tabela ENTREGADORES
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS entregadores (
+                id SERIAL PRIMARY KEY,
+                empresa_id INTEGER,
+                nome VARCHAR(200) NOT NULL,
+                telefone VARCHAR(20),
+                email VARCHAR(200),
+                placa_veiculo VARCHAR(20),
+                tipo_veiculo VARCHAR(50),
+                disponivel BOOLEAN DEFAULT TRUE,
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela entregadores")
+
+        # 7. Criar tabela ENTREGAS
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS entregas (
+                id SERIAL PRIMARY KEY,
+                empresa_id INTEGER,
+                pedido_id INTEGER,
+                cliente_id INTEGER,
+                entregador_id INTEGER,
+                endereco_entrega TEXT,
+                status VARCHAR(50) DEFAULT 'pendente',
+                data_prevista TIMESTAMP,
+                data_entrega TIMESTAMP,
+                observacoes TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cliente_nome VARCHAR(200),
+                cliente_telefone VARCHAR(20),
+                cliente_whatsapp VARCHAR(20),
+                numero VARCHAR(20),
+                complemento VARCHAR(100),
+                bairro VARCHAR(100),
+                cidade VARCHAR(100),
+                estado VARCHAR(2),
+                cep VARCHAR(10),
+                ponto_referencia TEXT,
+                descricao_itens TEXT,
+                valor_pedido REAL,
+                valor_frete REAL,
+                forma_pagamento VARCHAR(50),
+                prioridade VARCHAR(20),
+                data_agendada DATE,
+                hora_agendada TIME,
+                origem VARCHAR(50),
+                conversa_id VARCHAR(50)
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela entregas")
+
+        # 8. Criar tabela AGENDAMENTOS
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS agendamentos (
+                id SERIAL PRIMARY KEY,
+                empresa_id INTEGER,
+                cliente_id INTEGER,
+                nome_cliente VARCHAR(200),
+                telefone_cliente VARCHAR(20),
+                data_hora TIMESTAMP,
+                tipo VARCHAR(50),
+                descricao TEXT,
+                status VARCHAR(50) DEFAULT 'pendente',
+                observacoes TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela agendamentos")
+
+        # 9. Inserir planos padrão se não existirem
+        result = session.execute(text("SELECT COUNT(*) FROM planos"))
+        count = result.fetchone()[0]
+        if count == 0:
+            session.execute(text("""
+                INSERT INTO planos (nome, descricao, preco, periodicidade, limite_mensagens, limite_tokens, ativo) VALUES
+                ('Gratuito', 'Plano gratuito para teste', 0, 'mensal', 100, 50000, true),
+                ('Basico', 'Plano basico para pequenos negocios', 97.00, 'mensal', 1000, 500000, true),
+                ('Profissional', 'Plano profissional com recursos avancados', 197.00, 'mensal', 5000, 2000000, true),
+                ('Enterprise', 'Plano enterprise para grandes empresas', 497.00, 'mensal', 20000, 10000000, true)
+            """))
+            session.commit()
+            print("[MIGRATION] OK planos padrao inseridos")
+
+        print("=" * 50)
+        print("[MIGRATION] Migracoes concluidas com sucesso!")
+        print("=" * 50 + "\n")
+
+    except Exception as e:
+        session.rollback()
+        print(f"[MIGRATION] ERRO: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        session.close()
+
+
+# Executar migrações na inicialização
+run_database_migrations()
+
+
 # Health check route para Render.com
 @app.route('/health')
 def health_check():
