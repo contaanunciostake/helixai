@@ -39,14 +39,24 @@ CORS(app,
      resources={
          r"/*": {
              "origins": [
+                 # Local development
                  "http://localhost:5173",
                  "http://localhost:5174",
                  "http://localhost:5175",
                  "http://localhost:5176",
                  "http://localhost:5177",
+                 "http://localhost:5178",
                  "http://localhost:3000",
                  "http://localhost:3001",
-                 "http://localhost:4000"
+                 "http://localhost:3010",
+                 "http://localhost:4000",
+                 # Production Render.com domains
+                 "https://vendefacil-landing.onrender.com",
+                 "https://vendefacil-admin.onrender.com",
+                 "https://vendefacil-client.onrender.com",
+                 "https://vendefacil-afiliados.onrender.com",
+                 "https://vendefacil-backend.onrender.com",
+                 "https://vendefacil-whatsapp.onrender.com",
              ],
              "supports_credentials": True,
              "allow_headers": ["Content-Type", "Authorization", "X-API-Key", "X-Empresa-ID", "X-Empresa-Id"],
@@ -54,13 +64,24 @@ CORS(app,
          }
      })
 
-# Database Manager - Usar gerenciador híbrido se remoto estiver habilitado
-use_remote = os.getenv('USE_REMOTE_DB', 'False').lower() == 'true'
+# Database Manager - Usar DATABASE_URL do ambiente (PostgreSQL em produção)
+database_url = os.getenv('DATABASE_URL')
 
-# Path absoluto do banco de dados local - SEMPRE usar backend/vendeai.db (único banco multi-tenant)
+# Path absoluto do banco de dados local - fallback para desenvolvimento
 LOCAL_DB_PATH = Path(__file__).resolve().parent / 'vendeai.db'
 
-if use_remote:
+if database_url:
+    # Render.com usa postgres:// mas SQLAlchemy precisa de postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    # Adicionar SSL para conexões remotas PostgreSQL
+    if 'postgresql://' in database_url and 'sslmode' not in database_url:
+        database_url += '?sslmode=require'
+
+    db_manager = DatabaseManager(database_url)
+    print(f"[INFO] Usando banco de dados remoto: PostgreSQL")
+elif os.getenv('USE_REMOTE_DB', 'False').lower() == 'true':
     db_manager = get_hybrid_db_manager()
     print("[INFO] Usando gerenciador híbrido de banco de dados (Local + Remoto)")
 else:
@@ -188,4 +209,11 @@ if assinatura is not None:
     print("[INIT] OK assinatura_bp registrado!")
 else:
     print("[INIT] AVISO assinatura nao foi importado, blueprint nao registrado")
+
+
+# Health check route para Render.com
+@app.route('/health')
+def health_check():
+    """Health check endpoint para monitoramento do Render"""
+    return {'status': 'healthy', 'service': 'vendefacil-backend', 'database': 'postgresql' if database_url else 'sqlite'}, 200
 
