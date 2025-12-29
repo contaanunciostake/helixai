@@ -396,6 +396,12 @@ export function ClientesPage({ user }) {
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('todos');
+  const [filtroCidade, setFiltroCidade] = useState('');
+
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -460,14 +466,36 @@ export function ClientesPage({ user }) {
     }
   };
 
+  // Lista de cidades únicas para o filtro
+  const cidadesUnicas = [...new Set(clientes.map(c => c.cidade).filter(Boolean))].sort();
+
   const clientesFiltrados = clientes.filter(c => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return c.nome?.toLowerCase().includes(search) ||
-           c.cpf_cnpj?.includes(search) ||
-           c.email?.toLowerCase().includes(search) ||
-           c.cidade?.toLowerCase().includes(search);
+    // Filtro por texto
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const matchText = c.nome?.toLowerCase().includes(search) ||
+             c.cpf_cnpj?.includes(search) ||
+             c.email?.toLowerCase().includes(search) ||
+             c.telefone?.includes(search) ||
+             c.celular?.includes(search);
+      if (!matchText) return false;
+    }
+    // Filtro por tipo
+    if (filtroTipo !== 'todos' && c.tipo !== filtroTipo) return false;
+    // Filtro por cidade
+    if (filtroCidade && c.cidade !== filtroCidade) return false;
+    return true;
   });
+
+  // Paginação
+  const totalPages = Math.ceil(clientesFiltrados.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const clientesPaginados = clientesFiltrados.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset página quando filtros mudam
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filtroTipo, filtroCidade]);
 
   return (
     <div className="min-h-screen bg-black p-6 space-y-6">
@@ -533,17 +561,36 @@ export function ClientesPage({ user }) {
       <Card className="card-glass border-white/10">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[300px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <Input
-                  placeholder="Buscar cliente..."
+                  placeholder="Buscar por nome, CPF/CNPJ, email ou telefone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-white/5 border-white/10 text-white"
+                  className="pl-10 bg-white/5 border-white/10 text-white w-full"
                 />
               </div>
             </div>
+            <select
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+              className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white min-w-[150px]"
+            >
+              <option value="todos">Todos os Tipos</option>
+              <option value="PF">Pessoa Física</option>
+              <option value="PJ">Pessoa Jurídica</option>
+            </select>
+            <select
+              value={filtroCidade}
+              onChange={(e) => setFiltroCidade(e.target.value)}
+              className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white min-w-[150px]"
+            >
+              <option value="">Todas as Cidades</option>
+              {cidadesUnicas.map(cidade => (
+                <option key={cidade} value={cidade}>{cidade}</option>
+              ))}
+            </select>
             <Button
               onClick={loadClientes}
               variant="outline"
@@ -563,16 +610,20 @@ export function ClientesPage({ user }) {
         </CardContent>
       </Card>
 
-      {/* Tabela de Clientes */}
-      <Card className="card-glass border-white/10">
+      {/* Tabela de Clientes - Full Width */}
+      <Card className="card-glass border-white/10 w-full">
         <CardHeader className="border-b border-white/10">
-          <CardTitle className="text-white flex items-center gap-2">
-            <UserCheck className="h-5 w-5 text-blue-400" />
-            Carteira de Clientes
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            {clientesFiltrados.length} cliente(s) encontrado(s)
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-white flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-blue-400" />
+                Carteira de Clientes
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                {clientesFiltrados.length} cliente(s) encontrado(s) • Página {currentPage} de {totalPages || 1}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -589,27 +640,27 @@ export function ClientesPage({ user }) {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full min-w-full table-auto">
                 <thead className="bg-white/5 text-white/60 text-xs uppercase">
                   <tr>
-                    <th className="px-4 py-3 text-left">Cliente</th>
-                    <th className="px-4 py-3 text-left">Tipo</th>
-                    <th className="px-4 py-3 text-left">CPF/CNPJ</th>
-                    <th className="px-4 py-3 text-left">Cidade</th>
-                    <th className="px-4 py-3 text-left">Contato</th>
-                    <th className="px-4 py-3 text-right">Total Compras</th>
-                    <th className="px-4 py-3 text-center">Ações</th>
+                    <th className="px-6 py-4 text-left">Cliente</th>
+                    <th className="px-6 py-4 text-left">Tipo</th>
+                    <th className="px-6 py-4 text-left">CPF/CNPJ</th>
+                    <th className="px-6 py-4 text-left">Cidade</th>
+                    <th className="px-6 py-4 text-left">Contato</th>
+                    <th className="px-6 py-4 text-right">Total Compras</th>
+                    <th className="px-6 py-4 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {clientesFiltrados.map((cliente) => (
+                  {clientesPaginados.map((cliente) => (
                     <tr key={cliente.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         <div className="text-white font-medium">{cliente.nome}</div>
                         <div className="text-gray-500 text-sm">{cliente.email}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           cliente.tipo === 'PJ'
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -618,15 +669,15 @@ export function ClientesPage({ user }) {
                           {cliente.tipo === 'PJ' ? 'Pessoa Jurídica' : 'Pessoa Física'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-300 font-mono text-sm">{cliente.cpf_cnpj || '-'}</td>
-                      <td className="px-4 py-3 text-gray-300">{cliente.cidade ? `${cliente.cidade}/${cliente.estado}` : '-'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4 text-gray-300 font-mono text-sm">{cliente.cpf_cnpj || '-'}</td>
+                      <td className="px-6 py-4 text-gray-300">{cliente.cidade ? `${cliente.cidade}/${cliente.estado}` : '-'}</td>
+                      <td className="px-6 py-4">
                         <div className="text-gray-300 text-sm">{cliente.telefone || cliente.celular || '-'}</div>
                       </td>
-                      <td className="px-4 py-3 text-right text-green-400 font-medium">
+                      <td className="px-6 py-4 text-right text-green-400 font-medium">
                         R$ {parseFloat(cliente.total_compras || 0).toLocaleString('pt-BR')}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleView(cliente)}
@@ -655,6 +706,81 @@ export function ClientesPage({ user }) {
                   ))}
                 </tbody>
               </table>
+
+              {/* Paginação */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
+                  <div className="text-sm text-gray-400">
+                    Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, clientesFiltrados.length)} de {clientesFiltrados.length} clientes
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Primeira
+                    </Button>
+                    <Button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Anterior
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            className={currentPage === pageNum
+                              ? "bg-blue-600 text-white"
+                              : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+                            }
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Próxima
+                    </Button>
+                    <Button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Última
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
