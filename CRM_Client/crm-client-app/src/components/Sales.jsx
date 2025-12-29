@@ -18,6 +18,20 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts';
 
+// URL do Backend - detectar ambiente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com';
+  }
+  return 'http://localhost:5000';
+};
+
+const API_URL = getBackendUrl();
+
 export default function Sales({ user, botConfig, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -146,28 +160,33 @@ export default function Sales({ user, botConfig, showNotification }) {
       if (!silent) setLoading(true);
       else setRefreshing(true);
 
-      const empresaId = user?.empresa_id || 5;
+      const empresaId = user?.empresa_id;
+
+      if (!empresaId) {
+        console.error('[SALES] Empresa ID não encontrado');
+        setSalesData(null);
+        return;
+      }
 
       try {
-        const response = await fetch(`${botConfig.apiUrl}/api/sales/${empresaId}?periodo=${periodo}`);
+        const response = await fetch(`${API_URL}/api/sales/${empresaId}?periodo=${periodo}`, {
+          headers: { 'X-Empresa-ID': empresaId?.toString() }
+        });
         const data = await response.json();
 
         if (data.success && data.data) {
           setSalesData(data.data);
         } else {
-          console.log('[SALES] Usando dados de exemplo');
-          setSalesData(generateMockData());
+          console.log('[SALES] Nenhum dado retornado da API');
+          setSalesData(generateMockData()); // Temporário: usar mock enquanto endpoint não existe
         }
       } catch (apiError) {
-        console.log('[SALES] API indisponível, usando dados de exemplo');
-        setSalesData(generateMockData());
+        console.log('[SALES] API indisponível:', apiError);
+        setSalesData(generateMockData()); // Temporário: usar mock enquanto endpoint não existe
       }
     } catch (error) {
       console.error('[SALES] Erro:', error);
-      setSalesData(generateMockData());
-      if (!silent) {
-        showNotification('Usando dados de exemplo para demonstração');
-      }
+      setSalesData(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
