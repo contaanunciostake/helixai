@@ -166,12 +166,15 @@ def get_config_by_id(empresa_id):
 
         print(f"[BOT API] ========================================\n")
 
+        # Converter nicho enum para string
+        nicho_str = empresa.nicho.value if empresa.nicho else 'outros'
+
         return jsonify({
             'success': True,
             'data': {
                 'empresaId': empresa.id,
                 'empresaNome': empresa.nome,
-                'nicho': empresa.nicho or empresa.tipo_negocio or 'outros',
+                'nicho': nicho_str,
                 'botAtivo': empresa.bot_ativo if empresa.bot_ativo is not None else True,
                 'autoRespostaAtiva': config.auto_resposta_ativa if config else True,
                 'enviarAudio': config.enviar_audio if config else False,
