@@ -46,7 +46,7 @@ def get_empresa_id():
 
 @varejo_api_bp.route('/clientes/listar', methods=['GET'])
 def listar_clientes():
-    """Lista todos os clientes de uma empresa"""
+    """Lista todos os clientes de uma empresa com total de compras calculado"""
     try:
         empresa_id = get_empresa_id()
         if not empresa_id:
@@ -54,32 +54,52 @@ def listar_clientes():
 
         session = db_manager.get_session()
         try:
-            clientes = session.query(Cliente).filter(
-                Cliente.empresa_id == empresa_id
-            ).order_by(Cliente.nome).all()
+            # Query com cálculo de total_compras e última compra baseado nos pedidos
+            from sqlalchemy import text
+            result = session.execute(text('''
+                SELECT
+                    c.id, c.nome, c.tipo, c.cpf_cnpj, c.email, c.telefone, c.celular,
+                    c.endereco, c.numero, c.complemento, c.bairro, c.cidade, c.estado, c.cep,
+                    c.observacoes, c.ativo,
+                    COALESCE(SUM(p.total), 0) as total_compras,
+                    MAX(p.criado_em) as ultima_compra,
+                    COUNT(p.id) as qtd_pedidos
+                FROM clientes c
+                LEFT JOIN pedidos p ON p.cliente_id = c.id
+                WHERE c.empresa_id = :empresa_id
+                GROUP BY c.id, c.nome, c.tipo, c.cpf_cnpj, c.email, c.telefone, c.celular,
+                         c.endereco, c.numero, c.complemento, c.bairro, c.cidade, c.estado, c.cep,
+                         c.observacoes, c.ativo
+                ORDER BY c.nome
+            '''), {'empresa_id': empresa_id})
+
+            clientes = []
+            for row in result.fetchall():
+                clientes.append({
+                    'id': row[0],
+                    'nome': row[1],
+                    'tipo': row[2] or 'PF',
+                    'cpf_cnpj': row[3] or '',
+                    'email': row[4] or '',
+                    'telefone': row[5] or '',
+                    'celular': row[6] or '',
+                    'endereco': row[7] or '',
+                    'numero': row[8] or '',
+                    'complemento': row[9] or '',
+                    'bairro': row[10] or '',
+                    'cidade': row[11] or '',
+                    'estado': row[12] or '',
+                    'cep': row[13] or '',
+                    'observacoes': row[14] or '',
+                    'ativo': row[15] if row[15] is not None else True,
+                    'total_compras': float(row[16] or 0),
+                    'ultima_compra': row[17].isoformat() if row[17] else None,
+                    'qtd_pedidos': row[18] or 0
+                })
 
             return jsonify({
                 'success': True,
-                'clientes': [{
-                    'id': c.id,
-                    'nome': c.nome,
-                    'tipo': getattr(c, 'tipo', 'PJ'),
-                    'cpf_cnpj': getattr(c, 'cpf_cnpj', '') or getattr(c, 'cnpj', '') or getattr(c, 'cpf', ''),
-                    'email': c.email,
-                    'telefone': c.telefone,
-                    'celular': getattr(c, 'celular', ''),
-                    'endereco': getattr(c, 'endereco', ''),
-                    'numero': getattr(c, 'numero', ''),
-                    'complemento': getattr(c, 'complemento', ''),
-                    'bairro': getattr(c, 'bairro', ''),
-                    'cidade': getattr(c, 'cidade', ''),
-                    'estado': getattr(c, 'estado', ''),
-                    'cep': getattr(c, 'cep', ''),
-                    'observacoes': getattr(c, 'observacoes', ''),
-                    'ativo': getattr(c, 'ativo', True),
-                    'total_compras': getattr(c, 'total_compras', 0),
-                    'ultima_compra': str(getattr(c, 'ultima_compra', '')) if getattr(c, 'ultima_compra', None) else None
-                } for c in clientes],
+                'clientes': clientes,
                 'total': len(clientes)
             })
         finally:
@@ -87,6 +107,8 @@ def listar_clientes():
 
     except Exception as e:
         print(f'[VAREJO-API] Erro ao listar clientes: {e}')
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
