@@ -37,8 +37,13 @@ import botSelector from './bot-selector-by-niche.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Path do banco SQLite (mesmo que o Flask usa)
+// Path do banco SQLite (fallback para desenvolvimento local)
 const SQLITE_DB_PATH = join(__dirname, '..', 'backend', 'vendeai.db');
+
+// URL do Backend API (usar variável de ambiente em produção)
+const BACKEND_API_URL = process.env.BACKEND_API_URL ||
+  (process.env.NODE_ENV === 'production' ? 'https://vendefacil-backend.onrender.com' : 'http://localhost:5000');
+
 import VendeAIBotWrapper from './vendeai-bot-wrapper.js';
 
 class IntegratedSessionManager {
@@ -654,10 +659,81 @@ ${veiculo.descricao || ''}`;
   }
 
   /**
-   * Obter configuração da empresa do banco
+   * Obter configuração da empresa via API HTTP (produção) ou SQLite (local)
    * @private
    */
   async _getEmpresaConfig(empresaId) {
+    // Em produção, usar API HTTP do backend
+    if (process.env.NODE_ENV === 'production' || process.env.USE_HTTP_API === 'true') {
+      return this._getEmpresaConfigViaAPI(empresaId);
+    }
+
+    // Em desenvolvimento, usar SQLite local
+    return this._getEmpresaConfigViaSQLite(empresaId);
+  }
+
+  /**
+   * Obter configuração via API HTTP do backend
+   * @private
+   */
+  async _getEmpresaConfigViaAPI(empresaId) {
+    try {
+      console.log(`[SESSION-MANAGER] 🌐 Buscando config via API: ${BACKEND_API_URL}/api/bot/config/${empresaId}`);
+
+      const response = await fetch(`${BACKEND_API_URL}/api/bot/config/${empresaId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      if (!response.ok) {
+        console.error(`[SESSION-MANAGER] ❌ API retornou ${response.status}`);
+
+        // Se API falhar, tentar SQLite como fallback
+        console.log(`[SESSION-MANAGER] 🔄 Tentando fallback SQLite...`);
+        return this._getEmpresaConfigViaSQLite(empresaId);
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.data) {
+        console.warn(`[SESSION-MANAGER] ⚠️ API não retornou dados para empresa ${empresaId}`);
+        return null;
+      }
+
+      const config = data.data;
+      console.log(`[SESSION-MANAGER] ✅ Config via API: empresa ${empresaId}: ${config.empresaNome}, nicho: ${config.nicho}`);
+
+      return {
+        empresa_id: empresaId,
+        empresa_nome: config.empresaNome,
+        nicho: config.nicho,
+        bot_ativo: config.botAtivo ?? 1,
+        auto_resposta_ativa: config.autoRespostaAtiva ?? 1,
+        enviar_audio: config.enviarAudio ?? 0,
+        usar_elevenlabs: config.usarElevenlabs ?? 0,
+        openai_api_key: config.openaiApiKey,
+        anthropic_api_key: config.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+        elevenlabs_api_key: config.elevenlabsApiKey,
+        elevenlabs_voice_id: config.elevenlabsVoiceId
+      };
+    } catch (error) {
+      console.error(`[SESSION-MANAGER] ❌ Erro ao buscar config via API:`, error.message);
+
+      // Fallback para SQLite se disponível
+      console.log(`[SESSION-MANAGER] 🔄 Tentando fallback SQLite...`);
+      return this._getEmpresaConfigViaSQLite(empresaId);
+    }
+  }
+
+  /**
+   * Obter configuração via SQLite local (desenvolvimento)
+   * @private
+   */
+  async _getEmpresaConfigViaSQLite(empresaId) {
     try {
       await this.initDB();
 
@@ -669,18 +745,18 @@ ${veiculo.descricao || ''}`;
           WHERE e.id = ?
         `, [empresaId], (err, row) => {
           if (err) {
-            console.error(`[SESSION-MANAGER] ❌ Erro ao buscar config:`, err);
+            console.error(`[SESSION-MANAGER] ❌ Erro SQLite ao buscar config:`, err);
             resolve(null);
             return;
           }
 
           if (!row) {
-            console.warn(`[SESSION-MANAGER] ⚠️ Empresa ${empresaId} não encontrada`);
+            console.warn(`[SESSION-MANAGER] ⚠️ Empresa ${empresaId} não encontrada no SQLite`);
             resolve(null);
             return;
           }
 
-          console.log(`[SESSION-MANAGER] ✅ Config empresa ${empresaId}: ${row.nome}, nicho: ${row.nicho}`);
+          console.log(`[SESSION-MANAGER] ✅ Config SQLite empresa ${empresaId}: ${row.nome}, nicho: ${row.nicho}`);
           resolve({
             empresa_id: row.id,
             empresa_nome: row.nome,
@@ -697,7 +773,7 @@ ${veiculo.descricao || ''}`;
         });
       });
     } catch (error) {
-      console.error(`[SESSION-MANAGER] ❌ Erro ao buscar config:`, error);
+      console.error(`[SESSION-MANAGER] ❌ Erro SQLite ao buscar config:`, error);
       return null;
     }
   }

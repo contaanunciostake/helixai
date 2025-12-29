@@ -139,6 +139,58 @@ def get_config():
         session.close()
 
 
+@bp.route('/config/<int:empresa_id>', methods=['GET'])
+def get_config_by_id(empresa_id):
+    """Busca configuração da empresa pelo ID (usado pelo WhatsApp Service)"""
+    print(f"\n[BOT API] ========================================")
+    print(f"[BOT API] GET /api/bot/config/{empresa_id}")
+
+    session = db_manager.get_session()
+    try:
+        # Buscar empresa pelo ID
+        empresa = session.query(Empresa).filter(Empresa.id == empresa_id).first()
+
+        if not empresa:
+            print(f"[BOT API] Empresa {empresa_id} não encontrada")
+            print(f"[BOT API] ========================================\n")
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        print(f"[BOT API] Empresa encontrada: {empresa.nome} (ID: {empresa.id})")
+
+        # Buscar configuração
+        print(f"[BOT API] Buscando configuracao do bot...")
+        config = session.query(ConfiguracaoBot).filter_by(empresa_id=empresa.id).first()
+
+        if not config:
+            print(f"[BOT API] Configuracao nao encontrada, usando valores padrão...")
+
+        print(f"[BOT API] ========================================\n")
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'empresaId': empresa.id,
+                'empresaNome': empresa.nome,
+                'nicho': empresa.nicho or empresa.tipo_negocio or 'outros',
+                'botAtivo': empresa.bot_ativo if empresa.bot_ativo is not None else True,
+                'autoRespostaAtiva': config.auto_resposta_ativa if config else True,
+                'enviarAudio': config.enviar_audio if config else False,
+                'usarElevenlabs': False,
+                'openaiApiKey': config.openai_api_key if config else None,
+                'anthropicApiKey': config.anthropic_api_key if config and hasattr(config, 'anthropic_api_key') else None,
+                'elevenlabsApiKey': config.elevenlabs_api_key if config else None,
+                'elevenlabsVoiceId': config.elevenlabs_voice_id if config else None
+            }
+        })
+
+    except Exception as e:
+        print(f"[BOT API] ERRO CRITICO: {str(e)}")
+        print(f"[BOT API] ========================================\n")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
 @bp.route('/mensagens', methods=['POST'])
 def salvar_mensagem():
     """Salva mensagem no banco"""

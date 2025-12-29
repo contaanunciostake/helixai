@@ -591,88 +591,65 @@ print("\n[API] Registrando rotas de notificações para gerente...")
 @bp.route('/empresa/notificacoes/<int:empresa_id>', methods=['GET'])
 def get_notificacoes_gerente(empresa_id):
     """API: Obter configurações de notificação do gerente"""
-    import sqlite3
+    session = db_manager.get_session()
     try:
-        db_path = Path(__file__).parent.parent / 'vendeai.db'
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+        empresa = session.query(Empresa).filter(Empresa.id == empresa_id).first()
 
-        cursor.execute('''
-            SELECT numero_gerente, notificar_vendas, notificar_leads,
-                   notificar_entregas, notificar_estoque
-            FROM empresas WHERE id = ?
-        ''', (empresa_id,))
-
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
+        if not empresa:
             return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
 
         return jsonify({
             'success': True,
             'data': {
-                'numero_gerente': row[0],
-                'notificar_vendas': bool(row[1]) if row[1] is not None else True,
-                'notificar_leads': bool(row[2]) if row[2] is not None else True,
-                'notificar_entregas': bool(row[3]) if row[3] is not None else True,
-                'notificar_estoque': bool(row[4]) if row[4] is not None else False
+                'numero_gerente': getattr(empresa, 'numero_gerente', None),
+                'notificar_vendas': getattr(empresa, 'notificar_vendas', True),
+                'notificar_leads': getattr(empresa, 'notificar_leads', True),
+                'notificar_entregas': getattr(empresa, 'notificar_entregas', True),
+                'notificar_estoque': getattr(empresa, 'notificar_estoque', False)
             }
         })
     except Exception as e:
         print(f"[API] Erro ao obter notificações: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 @bp.route('/empresa/notificacoes/<int:empresa_id>', methods=['POST'])
 def salvar_notificacoes_gerente(empresa_id):
     """API: Salvar configurações de notificação do gerente"""
-    import sqlite3
+    session = db_manager.get_session()
     try:
         data = request.get_json()
-        db_path = Path(__file__).parent.parent / 'vendeai.db'
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
 
         # Verificar se empresa existe
-        cursor.execute('SELECT id FROM empresas WHERE id = ?', (empresa_id,))
-        if not cursor.fetchone():
-            conn.close()
+        empresa = session.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
             return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
 
-        # Construir update dinâmico
-        updates = []
-        values = []
-
+        # Atualizar campos se existirem nos dados
         if 'numero_gerente' in data:
-            updates.append('numero_gerente = ?')
-            values.append(data['numero_gerente'])
+            empresa.numero_gerente = data['numero_gerente']
         if 'notificar_vendas' in data:
-            updates.append('notificar_vendas = ?')
-            values.append(1 if data['notificar_vendas'] else 0)
+            empresa.notificar_vendas = data['notificar_vendas']
         if 'notificar_leads' in data:
-            updates.append('notificar_leads = ?')
-            values.append(1 if data['notificar_leads'] else 0)
+            empresa.notificar_leads = data['notificar_leads']
         if 'notificar_entregas' in data:
-            updates.append('notificar_entregas = ?')
-            values.append(1 if data['notificar_entregas'] else 0)
+            empresa.notificar_entregas = data['notificar_entregas']
         if 'notificar_estoque' in data:
-            updates.append('notificar_estoque = ?')
-            values.append(1 if data['notificar_estoque'] else 0)
+            empresa.notificar_estoque = data['notificar_estoque']
 
-        if updates:
-            values.append(empresa_id)
-            cursor.execute(f"UPDATE empresas SET {', '.join(updates)} WHERE id = ?", values)
-            conn.commit()
-
-        conn.close()
+        session.commit()
 
         return jsonify({
             'success': True,
             'message': 'Configurações de notificação salvas com sucesso!'
         })
     except Exception as e:
+        session.rollback()
         print(f"[API] Erro ao salvar notificações: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
 
 @bp.route('/empresa/notificacoes/enviar', methods=['POST'])
 def enviar_notificacao_gerente():
