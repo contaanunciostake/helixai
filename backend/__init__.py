@@ -251,6 +251,18 @@ def run_database_migrations():
                 if 'already exists' not in str(e).lower():
                     print(f"[MIGRATION] Aviso {col_name}: {e}")
 
+        # 1.5. Adicionar valores faltantes ao enum nichoempresa
+        enum_values_to_add = ['LOJA_TINTAS', 'OUTROS']
+        for enum_val in enum_values_to_add:
+            try:
+                session.execute(text(f"ALTER TYPE nichoempresa ADD VALUE IF NOT EXISTS '{enum_val}'"))
+                session.commit()
+                print(f"[MIGRATION] OK enum nichoempresa.{enum_val}")
+            except Exception as e:
+                session.rollback()
+                if 'already exists' not in str(e).lower() and 'does not exist' not in str(e).lower():
+                    print(f"[MIGRATION] Aviso enum {enum_val}: {e}")
+
         # 2. Criar tabela PLANOS
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS planos (
