@@ -145,7 +145,12 @@ def login():
 
 
 @bp.route('/definir-senha', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=['http://localhost:5177'], methods=['POST', 'OPTIONS'], allow_headers=['Content-Type', 'Authorization'], supports_credentials=True)
+@cross_origin(origins=[
+    'http://localhost:5177',
+    'https://vendefacil-mmzx.onrender.com',
+    'https://vendefacil-client.onrender.com',
+    'https://vendefacil-admin.onrender.com'
+], methods=['POST', 'OPTIONS'], allow_headers=['Content-Type', 'Authorization'], supports_credentials=True)
 def definir_senha():
     """
     Define senha para usuário após pagamento
