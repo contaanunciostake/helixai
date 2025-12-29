@@ -73,13 +73,42 @@ function App() {
 
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
+  // Detectar URL do backend dinamicamente
+  const getBackendUrl = () => {
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL
+    }
+    if (typeof window !== 'undefined' &&
+        (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+      return 'https://vendefacil-backend.onrender.com'
+    }
+    return 'http://localhost:5000'
+  }
+
+  // URLs dos painéis
+  const getClientPanelUrl = () => {
+    if (typeof window !== 'undefined' &&
+        (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+      return 'https://vendefacil-mmzx.onrender.com'
+    }
+    return 'http://localhost:5177'
+  }
+
+  const getAdminPanelUrl = () => {
+    if (typeof window !== 'undefined' &&
+        (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+      return 'https://vendefacil-admin.onrender.com'
+    }
+    return 'http://localhost:5175'
+  }
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setLoginError('')
     setIsLoggingIn(true)
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${getBackendUrl()}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, senha: password })
@@ -106,13 +135,13 @@ function App() {
         console.log('[Landing] empresa_id:', userData.empresa_id)
 
         if (userData.tipo === 'super_admin') {
-          // Super Admin -> Painel Admin (5175)
+          // Super Admin -> Painel Admin
           console.log('[Landing] Redirecionando para Admin Panel')
-          window.location.href = `http://localhost:5175/dashboard?auth=${authData}`
+          window.location.href = `${getAdminPanelUrl()}/dashboard?auth=${authData}`
         } else {
-          // Cliente -> Painel Cliente (5177)
+          // Cliente -> Painel Cliente
           console.log('[Landing] Redirecionando para Client Panel')
-          window.location.href = `http://localhost:5177?auth=${authData}`
+          window.location.href = `${getClientPanelUrl()}?auth=${authData}`
         }
       } else {
         setLoginError(result.message || 'Email ou senha incorretos')
