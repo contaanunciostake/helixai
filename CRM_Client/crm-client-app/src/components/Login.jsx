@@ -1,6 +1,20 @@
 import { useState, useEffect } from 'react'
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api/auth'
+// Detectar URL da API baseado no ambiente
+const getApiUrl = () => {
+  // Se variável de ambiente estiver definida, usar ela
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL + '/api/auth'
+  }
+  // Em produção (Render), usar URL do backend
+  if (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com')) {
+    return 'https://vendefacil-backend.onrender.com/api/auth'
+  }
+  // Local development
+  return 'http://localhost:5000/api/auth'
+}
+
+const API_URL = getApiUrl()
 
 export function Login({ onLogin }) {
   // Estados gerais

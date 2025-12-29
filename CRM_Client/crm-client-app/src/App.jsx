@@ -55,9 +55,16 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import './App.css'
 
 // Configuração da API do VendeAI Backend
-// URLs dinâmicas baseadas no ambiente
-const BOT_API_BASE = import.meta.env.VITE_BOT_API_URL || 'http://localhost:3010'
-const BOT_WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:3010/ws'
+// Detectar URLs baseado no ambiente (produção vs desenvolvimento)
+const isProduction = typeof window !== 'undefined' &&
+  (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))
+
+const BOT_API_BASE = import.meta.env.VITE_BOT_API_URL ||
+  (isProduction ? 'https://vendefacil-whatsapp.onrender.com' : 'http://localhost:3010')
+const BOT_WS_BASE = import.meta.env.VITE_WS_URL ||
+  (isProduction ? 'wss://vendefacil-whatsapp.onrender.com/ws' : 'ws://localhost:3010/ws')
+const BACKEND_API_BASE = import.meta.env.VITE_API_URL ||
+  (isProduction ? 'https://vendefacil-backend.onrender.com' : 'http://localhost:5000')
 
 // ✅ Bots específicos por nicho
 const BOTS_CONFIG = {
