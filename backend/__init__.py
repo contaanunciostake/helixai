@@ -238,6 +238,7 @@ def run_database_migrations():
             ("notificar_leads", "INTEGER DEFAULT 1"),
             ("notificar_entregas", "INTEGER DEFAULT 1"),
             ("notificar_estoque", "INTEGER DEFAULT 0"),
+            ("setup_completo", "BOOLEAN DEFAULT FALSE"),
         ]
 
         for col_name, col_type in colunas_empresas:
