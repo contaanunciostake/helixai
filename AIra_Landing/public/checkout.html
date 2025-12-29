@@ -2861,21 +2861,15 @@
 
                         case 'pending':
                         case 'in_process':
-                            const pendingMessages = {
-                                'pending_contingency': 'Pagamento em análise. Aguarde a confirmação.',
-                                'pending_review_manual': 'Pagamento sendo revisado manualmente.',
-                                'pending_waiting_payment': 'Aguardando pagamento.',
-                                'pending_waiting_transfer': 'Aguardando transferência bancária.',
-                                'in_process': 'Pagamento sendo processado.'
-                            };
-                            const pendingMsg = pendingMessages[result.status_detail] || 'Pagamento pendente.';
-                            showAlert(`⏳ ${pendingMsg} Você receberá um email de confirmação.`, 'info');
-                            console.log('[Checkout] Pagamento pendente - Status detail:', result.status_detail);
+                            // Pagamento pendente - redirecionar mesmo assim para criar conta
+                            // A confirmação será feita via webhook do Mercado Pago
+                            showAlert('⏳ Pagamento sendo processado. Redirecionando para criar sua conta...', 'info');
+                            console.log('[Checkout] Pagamento pendente - Redirecionando para setup. Status:', result.status_detail);
 
-                            // Opcionalmente redirecionar para página de pending
+                            const pendingToken = result.token_definir_senha || '';
                             setTimeout(() => {
-                                showAlert('Verifique seu email para acompanhar o status do pagamento.', 'info');
-                            }, 3000);
+                                window.location.href = `https://vendefacil-mmzx.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(pendingToken)}&from=payment&status=pending`;
+                            }, 2000);
                             break;
 
                         case 'rejected':
