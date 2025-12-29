@@ -8,6 +8,20 @@ import {
   Palette
 } from 'lucide-react';
 
+// Detectar URL da API baseado no ambiente
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const API_URL = getApiUrl()
+
 const Setup = ({ onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -126,7 +140,7 @@ const Setup = ({ onComplete }) => {
       const user = JSON.parse(userStr);
       const token = localStorage.getItem('crm_token') || user.token;
 
-      const response = await fetch('/api/empresa/setup', {
+      const response = await fetch(`${API_URL}/api/empresa/setup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
