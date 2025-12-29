@@ -1676,6 +1676,243 @@ def get_performance_report(empresa_id):
         session.close()
 
 
+# ══════════════════════════════════════════════════════════════
+# CONFIGURAÇÕES DA EMPRESA API
+# ══════════════════════════════════════════════════════════════
+
+import json
+
+@bp.route('/empresa/config', methods=['GET'])
+def obter_config_empresa():
+    """
+    GET /api/empresa/config?empresa_id=X
+    Obtém configurações da empresa para a página Minha Loja
+    """
+    session = db_manager.get_session()
+    try:
+        empresa_id = request.args.get('empresa_id') or request.headers.get('X-Empresa-ID')
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
+
+        # Buscar dados da empresa
+        result = session.execute(text('''
+            SELECT id, nome, nome_fantasia, cnpj, telefone, email,
+                   endereco, cidade, estado, cep, whatsapp_numero
+            FROM empresas
+            WHERE id = :empresa_id
+        '''), {'empresa_id': empresa_id})
+
+        row = result.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        # Buscar configurações do bot se existir
+        config_bot = None
+        try:
+            result_bot = session.execute(text('''
+                SELECT horario_atendimento, mensagem_boas_vindas, mensagem_ausencia,
+                       descricao_empresa, config_json
+                FROM configuracoes_bot
+                WHERE empresa_id = :empresa_id
+            '''), {'empresa_id': empresa_id})
+            config_bot = result_bot.fetchone()
+        except Exception as e:
+            print(f'[CONFIG API] Tabela configuracoes_bot não existe ou erro: {e}')
+
+        # Montar resposta com configurações
+        config = {
+            'nome': row[1] or '',
+            'nome_fantasia': row[2] or '',
+            'cnpj': row[3] or '',
+            'telefone': row[4] or '',
+            'email': row[5] or '',
+            'endereco': row[6] or '',
+            'cidade': row[7] or '',
+            'estado': row[8] or '',
+            'cep': row[9] or '',
+            'celular': row[10] or '',
+            'horario_abertura': '08:00',
+            'horario_fechamento': '18:00',
+            'dias_funcionamento': ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+            'aceita_cartao': True,
+            'aceita_pix': True,
+            'aceita_boleto': True,
+            'aceita_dinheiro': True,
+            'prazo_entrega': '1-3 dias úteis',
+            'taxa_entrega': 0,
+            'entrega_gratis_acima': 500,
+            'mensagem_boas_vindas': '',
+            'mensagem_ausencia': '',
+            'sobre_empresa': ''
+        }
+
+        # Se tem configurações do bot, atualizar
+        if config_bot:
+            horario = config_bot[0] or ''
+            if horario and ' às ' in horario:
+                partes = horario.replace('h', '').split(' às ')
+                config['horario_abertura'] = partes[0].strip()
+                config['horario_fechamento'] = partes[1].strip()
+
+            config['mensagem_boas_vindas'] = config_bot[1] or ''
+            config['mensagem_ausencia'] = config_bot[2] or ''
+
+            # Parsear config_json se existir
+            config_json = config_bot[4] if len(config_bot) > 4 else None
+            if config_json:
+                try:
+                    extras = json.loads(config_json) if isinstance(config_json, str) else config_json
+                    config.update(extras)
+                except:
+                    pass
+
+            # Parsear descricao_empresa se for JSON
+            descricao = config_bot[3] or ''
+            if descricao and descricao.startswith('{'):
+                try:
+                    extras = json.loads(descricao)
+                    config.update(extras)
+                except:
+                    config['sobre_empresa'] = descricao
+            else:
+                config['sobre_empresa'] = descricao
+
+        print(f'[CONFIG API] Config carregada para empresa {empresa_id}')
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+
+    except Exception as e:
+        print(f'[CONFIG API] Erro ao obter config empresa: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/empresa/config', methods=['POST'])
+def salvar_config_empresa():
+    """
+    POST /api/empresa/config
+    Salva configurações da empresa
+    """
+    session = db_manager.get_session()
+    try:
+        data = request.get_json()
+        empresa_id = data.get('empresa_id') or request.headers.get('X-Empresa-ID')
+
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
+
+        # Atualizar dados básicos da empresa
+        session.execute(text('''
+            UPDATE empresas SET
+                nome = :nome,
+                nome_fantasia = :nome_fantasia,
+                cnpj = :cnpj,
+                telefone = :telefone,
+                email = :email,
+                endereco = :endereco,
+                cidade = :cidade,
+                estado = :estado,
+                cep = :cep,
+                whatsapp_numero = :celular
+            WHERE id = :empresa_id
+        '''), {
+            'nome': data.get('nome', ''),
+            'nome_fantasia': data.get('nome_fantasia', ''),
+            'cnpj': data.get('cnpj', ''),
+            'telefone': data.get('telefone', ''),
+            'email': data.get('email', ''),
+            'endereco': data.get('endereco', ''),
+            'cidade': data.get('cidade', ''),
+            'estado': data.get('estado', ''),
+            'cep': data.get('cep', ''),
+            'celular': data.get('celular', ''),
+            'empresa_id': empresa_id
+        })
+
+        # Montar horário de atendimento
+        horario_abertura = data.get('horario_abertura', '08:00')
+        horario_fechamento = data.get('horario_fechamento', '18:00')
+        horario_atendimento = f"{horario_abertura} às {horario_fechamento}"
+
+        # Montar configurações extras como JSON
+        config_json = json.dumps({
+            'numero': data.get('numero', ''),
+            'complemento': data.get('complemento', ''),
+            'bairro': data.get('bairro', ''),
+            'dias_funcionamento': data.get('dias_funcionamento', []),
+            'aceita_cartao': data.get('aceita_cartao', True),
+            'aceita_pix': data.get('aceita_pix', True),
+            'aceita_boleto': data.get('aceita_boleto', True),
+            'aceita_dinheiro': data.get('aceita_dinheiro', True),
+            'prazo_entrega': data.get('prazo_entrega', ''),
+            'taxa_entrega': data.get('taxa_entrega', 0),
+            'entrega_gratis_acima': data.get('entrega_gratis_acima', 0),
+            'sobre_empresa': data.get('sobre_empresa', '')
+        }, ensure_ascii=False)
+
+        # Tentar atualizar/inserir configuracoes_bot
+        try:
+            # Verificar se já existe
+            result = session.execute(text(
+                'SELECT id FROM configuracoes_bot WHERE empresa_id = :empresa_id'
+            ), {'empresa_id': empresa_id})
+            config_existe = result.fetchone()
+
+            if config_existe:
+                session.execute(text('''
+                    UPDATE configuracoes_bot SET
+                        horario_atendimento = :horario,
+                        mensagem_boas_vindas = :boas_vindas,
+                        mensagem_ausencia = :ausencia,
+                        config_json = :config_json
+                    WHERE empresa_id = :empresa_id
+                '''), {
+                    'horario': horario_atendimento,
+                    'boas_vindas': data.get('mensagem_boas_vindas', ''),
+                    'ausencia': data.get('mensagem_ausencia', ''),
+                    'config_json': config_json,
+                    'empresa_id': empresa_id
+                })
+            else:
+                session.execute(text('''
+                    INSERT INTO configuracoes_bot (
+                        empresa_id, horario_atendimento, mensagem_boas_vindas,
+                        mensagem_ausencia, config_json
+                    ) VALUES (:empresa_id, :horario, :boas_vindas, :ausencia, :config_json)
+                '''), {
+                    'empresa_id': empresa_id,
+                    'horario': horario_atendimento,
+                    'boas_vindas': data.get('mensagem_boas_vindas', ''),
+                    'ausencia': data.get('mensagem_ausencia', ''),
+                    'config_json': config_json
+                })
+        except Exception as e:
+            print(f'[CONFIG API] Erro ao salvar configuracoes_bot (tabela pode não existir): {e}')
+            # Continua mesmo sem a tabela configuracoes_bot
+
+        session.commit()
+        print(f'[CONFIG API] Config empresa {empresa_id} salva com sucesso')
+
+        return jsonify({
+            'success': True,
+            'message': 'Configurações salvas com sucesso'
+        })
+
+    except Exception as e:
+        session.rollback()
+        print(f'[CONFIG API] Erro ao salvar config empresa: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
 @bp.route('/docs')
 def docs():
     """Documentação da API"""
@@ -1692,6 +1929,7 @@ def docs():
             '/api/appointments/<empresa_id>': 'GET - Lista de agendamentos para relatórios',
             '/api/financings/<empresa_id>': 'GET - Lista de pedidos/vendas para relatórios',
             '/api/performance/<empresa_id>': 'GET - Métricas de performance para relatórios',
+            '/api/empresa/config': 'GET/POST - Configurações da empresa (Minha Loja)',
             '/api/bot-config/<empresa_id>': 'GET - Configuração do bot',
             '/api/empresa/bot/toggle': 'POST - Ativar/Desativar bot (Body: {"empresa_id": 5, "bot_ativo": true})',
             '/api/empresa/check-setup/<empresa_id>': 'GET - Verificar status de setup da empresa',
