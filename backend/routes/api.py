@@ -1929,6 +1929,20 @@ def get_loja_virtual_config():
         if not empresa:
             return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
 
+        # Extrair horarios do JSON
+        horario_func = getattr(empresa, 'horario_funcionamento', None) or {}
+        horario_abertura = '08:00'
+        horario_fechamento = '18:00'
+        dias_func = []
+        if isinstance(horario_func, dict):
+            for dia, horarios in horario_func.items():
+                if horarios:
+                    dias_func.append(dia)
+                    if 'abre' in horarios:
+                        horario_abertura = horarios['abre']
+                    if 'fecha' in horarios:
+                        horario_fechamento = horarios['fecha']
+
         config = {
             'slug': getattr(empresa, 'slug', '') or '',
             'logo_url': getattr(empresa, 'logo_url', '') or '',
@@ -1942,11 +1956,11 @@ def get_loja_virtual_config():
             'pedido_minimo': getattr(empresa, 'pedido_minimo', 0) or 0,
             'tempo_entrega': getattr(empresa, 'tempo_entrega', '30-60 min') or '30-60 min',
             'raio_entrega_km': getattr(empresa, 'raio_entrega_km', 10) or 10,
-            'aceita_retirada': getattr(empresa, 'aceita_retirada', True),
-            'aceita_entrega': getattr(empresa, 'aceita_entrega', True),
-            'horario_abertura': getattr(empresa, 'horario_abertura', '08:00') or '08:00',
-            'horario_fechamento': getattr(empresa, 'horario_fechamento', '22:00') or '22:00',
-            'dias_funcionamento': getattr(empresa, 'dias_funcionamento', ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']) or ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+            'aceita_retirada': True,
+            'aceita_entrega': getattr(empresa, 'entrega_ativa', True),
+            'horario_abertura': horario_abertura,
+            'horario_fechamento': horario_fechamento,
+            'dias_funcionamento': dias_func or ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
             'whatsapp_numero': getattr(empresa, 'whatsapp_numero', '') or empresa.telefone or '',
             'instagram': getattr(empresa, 'instagram', '') or '',
             'facebook': getattr(empresa, 'facebook', '') or '',
@@ -2006,16 +2020,20 @@ def salvar_loja_virtual_config():
             empresa.tempo_entrega = data['tempo_entrega']
         if 'raio_entrega_km' in data:
             empresa.raio_entrega_km = int(data['raio_entrega_km'] or 10)
-        if 'aceita_retirada' in data:
-            empresa.aceita_retirada = data['aceita_retirada']
         if 'aceita_entrega' in data:
-            empresa.aceita_entrega = data['aceita_entrega']
-        if 'horario_abertura' in data:
-            empresa.horario_abertura = data['horario_abertura']
-        if 'horario_fechamento' in data:
-            empresa.horario_fechamento = data['horario_fechamento']
-        if 'dias_funcionamento' in data:
-            empresa.dias_funcionamento = data['dias_funcionamento']
+            empresa.entrega_ativa = data['aceita_entrega']
+        # Converter campos de horario para JSON
+        if 'horario_abertura' in data or 'horario_fechamento' in data or 'dias_funcionamento' in data:
+            horario_abertura = data.get('horario_abertura', '08:00')
+            horario_fechamento = data.get('horario_fechamento', '18:00')
+            dias = data.get('dias_funcionamento', ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'])
+            horario_json = {}
+            for dia in ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']:
+                if dia in dias:
+                    horario_json[dia] = {'abre': horario_abertura, 'fecha': horario_fechamento}
+                else:
+                    horario_json[dia] = None
+            empresa.horario_funcionamento = horario_json
         if 'whatsapp_numero' in data:
             empresa.whatsapp_numero = data['whatsapp_numero']
         if 'instagram' in data:
