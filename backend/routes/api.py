@@ -1913,6 +1913,195 @@ def salvar_config_empresa():
         session.close()
 
 
+# ==================== LOJA VIRTUAL PÚBLICA ====================
+print("\n[API] Registrando rotas de Loja Virtual...")
+
+@bp.route('/loja-virtual/config', methods=['GET'])
+def get_loja_virtual_config():
+    """API: Obter configurações da loja virtual"""
+    session = db_manager.get_session()
+    try:
+        empresa_id = request.args.get('empresa_id', type=int)
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
+
+        empresa = session.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        config = {
+            'slug': getattr(empresa, 'slug', '') or '',
+            'logo_url': getattr(empresa, 'logo_url', '') or '',
+            'banner_url': getattr(empresa, 'banner_url', '') or '',
+            'cor_primaria': getattr(empresa, 'cor_primaria', '#22C55E') or '#22C55E',
+            'cor_secundaria': getattr(empresa, 'cor_secundaria', '#16A34A') or '#16A34A',
+            'loja_publica_ativa': getattr(empresa, 'loja_publica_ativa', False) or False,
+            'descricao_curta': getattr(empresa, 'descricao_curta', '') or '',
+            'descricao_longa': getattr(empresa, 'descricao_longa', '') or '',
+            'taxa_entrega': getattr(empresa, 'taxa_entrega', 0) or 0,
+            'pedido_minimo': getattr(empresa, 'pedido_minimo', 0) or 0,
+            'tempo_entrega': getattr(empresa, 'tempo_entrega', '30-60 min') or '30-60 min',
+            'raio_entrega_km': getattr(empresa, 'raio_entrega_km', 10) or 10,
+            'aceita_retirada': getattr(empresa, 'aceita_retirada', True),
+            'aceita_entrega': getattr(empresa, 'aceita_entrega', True),
+            'horario_abertura': getattr(empresa, 'horario_abertura', '08:00') or '08:00',
+            'horario_fechamento': getattr(empresa, 'horario_fechamento', '22:00') or '22:00',
+            'dias_funcionamento': getattr(empresa, 'dias_funcionamento', ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']) or ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+            'whatsapp_numero': getattr(empresa, 'whatsapp_numero', '') or empresa.telefone or '',
+            'instagram': getattr(empresa, 'instagram', '') or '',
+            'facebook': getattr(empresa, 'facebook', '') or '',
+            'avaliacao_media': getattr(empresa, 'avaliacao_media', 0) or 0,
+            'total_avaliacoes': getattr(empresa, 'total_avaliacoes', 0) or 0
+        }
+
+        return jsonify({'success': True, 'config': config})
+    except Exception as e:
+        print(f'[API] Erro ao obter config loja virtual: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/loja-virtual/config', methods=['POST'])
+def salvar_loja_virtual_config():
+    """API: Salvar configurações da loja virtual"""
+    session = db_manager.get_session()
+    try:
+        data = request.get_json()
+        empresa_id = data.get('empresa_id')
+
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
+
+        empresa = session.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        # Gerar slug se não existir
+        slug = data.get('slug', '')
+        if not slug and empresa.nome_fantasia:
+            import re
+            slug = re.sub(r'[^a-z0-9]+', '-', empresa.nome_fantasia.lower()).strip('-')
+
+        # Atualizar campos
+        if slug:
+            empresa.slug = slug
+        if 'logo_url' in data:
+            empresa.logo_url = data['logo_url']
+        if 'banner_url' in data:
+            empresa.banner_url = data['banner_url']
+        if 'cor_primaria' in data:
+            empresa.cor_primaria = data['cor_primaria']
+        if 'cor_secundaria' in data:
+            empresa.cor_secundaria = data['cor_secundaria']
+        if 'descricao_curta' in data:
+            empresa.descricao_curta = data['descricao_curta']
+        if 'descricao_longa' in data:
+            empresa.descricao_longa = data['descricao_longa']
+        if 'taxa_entrega' in data:
+            empresa.taxa_entrega = float(data['taxa_entrega'] or 0)
+        if 'pedido_minimo' in data:
+            empresa.pedido_minimo = float(data['pedido_minimo'] or 0)
+        if 'tempo_entrega' in data:
+            empresa.tempo_entrega = data['tempo_entrega']
+        if 'raio_entrega_km' in data:
+            empresa.raio_entrega_km = int(data['raio_entrega_km'] or 10)
+        if 'aceita_retirada' in data:
+            empresa.aceita_retirada = data['aceita_retirada']
+        if 'aceita_entrega' in data:
+            empresa.aceita_entrega = data['aceita_entrega']
+        if 'horario_abertura' in data:
+            empresa.horario_abertura = data['horario_abertura']
+        if 'horario_fechamento' in data:
+            empresa.horario_fechamento = data['horario_fechamento']
+        if 'dias_funcionamento' in data:
+            empresa.dias_funcionamento = data['dias_funcionamento']
+        if 'whatsapp_numero' in data:
+            empresa.whatsapp_numero = data['whatsapp_numero']
+        if 'instagram' in data:
+            empresa.instagram = data['instagram']
+        if 'facebook' in data:
+            empresa.facebook = data['facebook']
+
+        session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Configurações da loja virtual salvas',
+            'slug': empresa.slug
+        })
+    except Exception as e:
+        session.rollback()
+        print(f'[API] Erro ao salvar config loja virtual: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/loja-virtual/toggle', methods=['POST'])
+def toggle_loja_virtual():
+    """API: Ativar/desativar loja virtual"""
+    session = db_manager.get_session()
+    try:
+        data = request.get_json()
+        empresa_id = data.get('empresa_id')
+        ativa = data.get('ativa', False)
+
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
+
+        empresa = session.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            return jsonify({'success': False, 'error': 'Empresa não encontrada'}), 404
+
+        empresa.loja_publica_ativa = ativa
+        session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Loja ativada' if ativa else 'Loja desativada',
+            'ativa': ativa
+        })
+    except Exception as e:
+        session.rollback()
+        print(f'[API] Erro ao toggle loja virtual: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/loja-virtual/categorias', methods=['GET'])
+def get_loja_virtual_categorias():
+    """API: Obter categorias da loja virtual"""
+    session = db_manager.get_session()
+    try:
+        empresa_id = request.args.get('empresa_id', type=int)
+        if not empresa_id:
+            return jsonify({'success': False, 'error': 'empresa_id é obrigatório'}), 400
+
+        # Buscar categorias únicas dos produtos
+        from database.models import Produto
+        produtos = session.query(Produto).filter(
+            Produto.empresa_id == empresa_id,
+            Produto.categoria != None,
+            Produto.categoria != ''
+        ).all()
+
+        categorias = list(set([p.categoria for p in produtos if p.categoria]))
+
+        return jsonify({
+            'success': True,
+            'categorias': categorias
+        })
+    except Exception as e:
+        print(f'[API] Erro ao obter categorias: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
 @bp.route('/docs')
 def docs():
     """Documentação da API"""

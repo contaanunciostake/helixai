@@ -5,7 +5,7 @@ import {
   Sparkles, Package, Send, Smile, Clock, DollarSign, BookOpen, Plug, Users,
   ChevronDown, ChevronRight, ShoppingCart, Truck, FileText, UserCheck, Factory,
   Boxes, ClipboardList, Receipt, MapPin, CreditCard, Warehouse, Tags, Calculator,
-  PieChart, Home, Wrench, Palette, Paintbrush, Droplets, History, Pipette
+  PieChart, Home, Wrench, Palette, Paintbrush, Droplets, History, Pipette, Store
 } from 'lucide-react';
 
 export function ClientLayout({ children, currentPage, onPageChange, user, onLogout, nicho }) {
@@ -92,6 +92,7 @@ export function ClientLayout({ children, currentPage, onPageChange, user, onLogo
     { id: 'team', label: 'Equipe', icon: Users },
     { id: 'reports', label: 'Relatórios', icon: BarChart3 },
     { id: 'separator-5', isSeparator: true, label: 'CONFIGURAÇÕES' },
+    { id: 'loja-virtual', label: 'Loja Virtual', icon: Store },
     { id: 'config-empresa', label: 'Minha Empresa', icon: Wrench },
   ];
 
@@ -154,6 +155,7 @@ export function ClientLayout({ children, currentPage, onPageChange, user, onLogo
     { id: 'team', label: 'Equipe', icon: Users },
     { id: 'reports', label: 'Relatorios', icon: BarChart3 },
     { id: 'separator-5', isSeparator: true, label: 'CONFIGURAÇÕES' },
+    { id: 'loja-virtual', label: 'Loja Virtual', icon: Store },
     { id: 'config-empresa', label: 'Minha Loja', icon: Wrench },
   ];
 

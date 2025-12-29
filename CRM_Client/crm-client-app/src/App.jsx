@@ -13,6 +13,7 @@ import Appointments from './components/Appointments'
 import AppointmentCalendar from './components/AppointmentCalendar'
 import { CRMVeiculos } from './components/crm/CRMVeiculos'
 import Reports from './components/Reports'
+import LojaVirtual from './components/LojaVirtual'
 // Novas páginas implementadas
 import BusinessPage from './features/business/BusinessPage'
 import IntegrationsPage from './features/integrations/IntegrationsPage'
@@ -1498,6 +1499,9 @@ function App() {
 
       case 'config-empresa':
         return <ConfiguracoesEmpresaPage user={user} />
+
+      case 'loja-virtual':
+        return <LojaVirtual user={user} />
 
       case 'agendamentos':
         return <AgendamentosPage user={user} />
