@@ -238,7 +238,7 @@ function App() {
         console.log('[CRM Cliente] 🔍 Verificando status do setup...')
         console.log('[CRM Cliente] empresa_id:', user.empresa_id)
 
-        const response = await fetch(`/api/empresa/check-setup/${user.empresa_id}`)
+        const response = await fetch(`${BACKEND_API_BASE}/api/empresa/check-setup/${user.empresa_id}`)
         const data = await response.json()
 
         console.log('[CRM Cliente] Resposta completa da API:', JSON.stringify(data, null, 2))
@@ -289,7 +289,7 @@ function App() {
       if (!user || !user.empresa_id) return
 
       console.log('[CRM Cliente] Buscando nicho da empresa...')
-      const response = await fetch(`/api/empresa/nicho/${user.empresa_id}`)
+      const response = await fetch(`${BACKEND_API_BASE}/api/empresa/nicho/${user.empresa_id}`)
       const data = await response.json()
 
       if (data.success && data.nicho) {
