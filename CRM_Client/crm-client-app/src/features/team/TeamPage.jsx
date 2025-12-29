@@ -5,7 +5,7 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -17,82 +17,65 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable } from '@/components/common/DataTable'
 import {
   Users, Plus, Edit, Trash2, Shield, Crown, User as UserIcon,
-  TrendingUp, Award, Target, Phone, Mail, Calendar
+  TrendingUp, Award, Target, Phone, Mail, Calendar, Loader2, RefreshCw
 } from 'lucide-react'
 
+// URL do Backend - detectar ambiente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com';
+  }
+  return 'http://localhost:5000';
+};
+
+const API_URL = getBackendUrl();
+
 export default function TeamPage({ user, showNotification }) {
-  const [membros, setMembros] = useState([
-    {
-      id: 1,
-      nome: 'Carlos Silva',
-      email: 'carlos@empresa.com',
-      telefone: '+55 11 99999-1111',
-      cargo: 'Gerente de Vendas',
-      role: 'admin',
-      ativo: true,
-      entrou: '2023-01-15',
-      leadsAtendidos: 145,
-      vendasFechadas: 23,
-      taxaConversao: 15.9,
-      ticketMedio: 145900,
-    },
-    {
-      id: 2,
-      nome: 'Ana Costa',
-      email: 'ana@empresa.com',
-      telefone: '+55 11 99999-2222',
-      cargo: 'Vendedora Sênior',
-      role: 'vendedor',
-      ativo: true,
-      entrou: '2023-03-20',
-      leadsAtendidos: 234,
-      vendasFechadas: 45,
-      taxaConversao: 19.2,
-      ticketMedio: 152000,
-    },
-    {
-      id: 3,
-      nome: 'Roberto Mendes',
-      email: 'roberto@empresa.com',
-      telefone: '+55 11 99999-3333',
-      cargo: 'Vendedor',
-      role: 'vendedor',
-      ativo: true,
-      entrou: '2023-06-10',
-      leadsAtendidos: 189,
-      vendasFechadas: 31,
-      taxaConversao: 16.4,
-      ticketMedio: 138500,
-    },
-    {
-      id: 4,
-      nome: 'Julia Santos',
-      email: 'julia@empresa.com',
-      telefone: '+55 11 99999-4444',
-      cargo: 'Vendedora',
-      role: 'vendedor',
-      ativo: true,
-      entrou: '2023-08-05',
-      leadsAtendidos: 167,
-      vendasFechadas: 28,
-      taxaConversao: 16.8,
-      ticketMedio: 141200,
-    },
-    {
-      id: 5,
-      nome: 'Pedro Alves',
-      email: 'pedro@empresa.com',
-      telefone: '+55 11 99999-5555',
-      cargo: 'Suporte',
-      role: 'visualizador',
-      ativo: false,
-      entrou: '2023-02-28',
-      leadsAtendidos: 0,
-      vendasFechadas: 0,
-      taxaConversao: 0,
-      ticketMedio: 0,
-    },
-  ])
+  const [membros, setMembros] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [estatisticas, setEstatisticas] = useState({
+    total_membros: 0,
+    membros_ativos: 0,
+    total_vendas: 0,
+    total_leads: 0,
+    taxa_media_conversao: 0
+  })
+
+  const empresaId = user?.empresa_id
+
+  // Carregar dados da API
+  useEffect(() => {
+    if (empresaId) {
+      loadEquipe()
+    }
+  }, [empresaId])
+
+  const loadEquipe = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`${API_URL}/api/equipe/${empresaId}`, {
+        headers: { 'X-Empresa-ID': empresaId?.toString() }
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        setMembros(data.data.membros || [])
+        setEstatisticas(data.data.estatisticas || {})
+      } else {
+        console.error('[EQUIPE] Erro:', data.error)
+        setMembros([])
+      }
+    } catch (err) {
+      console.error('[EQUIPE] Erro ao carregar:', err)
+      setMembros([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const [dialogAberto, setDialogAberto] = useState(false)
   const [membroEditando, setMembroEditando] = useState(null)
@@ -223,29 +206,52 @@ export default function TeamPage({ user, showNotification }) {
     setDialogAberto(true)
   }
 
-  const deletarMembro = (id) => {
-    if (confirm('Deseja realmente remover este membro?')) {
-      setMembros(membros.filter(m => m.id !== id))
-      showNotification?.('Membro removido!')
+  const deletarMembro = async (id) => {
+    if (confirm('Deseja realmente desativar este membro?')) {
+      try {
+        const response = await fetch(`${API_URL}/api/equipe/${empresaId}/membro/${id}`, {
+          method: 'DELETE',
+          headers: { 'X-Empresa-ID': empresaId?.toString() }
+        })
+        const data = await response.json()
+        if (data.success) {
+          showNotification?.('Membro desativado!')
+          loadEquipe() // Recarregar lista
+        } else {
+          showNotification?.('Erro ao desativar membro')
+        }
+      } catch (err) {
+        console.error('Erro ao deletar:', err)
+        showNotification?.('Erro ao desativar membro')
+      }
     }
   }
 
-  const salvarMembro = () => {
-    if (membroEditando.id) {
-      setMembros(membros.map(m => m.id === membroEditando.id ? membroEditando : m))
-      showNotification?.('Membro atualizado!')
-    } else {
-      const novoMembro = {
-        ...membroEditando,
-        id: Math.max(...membros.map(m => m.id)) + 1,
-        leadsAtendidos: 0,
-        vendasFechadas: 0,
-        taxaConversao: 0,
-        ticketMedio: 0,
-        entrou: new Date().toISOString().split('T')[0],
+  const salvarMembro = async () => {
+    try {
+      const url = membroEditando.id
+        ? `${API_URL}/api/equipe/${empresaId}/membro/${membroEditando.id}`
+        : `${API_URL}/api/equipe/${empresaId}/membro`
+
+      const response = await fetch(url, {
+        method: membroEditando.id ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Empresa-ID': empresaId?.toString()
+        },
+        body: JSON.stringify(membroEditando)
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        showNotification?.(data.message || (membroEditando.id ? 'Membro atualizado!' : 'Membro adicionado!'))
+        loadEquipe() // Recarregar lista
+      } else {
+        showNotification?.(data.error || 'Erro ao salvar membro')
       }
-      setMembros([...membros, novoMembro])
-      showNotification?.('Membro adicionado!')
+    } catch (err) {
+      console.error('Erro ao salvar:', err)
+      showNotification?.('Erro ao salvar membro')
     }
     setDialogAberto(false)
     setMembroEditando(null)
@@ -257,6 +263,18 @@ export default function TeamPage({ user, showNotification }) {
     .sort((a, b) => b.vendasFechadas - a.vendasFechadas)
     .slice(0, 3)
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Carregando equipe...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -265,24 +283,34 @@ export default function TeamPage({ user, showNotification }) {
           <h1 className="text-3xl font-bold text-white">Equipe</h1>
           <p className="text-gray-400 mt-1">Gerencie membros, permissões e performance</p>
         </div>
-        <Button
-          onClick={() => {
-            setMembroEditando({
-              id: null,
-              nome: '',
-              email: '',
-              telefone: '',
-              cargo: '',
-              role: 'vendedor',
-              ativo: true,
-            })
-            setDialogAberto(true)
-          }}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Adicionar Membro
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={loadEquipe}
+            variant="outline"
+            className="border-gray-600 text-gray-300 hover:bg-gray-700"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+          <Button
+            onClick={() => {
+              setMembroEditando({
+                id: null,
+                nome: '',
+                email: '',
+                telefone: '',
+                cargo: '',
+                role: 'vendedor',
+                ativo: true,
+              })
+              setDialogAberto(true)
+            }}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Adicionar Membro
+          </Button>
+        </div>
       </div>
 
       {/* Estatísticas */}
@@ -292,7 +320,7 @@ export default function TeamPage({ user, showNotification }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-400">Total da Equipe</p>
-                <p className="text-2xl font-bold text-white mt-1">{membros.filter(m => m.ativo).length}</p>
+                <p className="text-2xl font-bold text-white mt-1">{estatisticas.membros_ativos || membros.filter(m => m.ativo).length}</p>
               </div>
               <Users className="h-8 w-8 text-blue-500" />
             </div>
@@ -303,9 +331,9 @@ export default function TeamPage({ user, showNotification }) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Vendas no Mês</p>
+                <p className="text-sm text-gray-400">Vendas Totais</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {membros.reduce((acc, m) => acc + m.vendasFechadas, 0)}
+                  {estatisticas.total_vendas || membros.reduce((acc, m) => acc + (m.vendasFechadas || 0), 0)}
                 </p>
               </div>
               <TrendingUp className="h-8 w-8 text-green-500" />
@@ -319,7 +347,7 @@ export default function TeamPage({ user, showNotification }) {
               <div>
                 <p className="text-sm text-gray-400">Taxa Média de Conversão</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {(membros.reduce((acc, m) => acc + m.taxaConversao, 0) / membros.filter(m => m.ativo && m.role === 'vendedor').length).toFixed(1)}%
+                  {estatisticas.taxa_media_conversao || 0}%
                 </p>
               </div>
               <Target className="h-8 w-8 text-purple-500" />
@@ -331,9 +359,9 @@ export default function TeamPage({ user, showNotification }) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Ticket Médio</p>
+                <p className="text-sm text-gray-400">Total de Leads</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  R$ {Math.round(membros.reduce((acc, m) => acc + m.ticketMedio, 0) / membros.filter(m => m.ativo && m.role === 'vendedor').length / 1000)}k
+                  {estatisticas.total_leads || membros.reduce((acc, m) => acc + (m.leadsAtendidos || 0), 0)}
                 </p>
               </div>
               <Award className="h-8 w-8 text-yellow-500" />

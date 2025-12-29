@@ -1185,6 +1185,189 @@ def get_sales_dashboard(empresa_id):
         session.close()
 
 
+# ══════════════════════════════════════════════════════════════
+# EQUIPE API - Gestão de membros da equipe
+# ══════════════════════════════════════════════════════════════
+
+@bp.route('/equipe/<int:empresa_id>')
+def get_equipe(empresa_id):
+    """
+    GET /api/equipe/<empresa_id>
+    Lista membros da equipe com estatísticas de performance
+    """
+    session = db_manager.get_session()
+    try:
+        # Buscar usuários da empresa
+        result = session.execute(text('''
+            SELECT
+                u.id, u.nome, u.email, u.telefone, u.tipo, u.ativo,
+                u.criado_em, u.ultimo_acesso,
+                COUNT(DISTINCT l.id) as leads_atendidos,
+                COUNT(DISTINCT CASE WHEN l.vendido = true THEN l.id END) as vendas_fechadas,
+                COALESCE(SUM(CASE WHEN l.vendido = true THEN l.valor_venda ELSE 0 END), 0) as valor_vendas
+            FROM usuarios u
+            LEFT JOIN leads l ON l.usuario_responsavel_id = u.id
+            WHERE u.empresa_id = :empresa_id
+            GROUP BY u.id, u.nome, u.email, u.telefone, u.tipo, u.ativo, u.criado_em, u.ultimo_acesso
+            ORDER BY u.nome
+        '''), {'empresa_id': empresa_id})
+
+        membros = []
+        total_vendas = 0
+        total_leads = 0
+
+        for row in result.fetchall():
+            leads = row[8] or 0
+            vendas = row[9] or 0
+            valor = float(row[10] or 0)
+            taxa_conversao = (vendas / leads * 100) if leads > 0 else 0
+            ticket_medio = (valor / vendas) if vendas > 0 else 0
+
+            total_leads += leads
+            total_vendas += vendas
+
+            membros.append({
+                'id': row[0],
+                'nome': row[1] or 'Usuário',
+                'email': row[2] or '',
+                'telefone': row[3] or '',
+                'cargo': row[4] or 'vendedor',
+                'role': 'admin' if row[4] == 'admin_empresa' else 'vendedor',
+                'ativo': row[5] if row[5] is not None else True,
+                'entrou': row[6].strftime('%Y-%m-%d') if row[6] else None,
+                'ultimo_acesso': row[7].isoformat() if row[7] else None,
+                'leadsAtendidos': leads,
+                'vendasFechadas': vendas,
+                'taxaConversao': round(taxa_conversao, 1),
+                'ticketMedio': round(ticket_medio, 2),
+                'valorVendas': valor
+            })
+
+        # Calcular estatísticas gerais
+        membros_ativos = len([m for m in membros if m['ativo']])
+        taxa_media = (total_vendas / total_leads * 100) if total_leads > 0 else 0
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'membros': membros,
+                'estatisticas': {
+                    'total_membros': len(membros),
+                    'membros_ativos': membros_ativos,
+                    'total_vendas': total_vendas,
+                    'total_leads': total_leads,
+                    'taxa_media_conversao': round(taxa_media, 1)
+                }
+            }
+        })
+
+    except Exception as e:
+        print(f'[EQUIPE API] Erro: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/equipe/<int:empresa_id>/membro', methods=['POST'])
+def criar_membro(empresa_id):
+    """POST /api/equipe/<empresa_id>/membro - Criar novo membro"""
+    session = db_manager.get_session()
+    try:
+        data = request.get_json()
+
+        # Verificar se email já existe
+        result = session.execute(text(
+            'SELECT id FROM usuarios WHERE email = :email'
+        ), {'email': data.get('email')})
+        if result.fetchone():
+            return jsonify({'success': False, 'error': 'Email já cadastrado'}), 400
+
+        # Criar usuário
+        from werkzeug.security import generate_password_hash
+        senha_padrao = 'Vendedor@123'  # Senha padrão que deve ser alterada
+
+        session.execute(text('''
+            INSERT INTO usuarios (empresa_id, nome, email, telefone, tipo, ativo, senha_hash, criado_em)
+            VALUES (:empresa_id, :nome, :email, :telefone, :tipo, true, :senha_hash, NOW())
+        '''), {
+            'empresa_id': empresa_id,
+            'nome': data.get('nome'),
+            'email': data.get('email'),
+            'telefone': data.get('telefone', ''),
+            'tipo': 'admin_empresa' if data.get('role') == 'admin' else 'vendedor',
+            'senha_hash': generate_password_hash(senha_padrao)
+        })
+        session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Membro criado com sucesso! Senha padrão: Vendedor@123'
+        })
+
+    except Exception as e:
+        session.rollback()
+        print(f'[EQUIPE API] Erro ao criar membro: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/equipe/<int:empresa_id>/membro/<int:membro_id>', methods=['PUT'])
+def atualizar_membro(empresa_id, membro_id):
+    """PUT /api/equipe/<empresa_id>/membro/<membro_id> - Atualizar membro"""
+    session = db_manager.get_session()
+    try:
+        data = request.get_json()
+
+        session.execute(text('''
+            UPDATE usuarios
+            SET nome = :nome, email = :email, telefone = :telefone,
+                tipo = :tipo, ativo = :ativo
+            WHERE id = :id AND empresa_id = :empresa_id
+        '''), {
+            'id': membro_id,
+            'empresa_id': empresa_id,
+            'nome': data.get('nome'),
+            'email': data.get('email'),
+            'telefone': data.get('telefone', ''),
+            'tipo': 'admin_empresa' if data.get('role') == 'admin' else 'vendedor',
+            'ativo': data.get('ativo', True)
+        })
+        session.commit()
+
+        return jsonify({'success': True, 'message': 'Membro atualizado com sucesso!'})
+
+    except Exception as e:
+        session.rollback()
+        print(f'[EQUIPE API] Erro ao atualizar membro: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/equipe/<int:empresa_id>/membro/<int:membro_id>', methods=['DELETE'])
+def deletar_membro(empresa_id, membro_id):
+    """DELETE /api/equipe/<empresa_id>/membro/<membro_id> - Desativar membro"""
+    session = db_manager.get_session()
+    try:
+        session.execute(text('''
+            UPDATE usuarios SET ativo = false
+            WHERE id = :id AND empresa_id = :empresa_id
+        '''), {'id': membro_id, 'empresa_id': empresa_id})
+        session.commit()
+
+        return jsonify({'success': True, 'message': 'Membro desativado com sucesso!'})
+
+    except Exception as e:
+        session.rollback()
+        print(f'[EQUIPE API] Erro ao deletar membro: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
 @bp.route('/docs')
 def docs():
     """Documentação da API"""
@@ -1194,6 +1377,9 @@ def docs():
             '/api/stats': 'GET - Estatísticas gerais (requer autenticação)',
             '/api/stats/<empresa_id>': 'GET - Estatísticas por empresa',
             '/api/sales/<empresa_id>': 'GET - Dashboard de vendas (periodo=30)',
+            '/api/equipe/<empresa_id>': 'GET - Listar membros da equipe',
+            '/api/equipe/<empresa_id>/membro': 'POST - Criar membro',
+            '/api/equipe/<empresa_id>/membro/<id>': 'PUT/DELETE - Atualizar/Desativar membro',
             '/api/bot-config/<empresa_id>': 'GET - Configuração do bot',
             '/api/empresa/bot/toggle': 'POST - Ativar/Desativar bot (Body: {"empresa_id": 5, "bot_ativo": true})',
             '/api/empresa/check-setup/<empresa_id>': 'GET - Verificar status de setup da empresa',
