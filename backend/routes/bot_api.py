@@ -157,12 +157,30 @@ def get_config_by_id(empresa_id):
 
         print(f"[BOT API] Empresa encontrada: {empresa.nome} (ID: {empresa.id})")
 
-        # Buscar configuração
-        print(f"[BOT API] Buscando configuracao do bot...")
-        config = session.query(ConfiguracaoBot).filter_by(empresa_id=empresa.id).first()
-
-        if not config:
-            print(f"[BOT API] Configuracao nao encontrada, usando valores padrão...")
+        # Buscar configuração via SQL direto para evitar colunas que não existem
+        config_data = None
+        try:
+            from sqlalchemy import text
+            result = session.execute(text("""
+                SELECT auto_resposta_ativa, enviar_audio, openai_api_key,
+                       elevenlabs_api_key, elevenlabs_voice_id
+                FROM configuracoes_bot
+                WHERE empresa_id = :empresa_id
+                LIMIT 1
+            """), {'empresa_id': empresa_id})
+            row = result.fetchone()
+            if row:
+                config_data = {
+                    'auto_resposta_ativa': row[0] if row[0] is not None else True,
+                    'enviar_audio': row[1] if row[1] is not None else False,
+                    'openai_api_key': row[2],
+                    'elevenlabs_api_key': row[3],
+                    'elevenlabs_voice_id': row[4]
+                }
+                print(f"[BOT API] Configuracao encontrada via SQL")
+        except Exception as config_err:
+            print(f"[BOT API] Aviso: Erro ao buscar config: {config_err}")
+            config_data = None
 
         print(f"[BOT API] ========================================\n")
 
@@ -176,13 +194,13 @@ def get_config_by_id(empresa_id):
                 'empresaNome': empresa.nome,
                 'nicho': nicho_str,
                 'botAtivo': empresa.bot_ativo if empresa.bot_ativo is not None else True,
-                'autoRespostaAtiva': config.auto_resposta_ativa if config else True,
-                'enviarAudio': config.enviar_audio if config else False,
+                'autoRespostaAtiva': config_data['auto_resposta_ativa'] if config_data else True,
+                'enviarAudio': config_data['enviar_audio'] if config_data else False,
                 'usarElevenlabs': False,
-                'openaiApiKey': config.openai_api_key if config else None,
-                'anthropicApiKey': config.anthropic_api_key if config and hasattr(config, 'anthropic_api_key') else None,
-                'elevenlabsApiKey': config.elevenlabs_api_key if config else None,
-                'elevenlabsVoiceId': config.elevenlabs_voice_id if config else None
+                'openaiApiKey': config_data['openai_api_key'] if config_data else None,
+                'anthropicApiKey': None,
+                'elevenlabsApiKey': config_data['elevenlabs_api_key'] if config_data else None,
+                'elevenlabsVoiceId': config_data['elevenlabs_voice_id'] if config_data else None
             }
         })
 
