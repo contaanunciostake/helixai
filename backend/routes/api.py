@@ -1368,6 +1368,314 @@ def deletar_membro(empresa_id, membro_id):
         session.close()
 
 
+# ══════════════════════════════════════════════════════════════
+# REPORTS API - Endpoints para Relatórios
+# ══════════════════════════════════════════════════════════════
+
+@bp.route('/customers/<int:empresa_id>')
+def get_customers_report(empresa_id):
+    """
+    GET /api/customers/<empresa_id>
+    Retorna lista de clientes para relatórios
+    """
+    session = db_manager.get_session()
+    try:
+        result = session.execute(text('''
+            SELECT
+                c.id, c.nome, c.tipo, c.cpf_cnpj, c.email, c.telefone, c.celular,
+                c.cidade, c.estado, c.ativo, c.criado_em,
+                COALESCE(SUM(p.total), 0) as total_compras,
+                MAX(p.criado_em) as ultima_compra,
+                COUNT(p.id) as qtd_pedidos
+            FROM clientes c
+            LEFT JOIN pedidos p ON p.cliente_id = c.id
+            WHERE c.empresa_id = :empresa_id
+            GROUP BY c.id, c.nome, c.tipo, c.cpf_cnpj, c.email, c.telefone, c.celular,
+                     c.cidade, c.estado, c.ativo, c.criado_em
+            ORDER BY c.nome
+        '''), {'empresa_id': empresa_id})
+
+        clientes = []
+        for row in result.fetchall():
+            clientes.append({
+                'id': row[0],
+                'nome': row[1],
+                'tipo': row[2] or 'PF',
+                'cpf_cnpj': row[3] or '',
+                'email': row[4] or '',
+                'telefone': row[5] or row[6] or '',
+                'cidade': row[7] or '',
+                'estado': row[8] or '',
+                'status': 'ativo' if row[9] else 'inativo',
+                'data_criacao': row[10].isoformat() if row[10] else None,
+                'total_compras': float(row[11] or 0),
+                'ultima_compra': row[12].isoformat() if row[12] else None,
+                'qtd_pedidos': row[13] or 0
+            })
+
+        return jsonify({
+            'success': True,
+            'data': clientes,
+            'total': len(clientes)
+        })
+
+    except Exception as e:
+        print(f'[REPORTS API] Erro customers: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/appointments/<int:empresa_id>')
+def get_appointments_report(empresa_id):
+    """
+    GET /api/appointments/<empresa_id>
+    Retorna lista de agendamentos para relatórios
+    """
+    session = db_manager.get_session()
+    try:
+        result = session.execute(text('''
+            SELECT
+                id, cliente_id, nome_cliente, telefone_cliente,
+                data_hora, tipo, descricao, status, observacoes, criado_em
+            FROM agendamentos
+            WHERE empresa_id = :empresa_id
+            ORDER BY data_hora DESC
+        '''), {'empresa_id': empresa_id})
+
+        agendamentos = []
+        for row in result.fetchall():
+            agendamentos.append({
+                'id': row[0],
+                'cliente_id': row[1],
+                'nome': row[2] or 'Cliente',
+                'telefone': row[3] or '',
+                'data': row[4].isoformat() if row[4] else None,
+                'tipo': row[5] or 'visita',
+                'descricao': row[6] or '',
+                'status': row[7] or 'pendente',
+                'observacoes': row[8] or '',
+                'data_criacao': row[9].isoformat() if row[9] else None
+            })
+
+        return jsonify({
+            'success': True,
+            'data': agendamentos,
+            'total': len(agendamentos)
+        })
+
+    except Exception as e:
+        print(f'[REPORTS API] Erro appointments: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/financings/<int:empresa_id>')
+def get_financings_report(empresa_id):
+    """
+    GET /api/financings/<empresa_id>
+    Retorna lista de pedidos/vendas para relatórios de financiamentos/vendas
+    """
+    session = db_manager.get_session()
+    try:
+        result = session.execute(text('''
+            SELECT
+                p.id, p.cliente_id, c.nome as cliente_nome, c.telefone as cliente_telefone,
+                p.total, p.desconto, p.forma_pagamento, p.status, p.observacoes, p.criado_em
+            FROM pedidos p
+            LEFT JOIN clientes c ON c.id = p.cliente_id
+            WHERE p.empresa_id = :empresa_id
+            ORDER BY p.criado_em DESC
+        '''), {'empresa_id': empresa_id})
+
+        pedidos = []
+        for row in result.fetchall():
+            valor_total = float(row[4] or 0)
+            desconto = float(row[5] or 0)
+            valor_final = valor_total - desconto
+
+            # Mapear status para formato esperado pelo frontend
+            status_map = {
+                'pendente': 'pendente',
+                'confirmado': 'em-analise',
+                'em_preparacao': 'em-analise',
+                'enviado': 'em-analise',
+                'entregue': 'aprovado',
+                'cancelado': 'reprovado'
+            }
+
+            pedidos.append({
+                'id': row[0],
+                'cliente_id': row[1],
+                'nome': row[2] or 'Cliente',
+                'telefone': row[3] or '',
+                'valor_veiculo': valor_total,
+                'valor_entrada': desconto,
+                'valor_financiado': valor_final,
+                'parcelas': 1,
+                'data_criacao': row[9].isoformat() if row[9] else None,
+                'status': status_map.get(row[7], 'pendente'),
+                'forma_pagamento': row[6] or '',
+                'observacoes': row[8] or ''
+            })
+
+        return jsonify({
+            'success': True,
+            'data': pedidos,
+            'total': len(pedidos)
+        })
+
+    except Exception as e:
+        print(f'[REPORTS API] Erro financings: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@bp.route('/performance/<int:empresa_id>')
+def get_performance_report(empresa_id):
+    """
+    GET /api/performance/<empresa_id>
+    Retorna métricas de performance para relatórios
+    """
+    session = db_manager.get_session()
+    try:
+        from datetime import datetime
+        from sqlalchemy import func, extract
+
+        hoje = datetime.now()
+        mes_atual = hoje.month
+        ano_atual = hoje.year
+
+        # Total de leads e conversão
+        result = session.execute(text('''
+            SELECT
+                COUNT(*) as total_leads,
+                COUNT(CASE WHEN vendido = true THEN 1 END) as leads_convertidos,
+                COALESCE(SUM(CASE WHEN vendido = true THEN valor_venda ELSE 0 END), 0) as valor_vendas
+            FROM leads
+            WHERE empresa_id = :empresa_id
+        '''), {'empresa_id': empresa_id})
+        leads_stats = result.fetchone()
+
+        total_leads = leads_stats[0] or 0
+        leads_convertidos = leads_stats[1] or 0
+        taxa_conversao = (leads_convertidos / total_leads * 100) if total_leads > 0 else 0
+
+        # Pedidos do mês
+        result = session.execute(text('''
+            SELECT
+                COUNT(*) as total_pedidos,
+                COALESCE(SUM(total), 0) as valor_pedidos,
+                COUNT(CASE WHEN status = 'entregue' THEN 1 END) as pedidos_entregues
+            FROM pedidos
+            WHERE empresa_id = :empresa_id
+            AND EXTRACT(MONTH FROM criado_em) = :mes
+            AND EXTRACT(YEAR FROM criado_em) = :ano
+        '''), {'empresa_id': empresa_id, 'mes': mes_atual, 'ano': ano_atual})
+        pedidos_stats = result.fetchone()
+
+        total_pedidos = pedidos_stats[0] or 0
+        valor_pedidos = float(pedidos_stats[1] or 0)
+        pedidos_entregues = pedidos_stats[2] or 0
+        taxa_entrega = (pedidos_entregues / total_pedidos * 100) if total_pedidos > 0 else 0
+
+        # Clientes ativos
+        result = session.execute(text('''
+            SELECT COUNT(*) FROM clientes
+            WHERE empresa_id = :empresa_id AND ativo = true
+        '''), {'empresa_id': empresa_id})
+        total_clientes = result.fetchone()[0] or 0
+
+        # Ticket médio
+        result = session.execute(text('''
+            SELECT COALESCE(AVG(total), 0) FROM pedidos
+            WHERE empresa_id = :empresa_id AND total > 0
+        '''), {'empresa_id': empresa_id})
+        ticket_medio = float(result.fetchone()[0] or 0)
+
+        # Montar métricas para o relatório
+        metricas = [
+            {
+                'metrica': 'Taxa de Conversão',
+                'valor': round(taxa_conversao, 1),
+                'unidade': '%',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Taxa de Entrega',
+                'valor': round(taxa_entrega, 1),
+                'unidade': '%',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Ticket Médio',
+                'valor': round(ticket_medio, 2),
+                'unidade': 'R$',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Total de Clientes',
+                'valor': total_clientes,
+                'unidade': 'clientes',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Leads no Período',
+                'valor': total_leads,
+                'unidade': 'leads',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Vendas Convertidas',
+                'valor': leads_convertidos,
+                'unidade': 'vendas',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Receita do Mês',
+                'valor': valor_pedidos,
+                'unidade': 'R$',
+                'data': hoje.isoformat()
+            },
+            {
+                'metrica': 'Pedidos do Mês',
+                'valor': total_pedidos,
+                'unidade': 'pedidos',
+                'data': hoje.isoformat()
+            }
+        ]
+
+        return jsonify({
+            'success': True,
+            'data': metricas,
+            'resumo': {
+                'taxa_conversao': round(taxa_conversao, 1),
+                'taxa_entrega': round(taxa_entrega, 1),
+                'ticket_medio': round(ticket_medio, 2),
+                'total_clientes': total_clientes,
+                'total_leads': total_leads,
+                'valor_mes': valor_pedidos
+            },
+            'total': len(metricas)
+        })
+
+    except Exception as e:
+        print(f'[REPORTS API] Erro performance: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
 @bp.route('/docs')
 def docs():
     """Documentação da API"""
@@ -1380,6 +1688,10 @@ def docs():
             '/api/equipe/<empresa_id>': 'GET - Listar membros da equipe',
             '/api/equipe/<empresa_id>/membro': 'POST - Criar membro',
             '/api/equipe/<empresa_id>/membro/<id>': 'PUT/DELETE - Atualizar/Desativar membro',
+            '/api/customers/<empresa_id>': 'GET - Lista de clientes para relatórios',
+            '/api/appointments/<empresa_id>': 'GET - Lista de agendamentos para relatórios',
+            '/api/financings/<empresa_id>': 'GET - Lista de pedidos/vendas para relatórios',
+            '/api/performance/<empresa_id>': 'GET - Métricas de performance para relatórios',
             '/api/bot-config/<empresa_id>': 'GET - Configuração do bot',
             '/api/empresa/bot/toggle': 'POST - Ativar/Desativar bot (Body: {"empresa_id": 5, "bot_ativo": true})',
             '/api/empresa/check-setup/<empresa_id>': 'GET - Verificar status de setup da empresa',

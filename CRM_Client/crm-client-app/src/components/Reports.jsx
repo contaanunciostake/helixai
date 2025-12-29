@@ -83,53 +83,6 @@ export default function Reports({ user, botConfig, showNotification }) {
     }
   ];
 
-  // Gerar dados mock por tipo
-  const generateMockDataByType = (reportType, startDate, endDate) => {
-    const mockData = [];
-    const numRecords = Math.floor(Math.random() * 20) + 10;
-
-    for (let i = 0; i < numRecords; i++) {
-      const randomDate = new Date(startDate.getTime() + Math.random() * (endDate.getTime() - startDate.getTime()));
-
-      if (reportType === 'clientes') {
-        mockData.push({
-          nome: `Cliente ${i + 1}`,
-          telefone: `(11) 9${Math.floor(Math.random() * 10000)}-${Math.floor(Math.random() * 10000)}`,
-          email: `cliente${i + 1}@example.com`,
-          data_criacao: randomDate,
-          status: ['ativo', 'inativo'][Math.floor(Math.random() * 2)]
-        });
-      } else if (reportType === 'agendamentos') {
-        mockData.push({
-          nome: `Cliente ${i + 1}`,
-          telefone: `(11) 9${Math.floor(Math.random() * 10000)}-${Math.floor(Math.random() * 10000)}`,
-          tipo: ['test-drive', 'visita', 'avaliacao'][Math.floor(Math.random() * 3)],
-          data: randomDate,
-          status: ['pendente', 'confirmado', 'realizado', 'cancelado'][Math.floor(Math.random() * 4)]
-        });
-      } else if (reportType === 'financiamentos' || reportType === 'vendas') {
-        mockData.push({
-          nome: `Cliente ${i + 1}`,
-          telefone: `(11) 9${Math.floor(Math.random() * 10000)}-${Math.floor(Math.random() * 10000)}`,
-          valor_veiculo: Math.floor(Math.random() * 100000) + 30000,
-          valor_entrada: Math.floor(Math.random() * 30000) + 5000,
-          valor_financiado: Math.floor(Math.random() * 70000) + 20000,
-          parcelas: [12, 24, 36, 48, 60][Math.floor(Math.random() * 5)],
-          data_criacao: randomDate,
-          status: ['aprovado', 'pendente', 'em-analise', 'reprovado'][Math.floor(Math.random() * 4)]
-        });
-      } else if (reportType === 'performance') {
-        mockData.push({
-          metrica: ['Taxa de Conversão', 'Tempo Médio de Resposta', 'Satisfação do Cliente'][i % 3],
-          valor: Math.floor(Math.random() * 100),
-          data: randomDate
-        });
-      }
-    }
-
-    return mockData;
-  };
-
   // Calcular datas baseado no filtro de período
   const getDateRange = () => {
     const today = new Date();
@@ -173,16 +126,20 @@ export default function Reports({ user, botConfig, showNotification }) {
     setSelectedReport(reportType);
 
     try {
-      const empresaId = user?.empresa_id || 5;
+      const empresaId = user?.empresa_id;
+      if (!empresaId) {
+        showNotification('❌ Empresa não identificada. Faça login novamente.');
+        setLoading(false);
+        return;
+      }
       const { startDate, endDate } = getDateRange();
 
       console.log(`[REPORTS] Gerando relatório: ${reportType.title}`);
       console.log(`[REPORTS] Período: ${startDate.toLocaleDateString()} até ${endDate.toLocaleDateString()}`);
 
       let processedData = [];
-      let usedMockData = false;
 
-      // Tentar buscar dados reais primeiro (backend porta 5000)
+      // Buscar dados reais do backend
       try {
         const backendUrl = API_URL;
         const response = await fetch(`${backendUrl}/api/${reportType.endpoint}/${empresaId}`, {
@@ -200,10 +157,10 @@ export default function Reports({ user, botConfig, showNotification }) {
           throw new Error(`API retornou ${response.status}`);
         }
       } catch (apiError) {
-        console.warn(`[REPORTS] ⚠️ API não disponível, usando dados de exemplo:`, apiError.message);
-        // Gerar dados mock realistas
-        processedData = generateMockDataByType(reportType.id, startDate, endDate);
-        usedMockData = true;
+        console.error(`[REPORTS] ❌ Erro ao buscar dados:`, apiError.message);
+        showNotification(`❌ Erro ao carregar dados: ${apiError.message}`);
+        setLoading(false);
+        return;
       }
 
       // Filtrar por período
@@ -227,15 +184,10 @@ export default function Reports({ user, botConfig, showNotification }) {
           endDate
         },
         generatedAt: new Date(),
-        totalRecords: processedData.length,
-        isMock: usedMockData
+        totalRecords: processedData.length
       });
 
-      if (usedMockData) {
-        showNotification(`📊 Relatório gerado com ${processedData.length} registros de exemplo`);
-      } else {
-        showNotification(`✅ Relatório "${reportType.title}" gerado com ${processedData.length} registros reais!`);
-      }
+      showNotification(`✅ Relatório "${reportType.title}" gerado com ${processedData.length} registros!`);
     } catch (error) {
       console.error('[REPORTS] ❌ Erro crítico ao gerar relatório:', error);
       showNotification('❌ Erro ao gerar relatório');
