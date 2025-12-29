@@ -1,6 +1,6 @@
 /**
  * EaiChat - Pagina /lojas - JavaScript
- * Estilo iFood
+ * Estilo iFood com Slideshow e Busca em Tempo Real
  */
 
 // ============================================================
@@ -17,7 +17,6 @@ function setTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('eaichat-theme', theme);
 
-    // Update icon
     const icon = document.querySelector('.btn-theme-toggle i');
     if (icon) {
         icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
@@ -30,9 +29,286 @@ function toggleTheme() {
     setTheme(next);
 }
 
-// Initialize theme on load
 document.addEventListener('DOMContentLoaded', function() {
     setTheme(getPreferredTheme());
+});
+
+
+// ============================================================
+// HERO SLIDESHOW
+// ============================================================
+
+const slideData = [
+    {
+        title: "O que voce precisa hoje?",
+        subtitle: "Restaurantes, mercados, farmacias e muito mais perto de voce"
+    },
+    {
+        title: "Compras do mercado?",
+        subtitle: "Tudo que voce precisa entregue na sua porta"
+    },
+    {
+        title: "Fome de que?",
+        subtitle: "Os melhores restaurantes com entrega rapida"
+    },
+    {
+        title: "Produtos para sua casa",
+        subtitle: "Lojas, farmacias e servicos a um clique"
+    }
+];
+
+let currentSlide = 0;
+let slideInterval = null;
+
+function initSlideshow() {
+    const slides = document.querySelectorAll('.hero-slideshow .slide');
+    const indicators = document.querySelectorAll('.hero-indicators .indicator');
+    const heroTitle = document.getElementById('heroTitle');
+    const heroSubtitle = document.getElementById('heroSubtitle');
+
+    if (!slides.length) return;
+
+    function showSlide(index) {
+        // Update slides
+        slides.forEach((slide, i) => {
+            slide.classList.toggle('active', i === index);
+        });
+
+        // Update indicators
+        indicators.forEach((ind, i) => {
+            ind.classList.toggle('active', i === index);
+        });
+
+        // Update text with fade effect
+        if (heroTitle && heroSubtitle && slideData[index]) {
+            heroTitle.style.opacity = '0';
+            heroSubtitle.style.opacity = '0';
+
+            setTimeout(() => {
+                heroTitle.textContent = slideData[index].title;
+                heroSubtitle.textContent = slideData[index].subtitle;
+                heroTitle.style.opacity = '1';
+                heroSubtitle.style.opacity = '1';
+            }, 300);
+        }
+
+        currentSlide = index;
+    }
+
+    function nextSlide() {
+        const next = (currentSlide + 1) % slides.length;
+        showSlide(next);
+    }
+
+    // Click on indicators
+    indicators.forEach((ind, index) => {
+        ind.addEventListener('click', () => {
+            showSlide(index);
+            resetInterval();
+        });
+    });
+
+    // Auto-advance slides
+    function startInterval() {
+        slideInterval = setInterval(nextSlide, 5000);
+    }
+
+    function resetInterval() {
+        clearInterval(slideInterval);
+        startInterval();
+    }
+
+    startInterval();
+}
+
+document.addEventListener('DOMContentLoaded', initSlideshow);
+
+
+// ============================================================
+// BUSCA EM TEMPO REAL
+// ============================================================
+
+let searchTimeout = null;
+let allCards = [];
+
+function initRealTimeSearch() {
+    const searchInput = document.getElementById('searchInput');
+    const clearBtn = document.getElementById('btnClearSearch');
+    const searchResults = document.getElementById('searchResults');
+    const grid = document.getElementById('gridEstabelecimentos');
+
+    if (!searchInput || !grid) return;
+
+    // Cache all cards
+    allCards = Array.from(grid.querySelectorAll('.estabelecimento-card-v2'));
+
+    // Input event for real-time filtering
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+
+        // Show/hide clear button
+        if (clearBtn) {
+            clearBtn.style.display = query ? 'flex' : 'none';
+        }
+
+        // Clear previous timeout
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+
+        // Debounce search
+        searchTimeout = setTimeout(() => {
+            filterCards(query);
+            updateURL(query);
+        }, 200);
+    });
+
+    // Clear button
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            clearBtn.style.display = 'none';
+            filterCards('');
+            updateURL('');
+            searchInput.focus();
+        });
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+        if (searchResults && !searchResults.contains(e.target) && e.target !== searchInput) {
+            searchResults.style.display = 'none';
+        }
+    });
+
+    // Initial state
+    if (searchInput.value) {
+        if (clearBtn) clearBtn.style.display = 'flex';
+        filterCards(searchInput.value.trim().toLowerCase());
+    }
+}
+
+function filterCards(query) {
+    const grid = document.getElementById('gridEstabelecimentos');
+    const gridPerto = document.getElementById('gridPertoDeVoce');
+    let visibleCount = 0;
+
+    allCards.forEach(card => {
+        const nome = (card.dataset.nome || '').toLowerCase();
+        const categoria = (card.dataset.categoria || '').toLowerCase();
+        const cidade = (card.dataset.cidade || '').toLowerCase();
+
+        const matches = !query ||
+            nome.includes(query) ||
+            categoria.includes(query) ||
+            cidade.includes(query);
+
+        card.style.display = matches ? '' : 'none';
+        if (matches) visibleCount++;
+    });
+
+    // Update "Perto de voce" section too
+    if (gridPerto) {
+        const pertoCards = gridPerto.querySelectorAll('.estabelecimento-card-v2');
+        pertoCards.forEach(card => {
+            const nome = (card.dataset.nome || '').toLowerCase();
+            const categoria = (card.dataset.categoria || '').toLowerCase();
+
+            const matches = !query ||
+                nome.includes(query) ||
+                categoria.includes(query);
+
+            card.style.display = matches ? '' : 'none';
+        });
+    }
+
+    // Show/hide empty state
+    let emptyState = document.getElementById('emptyState');
+    if (!emptyState && visibleCount === 0) {
+        emptyState = document.createElement('div');
+        emptyState.id = 'emptyState';
+        emptyState.className = 'empty-state-v2';
+        emptyState.innerHTML = `
+            <i class="fas fa-store-slash"></i>
+            <h3>Nenhum estabelecimento encontrado</h3>
+            <p>Tente buscar por outro termo</p>
+        `;
+        grid.appendChild(emptyState);
+    } else if (emptyState) {
+        emptyState.style.display = visibleCount === 0 ? '' : 'none';
+    }
+}
+
+function updateURL(query) {
+    const url = new URL(window.location);
+    if (query) {
+        url.searchParams.set('q', query);
+    } else {
+        url.searchParams.delete('q');
+    }
+    window.history.replaceState({}, '', url);
+}
+
+document.addEventListener('DOMContentLoaded', initRealTimeSearch);
+
+
+// ============================================================
+// FILTRO POR CATEGORIA (SEM RELOAD)
+// ============================================================
+
+let currentCategoria = '';
+
+function filtrarCategoria(categoria) {
+    currentCategoria = categoria;
+
+    allCards.forEach(card => {
+        const cardCategoria = (card.dataset.categoria || '').toLowerCase();
+        const searchQuery = document.getElementById('searchInput')?.value.trim().toLowerCase() || '';
+
+        // Check both category and search query
+        const matchesCategoria = !categoria || cardCategoria.includes(categoria.toLowerCase());
+        const matchesSearch = !searchQuery ||
+            (card.dataset.nome || '').toLowerCase().includes(searchQuery) ||
+            cardCategoria.includes(searchQuery);
+
+        card.style.display = (matchesCategoria && matchesSearch) ? '' : 'none';
+    });
+
+    // Update active states
+    document.querySelectorAll('.filtros-menu a').forEach(link => {
+        const linkCategoria = link.textContent.trim().toLowerCase();
+        const isActive = (!categoria && linkCategoria === 'todos') ||
+                        linkCategoria === categoria.toLowerCase();
+        link.classList.toggle('active', isActive);
+    });
+
+    document.querySelectorAll('.categoria-icon-item').forEach(item => {
+        const itemCategoria = item.dataset.categoria || '';
+        item.classList.toggle('active', itemCategoria === categoria);
+    });
+
+    // Update URL
+    const url = new URL(window.location);
+    if (categoria) {
+        url.searchParams.set('categoria', categoria);
+    } else {
+        url.searchParams.delete('categoria');
+    }
+    window.history.replaceState({}, '', url);
+
+    // Close dropdown
+    closeFiltros();
+}
+
+// Make category icons filter without reload
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.categoria-icon-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            const categoria = this.dataset.categoria || '';
+            filtrarCategoria(categoria);
+        });
+    });
 });
 
 
@@ -56,7 +332,6 @@ function closeMobileMenu() {
     }
 }
 
-// Close on escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeMobileMenu();
@@ -83,7 +358,6 @@ function closeFiltros() {
     }
 }
 
-// Close dropdown when clicking outside
 document.addEventListener('click', function(e) {
     const dropdown = document.querySelector('.filtros-dropdown');
     if (dropdown && !dropdown.contains(e.target)) {
@@ -93,25 +367,22 @@ document.addEventListener('click', function(e) {
 
 
 // ============================================================
-// LOAD MORE (Lazy Loading)
+// LOAD MORE
 // ============================================================
 
-let currentPage = 1;
-const itemsPerPage = 12;
-let allCards = [];
 let visibleCount = 0;
+const itemsPerPage = 12;
 
 function initLoadMore() {
     const grid = document.getElementById('gridEstabelecimentos');
     if (!grid) return;
 
-    allCards = Array.from(grid.querySelectorAll('.estabelecimento-card-v2'));
     visibleCount = Math.min(itemsPerPage, allCards.length);
 
-    // Initially hide cards beyond first page
     allCards.forEach((card, index) => {
         if (index >= itemsPerPage) {
             card.style.display = 'none';
+            card.dataset.hidden = 'true';
         }
     });
 
@@ -119,37 +390,38 @@ function initLoadMore() {
 }
 
 function loadMore() {
-    const newVisible = Math.min(visibleCount + itemsPerPage, allCards.length);
+    const visibleCards = allCards.filter(c => c.style.display !== 'none' || c.dataset.hidden === 'true');
+    const hiddenCards = allCards.filter(c => c.dataset.hidden === 'true');
 
-    for (let i = visibleCount; i < newVisible; i++) {
-        allCards[i].style.display = '';
-        // Add fade-in animation
-        allCards[i].style.opacity = '0';
-        allCards[i].style.transform = 'translateY(20px)';
+    const toShow = hiddenCards.slice(0, itemsPerPage);
+    toShow.forEach((card, index) => {
+        delete card.dataset.hidden;
+        card.style.display = '';
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
 
         setTimeout(() => {
-            allCards[i].style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            allCards[i].style.opacity = '1';
-            allCards[i].style.transform = 'translateY(0)';
-        }, (i - visibleCount) * 50);
-    }
+            card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 50);
+    });
 
-    visibleCount = newVisible;
     updateLoadMoreButton();
 }
 
 function updateLoadMoreButton() {
     const btn = document.querySelector('.btn-load-more');
     const loadMoreDiv = document.querySelector('.load-more');
+    const hiddenCount = allCards.filter(c => c.dataset.hidden === 'true').length;
 
     if (loadMoreDiv) {
-        if (visibleCount >= allCards.length) {
+        if (hiddenCount === 0) {
             loadMoreDiv.style.display = 'none';
         } else {
             loadMoreDiv.style.display = 'block';
-            const remaining = allCards.length - visibleCount;
             if (btn) {
-                btn.textContent = `Ver mais ${Math.min(remaining, itemsPerPage)} estabelecimentos`;
+                btn.textContent = `Ver mais ${Math.min(hiddenCount, itemsPerPage)} estabelecimentos`;
             }
         }
     }
@@ -183,29 +455,7 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 
 
 // ============================================================
-// SEARCH ENHANCEMENT
-// ============================================================
-
-const searchInput = document.querySelector('.search-input-wrapper input');
-if (searchInput) {
-    // Clear button functionality
-    searchInput.addEventListener('input', function() {
-        // Could add clear button logic here
-    });
-
-    // Focus styling
-    const wrapper = searchInput.closest('.search-input-wrapper');
-    searchInput.addEventListener('focus', function() {
-        if (wrapper) wrapper.style.boxShadow = '0 0 0 3px rgba(234, 29, 44, 0.2)';
-    });
-    searchInput.addEventListener('blur', function() {
-        if (wrapper) wrapper.style.boxShadow = '';
-    });
-}
-
-
-// ============================================================
-// LAZY LOADING IMAGES
+// LAZY LOADING & PERFORMANCE
 // ============================================================
 
 if ('IntersectionObserver' in window) {
@@ -231,112 +481,11 @@ if ('IntersectionObserver' in window) {
 
 
 // ============================================================
-// CATEGORY SCROLL ARROWS (Optional Enhancement)
-// ============================================================
-
-function initCategoryScroll() {
-    const scroll = document.querySelector('.categorias-scroll');
-    if (!scroll) return;
-
-    // Add touch-friendly horizontal scroll behavior
-    let isDown = false;
-    let startX;
-    let scrollLeft;
-
-    scroll.addEventListener('mousedown', (e) => {
-        isDown = true;
-        scroll.style.cursor = 'grabbing';
-        startX = e.pageX - scroll.offsetLeft;
-        scrollLeft = scroll.scrollLeft;
-    });
-
-    scroll.addEventListener('mouseleave', () => {
-        isDown = false;
-        scroll.style.cursor = 'grab';
-    });
-
-    scroll.addEventListener('mouseup', () => {
-        isDown = false;
-        scroll.style.cursor = 'grab';
-    });
-
-    scroll.addEventListener('mousemove', (e) => {
-        if (!isDown) return;
-        e.preventDefault();
-        const x = e.pageX - scroll.offsetLeft;
-        const walk = (x - startX) * 2;
-        scroll.scrollLeft = scrollLeft - walk;
-    });
-}
-
-document.addEventListener('DOMContentLoaded', initCategoryScroll);
-
-
-// ============================================================
-// CARD HOVER EFFECTS
-// ============================================================
-
-document.querySelectorAll('.estabelecimento-card-v2').forEach(card => {
-    card.addEventListener('mouseenter', function() {
-        this.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease';
-    });
-});
-
-
-// ============================================================
-// STATUS BADGE ANIMATION
-// ============================================================
-
-function animateStatusBadges() {
-    document.querySelectorAll('.status-badge-v2:not(.fechado)').forEach(badge => {
-        // Subtle pulse for open stores
-        badge.style.animation = 'pulse 2s infinite';
-    });
-}
-
-// Add pulse keyframes dynamically
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.8; }
-    }
-`;
-document.head.appendChild(style);
-
-document.addEventListener('DOMContentLoaded', animateStatusBadges);
-
-
-// ============================================================
-// PRELOAD CRITICAL RESOURCES
-// ============================================================
-
-function preloadEstabelecimento(slug) {
-    // Preload store page on hover
-    const link = document.createElement('link');
-    link.rel = 'prefetch';
-    link.href = `/loja/${slug}`;
-    document.head.appendChild(link);
-}
-
-document.querySelectorAll('.estabelecimento-card-v2, .melhor-item').forEach(card => {
-    card.addEventListener('mouseenter', function() {
-        const href = this.getAttribute('href');
-        if (href && href.startsWith('/loja/')) {
-            const slug = href.replace('/loja/', '');
-            preloadEstabelecimento(slug);
-        }
-    }, { once: true });
-});
-
-
-// ============================================================
 // ERROR HANDLING FOR IMAGES
 // ============================================================
 
 document.querySelectorAll('.card-logo-v2 img, .melhor-logo img, .card-banner-v2 img').forEach(img => {
     img.addEventListener('error', function() {
-        // Replace with placeholder
         const parent = this.parentElement;
         const name = parent.closest('a')?.querySelector('h3, .melhor-nome')?.textContent || 'L';
         const placeholder = document.createElement('div');
@@ -350,4 +499,4 @@ document.querySelectorAll('.card-logo-v2 img, .melhor-logo img, .card-banner-v2 
 });
 
 
-console.log('[EaiChat] Index page initialized');
+console.log('[EaiChat] Index page initialized with slideshow and real-time search');

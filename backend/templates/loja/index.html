@@ -49,20 +49,48 @@
             </div>
         </header>
 
-        <!-- ============ HERO SECTION ============ -->
+        <!-- ============ HERO SECTION COM SLIDESHOW ============ -->
         <section class="hero-section">
-            <div class="container">
-                <h1 class="hero-title">Fome de que hoje?</h1>
-                <p class="hero-subtitle">Encontre os melhores estabelecimentos perto de voce</p>
+            <!-- Slideshow Background -->
+            <div class="hero-slideshow">
+                <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1920&q=80');"></div>
+                <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1920&q=80');"></div>
+                <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1920&q=80');"></div>
+                <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1920&q=80');"></div>
+            </div>
+            <div class="hero-overlay"></div>
 
-                <form action="/lojas" method="GET" class="hero-search">
+            <div class="container hero-content">
+                <div class="hero-text">
+                    <h1 class="hero-title" id="heroTitle">O que voce precisa hoje?</h1>
+                    <p class="hero-subtitle" id="heroSubtitle">Restaurantes, mercados, farmacias e muito mais perto de voce</p>
+                </div>
+
+                <!-- Slideshow Indicators -->
+                <div class="hero-indicators">
+                    <button class="indicator active" data-slide="0"></button>
+                    <button class="indicator" data-slide="1"></button>
+                    <button class="indicator" data-slide="2"></button>
+                    <button class="indicator" data-slide="3"></button>
+                </div>
+
+                <!-- Search Box -->
+                <div class="hero-search-box">
                     <div class="search-input-wrapper">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="q" placeholder="Buscar por restaurante, mercado, loja..."
-                               value="{{ filtros.busca }}" autocomplete="off">
+                        <input type="text"
+                               id="searchInput"
+                               placeholder="Buscar estabelecimentos, produtos..."
+                               value="{{ filtros.busca }}"
+                               autocomplete="off">
+                        <button class="btn-clear-search" id="btnClearSearch" style="display: none;">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
-                    <button type="submit" class="btn-search">Buscar</button>
-                </form>
+                    <div class="search-results-dropdown" id="searchResults" style="display: none;">
+                        <!-- Results loaded via JS -->
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -91,12 +119,12 @@
                         </div>
                         <span class="card-emoji">&#128138;</span>
                     </a>
-                    <a href="/lojas?categoria=bebidas" class="categoria-card-large" style="background: linear-gradient(135deg, #9B59B6, #8E44AD);">
+                    <a href="/lojas?categoria=varejo" class="categoria-card-large" style="background: linear-gradient(135deg, #9B59B6, #8E44AD);">
                         <div>
-                            <h3>Bebidas</h3>
+                            <h3>Lojas</h3>
                             <span class="card-link">Ver todos <i class="fas fa-chevron-right"></i></span>
                         </div>
-                        <span class="card-emoji">&#127867;</span>
+                        <span class="card-emoji">&#128717;</span>
                     </a>
                 </div>
             </div>
@@ -106,12 +134,12 @@
         <section class="section-categorias-icons">
             <div class="container">
                 <div class="categorias-scroll">
-                    <a href="/lojas" class="categoria-icon-item {% if not filtros.categoria %}active{% endif %}">
+                    <a href="/lojas" class="categoria-icon-item {% if not filtros.categoria %}active{% endif %}" data-categoria="">
                         <div class="icon-circle">&#127881;</div>
                         <span>Todos</span>
                     </a>
                     {% for cat in categorias %}
-                    <a href="/lojas?categoria={{ cat }}" class="categoria-icon-item {% if filtros.categoria == cat %}active{% endif %}">
+                    <a href="/lojas?categoria={{ cat }}" class="categoria-icon-item {% if filtros.categoria == cat %}active{% endif %}" data-categoria="{{ cat }}">
                         <div class="icon-circle">
                             {% if cat == 'restaurante' %}&#127869;
                             {% elif cat == 'pizzaria' %}&#127829;
@@ -175,9 +203,11 @@
         <section class="section-perto" id="estabelecimentos">
             <div class="container">
                 <h2 class="section-title">Perto de voce</h2>
-                <div class="estabelecimentos-grid-3">
+                <div class="estabelecimentos-grid-3" id="gridPertoDeVoce">
                     {% for est in estabelecimentos[:6] %}
-                    <a href="/loja/{{ est.slug }}" class="estabelecimento-card-v2">
+                    <a href="/loja/{{ est.slug }}" class="estabelecimento-card-v2"
+                       data-nome="{{ est.nome_fantasia or est.nome }}"
+                       data-categoria="{{ est.categoria_negocio or '' }}">
                         <div class="card-banner-v2">
                             {% if est.banner_url %}
                             <img src="{{ est.banner_url }}" alt="{{ est.nome }}">
@@ -267,9 +297,9 @@
                             <i class="fas fa-chevron-down"></i>
                         </button>
                         <div class="filtros-menu" id="filtrosMenu">
-                            <a href="/lojas" class="{% if not filtros.categoria %}active{% endif %}">Todos</a>
+                            <a href="javascript:void(0)" onclick="filtrarCategoria('')" class="{% if not filtros.categoria %}active{% endif %}">Todos</a>
                             {% for cat in categorias %}
-                            <a href="/lojas?categoria={{ cat }}" class="{% if filtros.categoria == cat %}active{% endif %}">
+                            <a href="javascript:void(0)" onclick="filtrarCategoria('{{ cat }}')" class="{% if filtros.categoria == cat %}active{% endif %}">
                                 {{ cat | capitalize }}
                             </a>
                             {% endfor %}
@@ -279,7 +309,10 @@
 
                 <div class="estabelecimentos-grid-full" id="gridEstabelecimentos">
                     {% for est in estabelecimentos %}
-                    <a href="/loja/{{ est.slug }}" class="estabelecimento-card-v2">
+                    <a href="/loja/{{ est.slug }}" class="estabelecimento-card-v2"
+                       data-nome="{{ est.nome_fantasia or est.nome }}"
+                       data-categoria="{{ est.categoria_negocio or '' }}"
+                       data-cidade="{{ est.cidade or '' }}">
                         <div class="card-banner-v2">
                             {% if est.banner_url %}
                             <img src="{{ est.banner_url }}" alt="{{ est.nome }}">
@@ -323,7 +356,7 @@
                         </div>
                     </a>
                     {% else %}
-                    <div class="empty-state-v2">
+                    <div class="empty-state-v2" id="emptyState">
                         <i class="fas fa-store-slash"></i>
                         <h3>Nenhum estabelecimento encontrado</h3>
                         <p>Tente buscar por outro termo ou remover filtros</p>
