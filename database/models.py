@@ -1573,7 +1573,18 @@ class DatabaseManager:
             db_path = current / 'backend' / 'vendeai.db'
             connection_string = f'sqlite:///{db_path}'
 
-        self.engine = create_engine(connection_string, echo=False)
+        # Configurações para PostgreSQL (Render) - evitar erros SSL
+        engine_args = {'echo': False}
+        if 'postgresql' in connection_string:
+            engine_args.update({
+                'pool_pre_ping': True,  # Verificar conexão antes de usar
+                'pool_recycle': 300,    # Reciclar conexões a cada 5 minutos
+                'pool_size': 5,
+                'max_overflow': 10,
+                'pool_timeout': 30,
+            })
+
+        self.engine = create_engine(connection_string, **engine_args)
         self.Session = sessionmaker(bind=self.engine)
 
     def create_all(self):
