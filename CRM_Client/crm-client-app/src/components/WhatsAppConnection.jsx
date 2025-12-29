@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 
 // URLs padrão (usadas se botConfig não for passado)
-const DEFAULT_BOT_API_URL = 'http://localhost:3010';
-const DEFAULT_WS_URL = 'ws://localhost:3010/ws';
+const BACKEND_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const DEFAULT_BOT_API_URL = import.meta.env.VITE_BOT_API_URL || 'http://localhost:3010';
+const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3010/ws';
 
 export default function WhatsAppConnection({ user, showNotification, botConfig }) {
   // Usar URLs do botConfig se disponível, senão usar padrão
@@ -225,7 +226,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     try {
       const empresaId = user?.empresa_id || 9;
       // Usar backend Flask (localhost:5000), não o bot server
-      const backendApiUrl = 'http://localhost:5000';
+      const backendApiUrl = BACKEND_API_URL;
       console.log('[WhatsApp] Buscando status do bot para empresa:', empresaId);
       const response = await fetch(`${backendApiUrl}/api/bot-config/${empresaId}`);
       const data = await response.json();
@@ -271,7 +272,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
   const fetchNotificacoesGerente = async () => {
     try {
       const empresaId = user?.empresa_id || 9;
-      const backendApiUrl = 'http://localhost:5000';
+      const backendApiUrl = BACKEND_API_URL;
       const response = await fetch(`${backendApiUrl}/api/empresa/notificacoes/${empresaId}`);
       const data = await response.json();
 
@@ -292,7 +293,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     setSalvandoNotificacoes(true);
     try {
       const empresaId = user?.empresa_id || 9;
-      const backendApiUrl = 'http://localhost:5000';
+      const backendApiUrl = BACKEND_API_URL;
 
       const response = await fetch(`${backendApiUrl}/api/empresa/notificacoes/${empresaId}`, {
         method: 'POST',
@@ -330,7 +331,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     setTestandoNotificacao(true);
     try {
       const empresaId = user?.empresa_id || 9;
-      const backendApiUrl = 'http://localhost:5000';
+      const backendApiUrl = BACKEND_API_URL;
 
       const response = await fetch(`${backendApiUrl}/api/empresa/notificacoes/enviar`, {
         method: 'POST',
@@ -369,7 +370,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
     try {
       const empresaId = user?.empresa_id || 9;
       const novoStatus = !botAtivo;
-      const backendApiUrl = 'http://localhost:5000';
+      const backendApiUrl = BACKEND_API_URL;
 
       console.log('[WhatsApp] Toggle bot - empresa_id:', empresaId, 'novo status:', novoStatus);
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const API_URL = '/api/auth' // Usando proxy do Vite
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api/auth'
 
 export function Login({ onLogin }) {
   // Estados gerais
@@ -184,7 +184,8 @@ export function Login({ onLogin }) {
           localStorage.setItem('admin_user', JSON.stringify(userData))
           localStorage.setItem('admin_token', result.token)
           localStorage.setItem('admin_isLoggedIn', 'true')
-          window.location.replace('http://localhost:5175/dashboard')
+          const adminUrl = import.meta.env.PROD ? 'https://vendefacil-admin.onrender.com' : 'http://localhost:5175'
+          window.location.replace(`${adminUrl}/dashboard`)
           return
         }
 

@@ -22,6 +22,8 @@ import {
   AlertCircle, CheckCircle2, RefreshCw, Settings, Zap
 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function BotConfiguracoes({ user, botConfig, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,7 +60,7 @@ export default function BotConfiguracoes({ user, botConfig, showNotification }) 
 
       console.log('[CONFIG] Carregando configurações da empresa:', empresaId);
 
-      const response = await fetch(`http://localhost:5000/api/bot/config/${empresaId}`);
+      const response = await fetch(`${API_URL}/api/bot/config/${empresaId}`);
       const result = await response.json();
 
       console.log('[CONFIG] Resposta:', result);
@@ -122,7 +124,7 @@ export default function BotConfiguracoes({ user, botConfig, showNotification }) 
 
       console.log('[CONFIG] Dados:', dadosEnvio);
 
-      const response = await fetch(`http://localhost:5000/api/bot/config/${empresaId}`, {
+      const response = await fetch(`${API_URL}/api/bot/config/${empresaId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

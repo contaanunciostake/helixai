@@ -415,6 +415,19 @@ def run_database_migrations():
             session.commit()
             print("[MIGRATION] OK planos padrao inseridos")
 
+        # 10. Criar super admin se não existir
+        from werkzeug.security import generate_password_hash
+        result = session.execute(text("SELECT COUNT(*) FROM usuarios WHERE tipo = 'super_admin'"))
+        admin_count = result.fetchone()[0]
+        if admin_count == 0:
+            senha_hash = generate_password_hash('Admin@123')
+            session.execute(text("""
+                INSERT INTO usuarios (nome, email, senha_hash, tipo, ativo)
+                VALUES ('Administrador', 'admin@aira.com', :senha_hash, 'super_admin', true)
+            """), {'senha_hash': senha_hash})
+            session.commit()
+            print("[MIGRATION] OK super admin criado (admin@aira.com / Admin@123)")
+
         print("=" * 50)
         print("[MIGRATION] Migracoes concluidas com sucesso!")
         print("=" * 50 + "\n")

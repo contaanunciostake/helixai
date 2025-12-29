@@ -14,7 +14,7 @@ import {
   FileText, TrendingUp, Database, RefreshCw, Car, Filter, Image
 } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000'; // Backend Flask
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // Backend Flask
 
 export default function Products({ user, nicho }) {
   const [products, setProducts] = useState([]);

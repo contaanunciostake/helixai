@@ -2602,7 +2602,7 @@
                                     showAlert('Pagamento PIX aprovado! Redirecionando...', 'success');
                                     const token = statusData.token_definir_senha || '';
                                     setTimeout(() => {
-                                        window.location.href = `https://vendefacil-admin.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
+                                        window.location.href = `https://vendefacil-client.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
                                     }, 2000);
                                 }
                             } catch (error) {
@@ -2621,7 +2621,7 @@
                         showAlert('Pagamento PIX aprovado! Redirecionando...', 'success');
                         const token = result.token_definir_senha || '';
                         setTimeout(() => {
-                            window.location.href = `https://vendefacil-admin.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
+                            window.location.href = `https://vendefacil-client.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
                         }, 2000);
                     }
                 } else if (result.success && result.status === 'approved') {
@@ -2631,7 +2631,7 @@
                     const token = result.token_definir_senha || '';
 
                     setTimeout(() => {
-                        window.location.href = `https://vendefacil-admin.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
+                        window.location.href = `https://vendefacil-client.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
                     }, 2000);
                 } else {
                     throw new Error(result.error || result.message || 'Erro ao processar pagamento');
@@ -2855,7 +2855,7 @@
                             showAlert('✅ Pagamento aprovado! Redirecionando...', 'success');
                             const token = result.token_definir_senha || '';
                             setTimeout(() => {
-                                window.location.href = `https://vendefacil-admin.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
+                                window.location.href = `https://vendefacil-client.onrender.com?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&from=payment`;
                             }, 2000);
                             break;
 

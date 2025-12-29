@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function Reports({ user, botConfig, showNotification }) {
   const [selectedReport, setSelectedReport] = useState(null);
   const [periodFilter, setPeriodFilter] = useState('mensal');
@@ -170,7 +172,7 @@ export default function Reports({ user, botConfig, showNotification }) {
 
       // Tentar buscar dados reais primeiro (backend porta 5000)
       try {
-        const backendUrl = 'http://localhost:5000';
+        const backendUrl = API_URL;
         const response = await fetch(`${backendUrl}/api/${reportType.endpoint}/${empresaId}`, {
           method: 'GET',
           headers: {

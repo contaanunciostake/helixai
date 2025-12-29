@@ -55,40 +55,44 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import './App.css'
 
 // Configuração da API do VendeAI Backend
+// URLs dinâmicas baseadas no ambiente
+const BOT_API_BASE = import.meta.env.VITE_BOT_API_URL || 'http://localhost:3010'
+const BOT_WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:3010/ws'
+
 // ✅ Bots específicos por nicho
 const BOTS_CONFIG = {
   veiculos: {
     name: 'VendeAI Auto',
-    apiUrl: 'http://localhost:3010',
-    wsUrl: 'ws://localhost:3010/ws',
+    apiUrl: BOT_API_BASE,
+    wsUrl: BOT_WS_BASE,
     icon: '🚗',
     description: 'Bot especializado em vendas de veículos com integração FIPE e simulador de financiamento'
   },
   imoveis: {
     name: 'AIra Imob',
-    apiUrl: 'http://localhost:3011',
-    wsUrl: 'ws://localhost:3011/ws',
+    apiUrl: BOT_API_BASE,
+    wsUrl: BOT_WS_BASE,
     icon: '🏢',
     description: 'Bot especializado em vendas de imóveis com agendamento de visitas e simulação de financiamento'
   },
   atacado_varejo: {
     name: 'AIra Produtos',
-    apiUrl: 'http://localhost:3010',
-    wsUrl: 'ws://localhost:3010/ws',
+    apiUrl: BOT_API_BASE,
+    wsUrl: BOT_WS_BASE,
     icon: '📦',
     description: 'Bot especializado em atacado/varejo de produtos (lubrificantes, filtros, aditivos, peças)'
   },
   loja_tintas: {
     name: 'Laura Tintas',
-    apiUrl: 'http://localhost:3010',
-    wsUrl: 'ws://localhost:3010/ws',
+    apiUrl: BOT_API_BASE,
+    wsUrl: BOT_WS_BASE,
     icon: '🎨',
     description: 'Bot especializado em loja de tintas com consultor de cores, calculadora de rendimento e orçamentos'
   },
   outros: {
     name: 'AIra CRM',
-    apiUrl: 'http://localhost:3010', // Usar bot padrão
-    wsUrl: 'ws://localhost:3010/ws',
+    apiUrl: BOT_API_BASE,
+    wsUrl: BOT_WS_BASE,
     icon: '🤖',
     description: 'Bot de atendimento inteligente'
   }
@@ -482,7 +486,8 @@ function App() {
 
     // Redirecionar IMEDIATAMENTE para a Landing Page (página inicial)
     // Usar replace para evitar voltar com botão "voltar" do navegador
-    window.location.replace('http://localhost:5174')
+    const landingUrl = import.meta.env.PROD ? 'https://vendefacil-landing.onrender.com' : 'http://localhost:5174'
+    window.location.replace(landingUrl)
   }
 
   // ❌ DESABILITADO: API antiga não existe mais
