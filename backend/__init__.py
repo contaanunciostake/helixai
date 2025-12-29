@@ -451,3 +451,35 @@ def health_check():
     """Health check endpoint para monitoramento do Render"""
     return {'status': 'healthy', 'service': 'vendefacil-backend', 'database': 'postgresql' if database_url else 'sqlite'}, 200
 
+
+# Endpoint para criar super admin (uso único)
+@app.route('/setup-admin', methods=['POST'])
+def setup_admin():
+    """Cria o super admin se não existir - uso único para setup inicial"""
+    from sqlalchemy import text
+    from werkzeug.security import generate_password_hash
+
+    session = db_manager.get_session()
+    try:
+        # Verificar se já existe
+        result = session.execute(text("SELECT COUNT(*) FROM usuarios WHERE email = 'admin@aira.com'"))
+        count = result.fetchone()[0]
+
+        if count > 0:
+            return {'success': False, 'message': 'Admin já existe'}, 400
+
+        # Criar admin
+        senha_hash = generate_password_hash('Admin@123')
+        session.execute(text("""
+            INSERT INTO usuarios (nome, email, senha_hash, tipo, ativo)
+            VALUES ('Administrador', 'admin@aira.com', :senha_hash, 'super_admin', true)
+        """), {'senha_hash': senha_hash})
+        session.commit()
+
+        return {'success': True, 'message': 'Super admin criado: admin@aira.com / Admin@123'}, 201
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}, 500
+    finally:
+        session.close()
+
