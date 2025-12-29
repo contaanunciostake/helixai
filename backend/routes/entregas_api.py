@@ -424,6 +424,15 @@ def estatisticas_entregas():
         '''), {'empresa_id': empresa_id, 'hoje': hoje})
         entregues_hoje = result.fetchone()[0] or 0
 
+        # Valor do mes (soma de valor_pedido das entregas do mes atual)
+        primeiro_dia_mes = datetime.now().replace(day=1).strftime('%Y-%m-%d')
+        result = session.execute(text('''
+            SELECT COALESCE(SUM(valor_pedido), 0) as total
+            FROM entregas
+            WHERE empresa_id = :empresa_id AND DATE(criado_em) >= :primeiro_dia
+        '''), {'empresa_id': empresa_id, 'primeiro_dia': primeiro_dia_mes})
+        valor_mes = float(result.fetchone()[0] or 0)
+
         return jsonify({
             'success': True,
             'data': {
@@ -431,7 +440,8 @@ def estatisticas_entregas():
                 'hoje_total': hoje_total,
                 'pendentes': pendentes,
                 'em_transito': em_transito,
-                'entregues_hoje': entregues_hoje
+                'entregues_hoje': entregues_hoje,
+                'valor_mes': valor_mes
             }
         })
 

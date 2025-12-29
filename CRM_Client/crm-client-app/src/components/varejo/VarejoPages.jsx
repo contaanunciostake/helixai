@@ -25,7 +25,19 @@ import ProductModal from './modals/ProductModal.jsx';
 import CustomerModal from './modals/CustomerModal.jsx';
 import OrderModal from './modals/OrderModal.jsx';
 
-const API_URL = ''; // Usando proxy do Vite para evitar CORS
+// URL do Backend - detectar ambiente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com';
+  }
+  return 'http://localhost:5000';
+};
+
+const API_URL = getBackendUrl();
 
 // ══════════════════════════════════════════════════════════════
 // PÁGINA: CONTROLE DE ESTOQUE (Produtos)
@@ -3443,7 +3455,7 @@ export function ImportarProdutosPage({ user }) {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  const API_URL = ''; // Usando proxy do Vite para evitar CORS
+  // Usar API_URL global definido no topo do arquivo
   const empresaId = user?.empresa_id;
 
   const handleFileSelect = (e) => {
