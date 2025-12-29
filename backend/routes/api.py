@@ -994,14 +994,14 @@ def get_sales_dashboard(empresa_id):
         result = session.execute(text('''
             SELECT COUNT(*) FROM leads
             WHERE empresa_id = :empresa_id AND criado_em >= :data_inicio
-            AND status IN ('qualificado', 'proposta', 'negociacao', 'ganho')
+            AND status IN ('QUALIFICADO', 'PROPOSTA', 'NEGOCIACAO', 'GANHO')
         '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
         leads_qualificados = result.fetchone()[0] or 0
 
         result = session.execute(text('''
             SELECT COUNT(*), COALESCE(SUM(valor_venda), 0) FROM leads
             WHERE empresa_id = :empresa_id
-            AND (vendido = true OR status = 'ganho')
+            AND (vendido = true OR status = 'GANHO')
             AND (data_venda >= :data_inicio OR criado_em >= :data_inicio)
         '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
         leads_vendidos = result.fetchone()
