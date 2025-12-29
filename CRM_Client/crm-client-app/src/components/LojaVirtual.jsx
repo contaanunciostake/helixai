@@ -317,37 +317,54 @@ export default function LojaVirtual({ user }) {
                 </h3>
                 <p className="text-gray-400 text-sm">
                   {config.loja_publica_ativa
-                    ? 'Sua loja está visível para clientes'
+                    ? 'Sua loja esta visivel para clientes'
                     : 'Ative para que clientes vejam sua loja'}
                 </p>
                 {config.slug && (
-                  <div className="flex items-center gap-2 mt-2">
+                  <a
+                    href={`${LOJA_BASE_URL}/loja/${config.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 mt-2 group"
+                  >
                     <Link className="h-4 w-4 text-emerald-400" />
-                    <code className="text-emerald-400 text-sm bg-emerald-500/10 px-2 py-0.5 rounded">
+                    <code className="text-emerald-400 text-sm bg-emerald-500/10 px-2 py-0.5 rounded group-hover:bg-emerald-500/20 transition-colors">
                       {LOJA_BASE_URL}/loja/{config.slug}
                     </code>
-                  </div>
+                    <ExternalLink className="h-3 w-3 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
                 )}
               </div>
             </div>
-            <Button
-              onClick={handleToggleLoja}
-              className={config.loja_publica_ativa
-                ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'
-                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'}
-            >
-              {config.loja_publica_ativa ? (
-                <>
-                  <EyeOff className="h-4 w-4 mr-2" />
-                  Desativar Loja
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Ativar Loja
-                </>
+            <div className="flex flex-col sm:flex-row gap-2">
+              {config.slug && config.loja_publica_ativa && (
+                <Button
+                  onClick={openLoja}
+                  className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white"
+                >
+                  <Store className="h-4 w-4 mr-2" />
+                  Ver Minha Loja
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={handleToggleLoja}
+                className={config.loja_publica_ativa
+                  ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'}
+              >
+                {config.loja_publica_ativa ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Desativar
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Ativar Loja
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

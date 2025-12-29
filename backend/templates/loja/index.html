@@ -1,114 +1,418 @@
-{% extends "loja/base_loja.html" %}
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Encontre os Melhores Estabelecimentos | EaiChat</title>
 
-{% block title %}Encontre Estabelecimentos | EaiChat{% endblock %}
+    <!-- Meta SEO -->
+    <meta name="description" content="Descubra os melhores estabelecimentos perto de voce. Restaurantes, mercados, lojas e muito mais.">
 
-{% block body %}
-<div class="loja-container">
-    <!-- Header Principal -->
-    <header class="loja-header-principal">
-        <div class="header-content">
-            <div class="logo-area">
-                <span class="logo-text">EaiChat</span>
+    <!-- Favicon -->
+    <link rel="icon" href="/static/loja/images/favicon.ico">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Styles iFood -->
+    <link rel="stylesheet" href="/static/loja/css/index-ifood.css">
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- ============ HEADER ============ -->
+        <header class="header-main">
+            <div class="container header-content">
+                <a href="/lojas" class="header-logo">
+                    <span class="logo-text">Eai</span><span class="logo-accent">Chat</span>
+                </a>
+
+                <nav class="header-nav">
+                    <a href="#categorias" class="nav-link">Categorias</a>
+                    <a href="#estabelecimentos" class="nav-link">Estabelecimentos</a>
+                    <a href="#sobre" class="nav-link">Sobre</a>
+                </nav>
+
+                <div class="header-actions">
+                    <button class="btn-theme-toggle" onclick="toggleTheme()" aria-label="Alternar tema">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <a href="/cadastro" class="btn-link">Cadastre seu comercio</a>
+                    <a href="/login" class="btn-primary-sm">Entrar</a>
+                    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
             </div>
+        </header>
 
-            <div class="search-area">
-                <form action="/lojas" method="GET" class="search-form">
-                    <i class="fas fa-search"></i>
-                    <input type="text" name="q" placeholder="Buscar estabelecimentos..."
-                           value="{{ filtros.busca }}" class="search-input">
+        <!-- ============ HERO SECTION ============ -->
+        <section class="hero-section">
+            <div class="container">
+                <h1 class="hero-title">Fome de que hoje?</h1>
+                <p class="hero-subtitle">Encontre os melhores estabelecimentos perto de voce</p>
+
+                <form action="/lojas" method="GET" class="hero-search">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" name="q" placeholder="Buscar por restaurante, mercado, loja..."
+                               value="{{ filtros.busca }}" autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn-search">Buscar</button>
                 </form>
             </div>
+        </section>
 
-            <div class="header-actions">
-                <button class="theme-toggle" onclick="toggleTheme()">
-                    <i class="fas fa-moon"></i>
-                </button>
+        <!-- ============ CATEGORIAS PRINCIPAIS (Cards Grandes) ============ -->
+        <section class="section-categorias-main" id="categorias">
+            <div class="container">
+                <div class="categorias-grid-2">
+                    <a href="/lojas?categoria=restaurante" class="categoria-card-large" style="background: linear-gradient(135deg, #EA1D2C, #FF6B6B);">
+                        <div>
+                            <h3>Restaurantes</h3>
+                            <span class="card-link">Ver todos <i class="fas fa-chevron-right"></i></span>
+                        </div>
+                        <span class="card-emoji">&#127829;</span>
+                    </a>
+                    <a href="/lojas?categoria=mercado" class="categoria-card-large" style="background: linear-gradient(135deg, #50A773, #2ECC71);">
+                        <div>
+                            <h3>Mercados</h3>
+                            <span class="card-link">Ver todos <i class="fas fa-chevron-right"></i></span>
+                        </div>
+                        <span class="card-emoji">&#128722;</span>
+                    </a>
+                    <a href="/lojas?categoria=farmacia" class="categoria-card-large" style="background: linear-gradient(135deg, #3498DB, #2980B9);">
+                        <div>
+                            <h3>Farmacias</h3>
+                            <span class="card-link">Ver todos <i class="fas fa-chevron-right"></i></span>
+                        </div>
+                        <span class="card-emoji">&#128138;</span>
+                    </a>
+                    <a href="/lojas?categoria=bebidas" class="categoria-card-large" style="background: linear-gradient(135deg, #9B59B6, #8E44AD);">
+                        <div>
+                            <h3>Bebidas</h3>
+                            <span class="card-link">Ver todos <i class="fas fa-chevron-right"></i></span>
+                        </div>
+                        <span class="card-emoji">&#127867;</span>
+                    </a>
+                </div>
             </div>
-        </div>
-    </header>
+        </section>
 
-    <!-- Filtros -->
-    <section class="filtros-section">
-        <div class="filtros-scroll">
-            <a href="/lojas" class="filtro-chip {% if not filtros.categoria %}active{% endif %}">
-                Todos
-            </a>
-            {% for cat in categorias %}
-            <a href="/lojas?categoria={{ cat }}"
-               class="filtro-chip {% if filtros.categoria == cat %}active{% endif %}">
-                {{ cat | capitalize }}
-            </a>
-            {% endfor %}
-        </div>
-    </section>
+        <!-- ============ CATEGORIAS ICONS (Scroll Horizontal) ============ -->
+        <section class="section-categorias-icons">
+            <div class="container">
+                <div class="categorias-scroll">
+                    <a href="/lojas" class="categoria-icon-item {% if not filtros.categoria %}active{% endif %}">
+                        <div class="icon-circle">&#127881;</div>
+                        <span>Todos</span>
+                    </a>
+                    {% for cat in categorias %}
+                    <a href="/lojas?categoria={{ cat }}" class="categoria-icon-item {% if filtros.categoria == cat %}active{% endif %}">
+                        <div class="icon-circle">
+                            {% if cat == 'restaurante' %}&#127869;
+                            {% elif cat == 'pizzaria' %}&#127829;
+                            {% elif cat == 'hamburgueria' %}&#127828;
+                            {% elif cat == 'lanchonete' %}&#127839;
+                            {% elif cat == 'mercado' %}&#128722;
+                            {% elif cat == 'farmacia' %}&#128138;
+                            {% elif cat == 'bebidas' %}&#127867;
+                            {% elif cat == 'doceria' %}&#127856;
+                            {% elif cat == 'padaria' %}&#127838;
+                            {% elif cat == 'acai' %}&#127815;
+                            {% elif cat == 'japonesa' %}&#127843;
+                            {% elif cat == 'saudavel' %}&#129367;
+                            {% elif cat == 'pet' %}&#128054;
+                            {% elif cat == 'varejo' %}&#128717;
+                            {% elif cat == 'tintas' %}&#127912;
+                            {% else %}&#128171;
+                            {% endif %}
+                        </div>
+                        <span>{{ cat | capitalize }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
 
-    <!-- Lista de Estabelecimentos -->
-    <main class="estabelecimentos-grid">
-        {% for est in estabelecimentos %}
-        <a href="/loja/{{ est.slug }}" class="estabelecimento-card">
-            <div class="card-banner">
-                {% if est.banner_url %}
-                <img src="{{ est.banner_url }}" alt="{{ est.nome }}">
-                {% else %}
-                <div class="banner-placeholder" style="background: {{ est.cor_primaria or '#22C55E' }}"></div>
+        <!-- ============ MELHORES AVALIADOS ============ -->
+        {% set lojas_destaque = estabelecimentos[:8] %}
+        {% if lojas_destaque %}
+        <section class="section-melhores">
+            <div class="container">
+                <h2 class="section-title">Melhores avaliados</h2>
+                <div class="melhores-scroll">
+                    {% for est in lojas_destaque %}
+                    <a href="/loja/{{ est.slug }}" class="melhor-item">
+                        <div class="melhor-logo">
+                            {% if est.logo_url %}
+                            <img src="{{ est.logo_url }}" alt="{{ est.nome }}">
+                            {% else %}
+                            <div class="logo-placeholder" style="background: {{ est.cor_primaria or '#EA1D2C' }}">
+                                {{ est.nome[0] if est.nome else 'L' }}
+                            </div>
+                            {% endif %}
+                            <span class="status-dot {% if est.aberto %}online{% else %}offline{% endif %}"></span>
+                        </div>
+                        <span class="melhor-nome">{{ est.nome_fantasia or est.nome | truncate(12) }}</span>
+                        <span class="melhor-cat">{{ est.categoria_negocio or 'Loja' }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ============ DIVIDER ============ -->
+        <div class="section-divider">
+            <div class="container"><hr></div>
+        </div>
+
+        <!-- ============ PERTO DE VOCE ============ -->
+        <section class="section-perto" id="estabelecimentos">
+            <div class="container">
+                <h2 class="section-title">Perto de voce</h2>
+                <div class="estabelecimentos-grid-3">
+                    {% for est in estabelecimentos[:6] %}
+                    <a href="/loja/{{ est.slug }}" class="estabelecimento-card-v2">
+                        <div class="card-banner-v2">
+                            {% if est.banner_url %}
+                            <img src="{{ est.banner_url }}" alt="{{ est.nome }}">
+                            {% else %}
+                            <div class="banner-gradient" style="background: linear-gradient(135deg, {{ est.cor_primaria or '#EA1D2C' }}, {{ est.cor_secundaria or '#FF6B6B' }});"></div>
+                            {% endif %}
+                            <span class="status-badge-v2 {% if not est.aberto %}fechado{% endif %}">
+                                {{ 'Aberto agora' if est.aberto else 'Fechado' }}
+                            </span>
+                        </div>
+                        <div class="card-info-v2">
+                            <div class="card-logo-v2">
+                                {% if est.logo_url %}
+                                <img src="{{ est.logo_url }}" alt="{{ est.nome }}">
+                                {% else %}
+                                <div class="logo-letter" style="background: {{ est.cor_primaria or '#EA1D2C' }}">
+                                    {{ est.nome[0] if est.nome else 'L' }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-text-v2">
+                                <h3>{{ est.nome_fantasia or est.nome }}</h3>
+                                <p>{{ est.categoria_negocio or 'Loja' }}</p>
+                            </div>
+                        </div>
+                        <div class="card-meta-v2">
+                            <span class="meta-rating">
+                                <i class="fas fa-star"></i>
+                                {{ "%.1f"|format(est.avaliacao_media or 5.0) }}
+                            </span>
+                            <span class="meta-dot">&#8226;</span>
+                            {% if est.tempo_entrega %}
+                            <span>{{ est.tempo_entrega }}</span>
+                            <span class="meta-dot">&#8226;</span>
+                            {% endif %}
+                            {% if est.taxa_entrega == 0 or not est.taxa_entrega %}
+                            <span class="meta-delivery free">Entrega Gratis</span>
+                            {% else %}
+                            <span>R$ {{ "%.2f"|format(est.taxa_entrega) }}</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% else %}
+                    <div class="empty-state-v2">
+                        <i class="fas fa-store-slash"></i>
+                        <h3>Nenhum estabelecimento encontrado</h3>
+                        <p>Tente buscar por outro termo ou categoria</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ CTAs ============ -->
+        <section class="section-ctas">
+            <div class="container">
+                <div class="ctas-grid">
+                    <div class="cta-card" style="--cta-bg: #FEF1F2;">
+                        <div class="cta-content">
+                            <h3>Cadastre seu comercio</h3>
+                            <p>Aumente suas vendas com a EaiChat</p>
+                            <a href="/cadastro" class="btn-cta">Comecar agora</a>
+                        </div>
+                        <span class="cta-emoji">&#128200;</span>
+                    </div>
+                    <div class="cta-card" style="--cta-bg: #F0FDF4;">
+                        <div class="cta-content">
+                            <h3>Entregador parceiro</h3>
+                            <p>Ganhe dinheiro extra fazendo entregas</p>
+                            <a href="/entregador" class="btn-cta btn-cta-green">Seja parceiro</a>
+                        </div>
+                        <span class="cta-emoji">&#128666;</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ TODOS OS ESTABELECIMENTOS ============ -->
+        <section class="section-todos">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Todos os estabelecimentos</h2>
+                    <div class="filtros-dropdown">
+                        <button class="btn-filtros" onclick="toggleFiltros()">
+                            <i class="fas fa-sliders-h"></i>
+                            Filtros
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="filtros-menu" id="filtrosMenu">
+                            <a href="/lojas" class="{% if not filtros.categoria %}active{% endif %}">Todos</a>
+                            {% for cat in categorias %}
+                            <a href="/lojas?categoria={{ cat }}" class="{% if filtros.categoria == cat %}active{% endif %}">
+                                {{ cat | capitalize }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="estabelecimentos-grid-full" id="gridEstabelecimentos">
+                    {% for est in estabelecimentos %}
+                    <a href="/loja/{{ est.slug }}" class="estabelecimento-card-v2">
+                        <div class="card-banner-v2">
+                            {% if est.banner_url %}
+                            <img src="{{ est.banner_url }}" alt="{{ est.nome }}">
+                            {% else %}
+                            <div class="banner-gradient" style="background: linear-gradient(135deg, {{ est.cor_primaria or '#EA1D2C' }}, {{ est.cor_secundaria or '#FF6B6B' }});"></div>
+                            {% endif %}
+                            <span class="status-badge-v2 {% if not est.aberto %}fechado{% endif %}">
+                                {{ 'Aberto agora' if est.aberto else 'Fechado' }}
+                            </span>
+                        </div>
+                        <div class="card-info-v2">
+                            <div class="card-logo-v2">
+                                {% if est.logo_url %}
+                                <img src="{{ est.logo_url }}" alt="{{ est.nome }}">
+                                {% else %}
+                                <div class="logo-letter" style="background: {{ est.cor_primaria or '#EA1D2C' }}">
+                                    {{ est.nome[0] if est.nome else 'L' }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-text-v2">
+                                <h3>{{ est.nome_fantasia or est.nome }}</h3>
+                                <p>{{ est.categoria_negocio or 'Loja' }}{% if est.cidade %} - {{ est.cidade }}{% endif %}</p>
+                            </div>
+                        </div>
+                        <div class="card-meta-v2">
+                            <span class="meta-rating">
+                                <i class="fas fa-star"></i>
+                                {{ "%.1f"|format(est.avaliacao_media or 5.0) }}
+                            </span>
+                            <span class="meta-dot">&#8226;</span>
+                            {% if est.tempo_entrega %}
+                            <span>{{ est.tempo_entrega }}</span>
+                            <span class="meta-dot">&#8226;</span>
+                            {% endif %}
+                            {% if est.taxa_entrega == 0 or not est.taxa_entrega %}
+                            <span class="meta-delivery free">Entrega Gratis</span>
+                            {% else %}
+                            <span>R$ {{ "%.2f"|format(est.taxa_entrega) }}</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% else %}
+                    <div class="empty-state-v2">
+                        <i class="fas fa-store-slash"></i>
+                        <h3>Nenhum estabelecimento encontrado</h3>
+                        <p>Tente buscar por outro termo ou remover filtros</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if estabelecimentos | length > 12 %}
+                <div class="load-more">
+                    <button class="btn-load-more" onclick="loadMore()">Ver mais estabelecimentos</button>
+                </div>
                 {% endif %}
-                <div class="card-logo">
-                    {% if est.logo_url %}
-                    <img src="{{ est.logo_url }}" alt="{{ est.nome }}">
-                    {% else %}
-                    <div class="logo-placeholder" style="background: {{ est.cor_primaria or '#22C55E' }}">{{ est.nome[0] if est.nome else 'L' }}</div>
-                    {% endif %}
+            </div>
+        </section>
+
+        <!-- ============ BANNER FINAL ============ -->
+        <section class="section-banner-final" id="sobre">
+            <div class="container">
+                <div class="banner-empresas">
+                    <div class="banner-left">
+                        <div class="banner-logo">Eai<span>Chat</span></div>
+                        <span class="banner-text">Automacao WhatsApp</span>
+                    </div>
+                    <div class="banner-right">
+                        <span>Atendimento automatico com IA</span>
+                        <span class="banner-highlight">para seu negocio crescer</span>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="card-content">
-                <h3 class="card-title">{{ est.nome_fantasia or est.nome }}</h3>
-                <p class="card-categoria">{{ est.categoria_negocio or 'Loja' }}{% if est.cidade %} - {{ est.cidade }}{% endif %}</p>
-
-                <div class="card-info">
-                    <span class="rating">
-                        <i class="fas fa-star"></i>
-                        {{ "%.1f"|format(est.avaliacao_media or 5.0) }}
-                    </span>
-
-                    {% if est.tempo_entrega %}
-                    <span class="tempo">
-                        <i class="fas fa-clock"></i>
-                        {{ est.tempo_entrega }}
-                    </span>
-                    {% endif %}
-
-                    {% if est.taxa_entrega == 0 or not est.taxa_entrega %}
-                    <span class="frete-gratis">
-                        <i class="fas fa-motorcycle"></i>
-                        Gratis
-                    </span>
-                    {% else %}
-                    <span class="taxa">
-                        <i class="fas fa-motorcycle"></i>
-                        R$ {{ "%.2f"|format(est.taxa_entrega) }}
-                    </span>
-                    {% endif %}
+        <!-- ============ FOOTER ============ -->
+        <footer class="footer-main">
+            <div class="container">
+                <div class="footer-grid">
+                    <div class="footer-col">
+                        <h4>EaiChat</h4>
+                        <ul>
+                            <li><a href="/sobre">Sobre nos</a></li>
+                            <li><a href="/carreiras">Carreiras</a></li>
+                            <li><a href="/contato">Contato</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Para comercios</h4>
+                        <ul>
+                            <li><a href="/cadastro">Cadastre seu comercio</a></li>
+                            <li><a href="/planos">Planos e precos</a></li>
+                            <li><a href="/ajuda">Central de ajuda</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Redes sociais</h4>
+                        <div class="social-links">
+                            <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                            <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                            <a href="#" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <p>&copy; 2025 EaiChat. Todos os direitos reservados.</p>
+                    <div class="footer-links">
+                        <a href="/privacidade">Privacidade</a>
+                        <a href="/termos">Termos de uso</a>
+                    </div>
                 </div>
             </div>
+        </footer>
+    </div>
 
-            <!-- Status Aberto/Fechado -->
-            <div class="status-badge {% if est.aberto %}aberto{% else %}fechado{% endif %}">
-                {{ 'Aberto' if est.aberto else 'Fechado' }}
-            </div>
-        </a>
-        {% else %}
-        <div class="empty-state">
-            <i class="fas fa-store-slash"></i>
-            <h3>Nenhum estabelecimento encontrado</h3>
-            <p>Tente ajustar os filtros ou buscar por outro termo</p>
+    <!-- ============ MOBILE MENU OVERLAY ============ -->
+    <div class="mobile-menu-overlay" id="mobileMenu" style="display: none;" onclick="closeMobileMenu()">
+        <div class="mobile-menu-content" onclick="event.stopPropagation()">
+            <button class="mobile-menu-close" onclick="closeMobileMenu()">
+                <i class="fas fa-times"></i>
+            </button>
+            <nav class="mobile-nav">
+                <a href="#categorias" onclick="closeMobileMenu()">Categorias</a>
+                <a href="#estabelecimentos" onclick="closeMobileMenu()">Estabelecimentos</a>
+                <a href="#sobre" onclick="closeMobileMenu()">Sobre</a>
+                <hr>
+                <a href="/cadastro">Cadastre seu comercio</a>
+                <a href="/login" class="btn-primary">Entrar</a>
+            </nav>
         </div>
-        {% endfor %}
-    </main>
+    </div>
 
-    <!-- Footer -->
-    <footer class="loja-footer">
-        <p>Powered by <strong>EaiChat</strong> - Automacao WhatsApp com IA</p>
-    </footer>
-</div>
-{% endblock %}
+    <!-- ============ SCRIPTS ============ -->
+    <script src="/static/loja/js/index-ifood.js"></script>
+</body>
+</html>
