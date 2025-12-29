@@ -196,6 +196,16 @@ else:
 app.register_blueprint(tintas.tintas_bp)
 print("[INIT] OK tintas_bp registrado!")
 
+# Importar e registrar Loja Virtual Pública
+try:
+    from backend.routes import loja_publica
+    app.register_blueprint(loja_publica.loja_bp)
+    print("[INIT] OK loja_publica_bp registrado!")
+except Exception as e:
+    print(f"[INIT] ERRO ao importar loja_publica: {e}")
+    import traceback
+    traceback.print_exc()
+
 # Registrar API REST de Tintas
 try:
     from backend.routes import tintas_api
@@ -414,6 +424,110 @@ def run_database_migrations():
         """))
         session.commit()
         print("[MIGRATION] OK tabela agendamentos")
+
+        # 9. Adicionar campos da LOJA VIRTUAL na tabela empresas
+        colunas_loja_virtual = [
+            ("slug", "VARCHAR(100) UNIQUE"),
+            ("logo_url", "VARCHAR(500)"),
+            ("banner_url", "VARCHAR(500)"),
+            ("cor_primaria", "VARCHAR(7) DEFAULT '#22C55E'"),
+            ("cor_secundaria", "VARCHAR(7) DEFAULT '#16A34A'"),
+            ("cor_texto", "VARCHAR(7) DEFAULT '#FFFFFF'"),
+            ("tema_padrao", "VARCHAR(10) DEFAULT 'dark'"),
+            ("descricao_curta", "VARCHAR(200)"),
+            ("descricao_longa", "TEXT"),
+            ("categoria_negocio", "VARCHAR(50)"),
+            ("latitude", "FLOAT"),
+            ("longitude", "FLOAT"),
+            ("instagram", "VARCHAR(100)"),
+            ("facebook", "VARCHAR(100)"),
+            ("horario_funcionamento", "JSON"),
+            ("entrega_ativa", "BOOLEAN DEFAULT TRUE"),
+            ("taxa_entrega", "FLOAT DEFAULT 0"),
+            ("pedido_minimo", "FLOAT DEFAULT 0"),
+            ("tempo_entrega", "VARCHAR(50) DEFAULT '30-60 min'"),
+            ("raio_entrega_km", "FLOAT DEFAULT 10"),
+            ("loja_publica_ativa", "BOOLEAN DEFAULT FALSE"),
+            ("avaliacao_media", "FLOAT DEFAULT 5.0"),
+            ("total_avaliacoes", "INTEGER DEFAULT 0"),
+            ("meta_title", "VARCHAR(100)"),
+            ("meta_description", "VARCHAR(200)"),
+        ]
+
+        for col_name, col_type in colunas_loja_virtual:
+            try:
+                session.execute(text(f"ALTER TABLE empresas ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                if 'already exists' not in str(e).lower():
+                    pass  # Silencioso para colunas já existentes
+        print("[MIGRATION] OK colunas loja_virtual em empresas")
+
+        # 10. Adicionar campos da LOJA VIRTUAL na tabela produtos
+        colunas_produtos_loja = [
+            ("categoria_loja_id", "INTEGER"),
+            ("variacoes", "JSON"),
+            ("imagens_galeria", "JSON"),
+            ("destaque", "BOOLEAN DEFAULT FALSE"),
+            ("ordem", "INTEGER DEFAULT 0"),
+            ("em_promocao", "BOOLEAN DEFAULT FALSE"),
+            ("visualizacoes", "INTEGER DEFAULT 0"),
+            ("cliques_whatsapp", "INTEGER DEFAULT 0"),
+            ("exibir_loja", "BOOLEAN DEFAULT TRUE"),
+        ]
+
+        for col_name, col_type in colunas_produtos_loja:
+            try:
+                session.execute(text(f"ALTER TABLE produtos ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+                session.commit()
+            except Exception as e:
+                session.rollback()
+        print("[MIGRATION] OK colunas loja_virtual em produtos")
+
+        # 11. Criar tabela CATEGORIAS_LOJA
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS categorias_loja (
+                id SERIAL PRIMARY KEY,
+                empresa_id INTEGER NOT NULL,
+                nome VARCHAR(100) NOT NULL,
+                descricao VARCHAR(200),
+                icone VARCHAR(50),
+                imagem_url VARCHAR(500),
+                ordem INTEGER DEFAULT 0,
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela categorias_loja")
+
+        # 12. Criar tabela PEDIDOS_LOJA
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS pedidos_loja (
+                id SERIAL PRIMARY KEY,
+                empresa_id INTEGER NOT NULL,
+                lead_id INTEGER,
+                codigo VARCHAR(20) UNIQUE,
+                cliente_nome VARCHAR(200),
+                cliente_telefone VARCHAR(20),
+                cliente_endereco TEXT,
+                itens JSON,
+                subtotal FLOAT,
+                taxa_entrega FLOAT DEFAULT 0,
+                desconto FLOAT DEFAULT 0,
+                total FLOAT,
+                tipo_entrega VARCHAR(20) DEFAULT 'entrega',
+                status VARCHAR(20) DEFAULT 'pendente',
+                enviado_whatsapp BOOLEAN DEFAULT FALSE,
+                mensagem_whatsapp TEXT,
+                origem VARCHAR(50) DEFAULT 'loja_virtual',
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        session.commit()
+        print("[MIGRATION] OK tabela pedidos_loja")
 
         # 9. Inserir planos padrão se não existirem
         result = session.execute(text("SELECT COUNT(*) FROM planos"))

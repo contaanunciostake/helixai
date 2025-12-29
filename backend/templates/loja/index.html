@@ -1,0 +1,114 @@
+{% extends "loja/base_loja.html" %}
+
+{% block title %}Encontre Estabelecimentos | EaiChat{% endblock %}
+
+{% block body %}
+<div class="loja-container">
+    <!-- Header Principal -->
+    <header class="loja-header-principal">
+        <div class="header-content">
+            <div class="logo-area">
+                <span class="logo-text">EaiChat</span>
+            </div>
+
+            <div class="search-area">
+                <form action="/lojas" method="GET" class="search-form">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="q" placeholder="Buscar estabelecimentos..."
+                           value="{{ filtros.busca }}" class="search-input">
+                </form>
+            </div>
+
+            <div class="header-actions">
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filtros -->
+    <section class="filtros-section">
+        <div class="filtros-scroll">
+            <a href="/lojas" class="filtro-chip {% if not filtros.categoria %}active{% endif %}">
+                Todos
+            </a>
+            {% for cat in categorias %}
+            <a href="/lojas?categoria={{ cat }}"
+               class="filtro-chip {% if filtros.categoria == cat %}active{% endif %}">
+                {{ cat | capitalize }}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Lista de Estabelecimentos -->
+    <main class="estabelecimentos-grid">
+        {% for est in estabelecimentos %}
+        <a href="/loja/{{ est.slug }}" class="estabelecimento-card">
+            <div class="card-banner">
+                {% if est.banner_url %}
+                <img src="{{ est.banner_url }}" alt="{{ est.nome }}">
+                {% else %}
+                <div class="banner-placeholder" style="background: {{ est.cor_primaria or '#22C55E' }}"></div>
+                {% endif %}
+                <div class="card-logo">
+                    {% if est.logo_url %}
+                    <img src="{{ est.logo_url }}" alt="{{ est.nome }}">
+                    {% else %}
+                    <div class="logo-placeholder" style="background: {{ est.cor_primaria or '#22C55E' }}">{{ est.nome[0] if est.nome else 'L' }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card-content">
+                <h3 class="card-title">{{ est.nome_fantasia or est.nome }}</h3>
+                <p class="card-categoria">{{ est.categoria_negocio or 'Loja' }}{% if est.cidade %} - {{ est.cidade }}{% endif %}</p>
+
+                <div class="card-info">
+                    <span class="rating">
+                        <i class="fas fa-star"></i>
+                        {{ "%.1f"|format(est.avaliacao_media or 5.0) }}
+                    </span>
+
+                    {% if est.tempo_entrega %}
+                    <span class="tempo">
+                        <i class="fas fa-clock"></i>
+                        {{ est.tempo_entrega }}
+                    </span>
+                    {% endif %}
+
+                    {% if est.taxa_entrega == 0 or not est.taxa_entrega %}
+                    <span class="frete-gratis">
+                        <i class="fas fa-motorcycle"></i>
+                        Gratis
+                    </span>
+                    {% else %}
+                    <span class="taxa">
+                        <i class="fas fa-motorcycle"></i>
+                        R$ {{ "%.2f"|format(est.taxa_entrega) }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Status Aberto/Fechado -->
+            <div class="status-badge {% if est.aberto %}aberto{% else %}fechado{% endif %}">
+                {{ 'Aberto' if est.aberto else 'Fechado' }}
+            </div>
+        </a>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-store-slash"></i>
+            <h3>Nenhum estabelecimento encontrado</h3>
+            <p>Tente ajustar os filtros ou buscar por outro termo</p>
+        </div>
+        {% endfor %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="loja-footer">
+        <p>Powered by <strong>EaiChat</strong> - Automacao WhatsApp com IA</p>
+    </footer>
+</div>
+{% endblock %}

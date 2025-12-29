@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="{{ empresa.tema_padrao if empresa else 'dark' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}{{ empresa.nome if empresa else 'EaiChat Lojas' }}{% endblock %}</title>
+
+    <!-- Meta SEO -->
+    <meta name="description" content="{{ empresa.meta_description if empresa else 'Encontre os melhores estabelecimentos' }}">
+
+    <!-- Favicon -->
+    <link rel="icon" href="{{ empresa.logo_url if empresa and empresa.logo_url else '/static/loja/images/favicon.ico' }}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/loja/css/loja.css">
+
+    <!-- Cores personalizadas da empresa -->
+    <style>
+        :root {
+            --empresa-cor-primaria: {{ empresa.cor_primaria if empresa and empresa.cor_primaria else '#22C55E' }};
+            --empresa-cor-secundaria: {{ empresa.cor_secundaria if empresa and empresa.cor_secundaria else '#16A34A' }};
+        }
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+    {% block body %}{% endblock %}
+
+    <!-- Scripts -->
+    <script src="/static/loja/js/theme.js"></script>
+    <script src="/static/loja/js/carrinho.js"></script>
+    <script src="/static/loja/js/loja.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

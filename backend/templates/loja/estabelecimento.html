@@ -1,0 +1,287 @@
+{% extends "loja/base_loja.html" %}
+
+{% block title %}{{ empresa.nome_fantasia or empresa.nome }} | EaiChat{% endblock %}
+
+{% block body %}
+<div class="loja-container loja-estabelecimento">
+    <!-- Header com Banner -->
+    <header class="loja-header" {% if empresa.banner_url %}style="--banner-url: url('{{ empresa.banner_url }}')"{% endif %}>
+        <div class="header-overlay">
+            <a href="/lojas" class="btn-voltar">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+
+            <div class="header-actions-top">
+                <button class="btn-icon" onclick="compartilhar()">
+                    <i class="fas fa-share-alt"></i>
+                </button>
+                <button class="btn-icon" onclick="toggleTheme()">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="loja-info">
+            <div class="loja-logo">
+                {% if empresa.logo_url %}
+                <img src="{{ empresa.logo_url }}" alt="{{ empresa.nome }}">
+                {% else %}
+                <div class="logo-placeholder" style="background: {{ empresa.cor_primaria or '#22C55E' }}">
+                    {{ empresa.nome[0] if empresa.nome else 'L' }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="loja-dados">
+                <h1>{{ empresa.nome_fantasia or empresa.nome }}</h1>
+                <p class="categoria">{{ empresa.categoria_negocio or 'Loja' }}{% if empresa.cidade %} - {{ empresa.cidade }}{% endif %}</p>
+
+                <div class="loja-stats">
+                    <span class="rating">
+                        <i class="fas fa-star"></i>
+                        {{ "%.1f"|format(empresa.avaliacao_media or 5.0) }}
+                        <small>({{ empresa.total_avaliacoes or 0 }})</small>
+                    </span>
+
+                    <span class="status {% if aberto %}aberto{% else %}fechado{% endif %}">
+                        <i class="fas fa-circle"></i>
+                        {{ 'Aberto agora' if aberto else 'Fechado' }}
+                    </span>
+                </div>
+
+                <div class="loja-entrega">
+                    {% if empresa.entrega_ativa %}
+                    <span><i class="fas fa-clock"></i> {{ empresa.tempo_entrega or '30-60 min' }}</span>
+                    <span>
+                        <i class="fas fa-motorcycle"></i>
+                        {% if not empresa.taxa_entrega or empresa.taxa_entrega == 0 %}
+                        Entrega Gratis
+                        {% else %}
+                        R$ {{ "%.2f"|format(empresa.taxa_entrega) }}
+                        {% endif %}
+                    </span>
+                    {% if empresa.pedido_minimo and empresa.pedido_minimo > 0 %}
+                    <span><i class="fas fa-receipt"></i> Min. R$ {{ "%.2f"|format(empresa.pedido_minimo) }}</span>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Busca na Loja -->
+    <div class="search-loja">
+        <i class="fas fa-search"></i>
+        <input type="text" id="busca-produtos" placeholder="Buscar na loja..." oninput="filtrarProdutos(this.value)">
+    </div>
+
+    <!-- Categorias -->
+    {% if categorias %}
+    <nav class="categorias-nav">
+        <div class="categorias-scroll">
+            <button class="categoria-btn active" data-categoria="todos" onclick="filtrarCategoria('todos', this)">
+                <i class="fas fa-th"></i>
+                <span>Todos</span>
+            </button>
+            {% for cat in categorias %}
+            <button class="categoria-btn" data-categoria="{{ cat.id }}" onclick="filtrarCategoria('{{ cat.id }}', this)">
+                {% if cat.icone %}
+                <i class="{{ cat.icone }}"></i>
+                {% else %}
+                <i class="fas fa-tag"></i>
+                {% endif %}
+                <span>{{ cat.nome }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Destaques -->
+    {% if destaques %}
+    <section class="secao-destaques">
+        <h2><i class="fas fa-fire"></i> Destaques</h2>
+        <div class="produtos-scroll">
+            {% for produto in destaques %}
+            <div class="produto-card destaque-card" data-produto-id="{{ produto.id }}" onclick="abrirProduto({{ produto.id }})">
+                <div class="produto-imagem">
+                    {% if produto.imagem_url %}
+                    <img src="{{ produto.imagem_url }}" alt="{{ produto.nome }}" loading="lazy">
+                    {% else %}
+                    <div class="imagem-placeholder">
+                        <i class="fas fa-image"></i>
+                    </div>
+                    {% endif %}
+
+                    {% if produto.em_promocao %}
+                    <span class="badge-promocao">
+                        <i class="fas fa-tag"></i> Promo
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="produto-info">
+                    <h3 class="produto-nome">{{ produto.nome }}</h3>
+
+                    <div class="produto-preco">
+                        {% if produto.em_promocao and produto.preco_promocional %}
+                        <span class="preco-antigo">R$ {{ "%.2f"|format(produto.preco) }}</span>
+                        <span class="preco-atual promocao">R$ {{ "%.2f"|format(produto.preco_promocional) }}</span>
+                        {% else %}
+                        <span class="preco-atual">R$ {{ "%.2f"|format(produto.preco or 0) }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <button class="btn-adicionar" onclick="event.stopPropagation(); adicionarRapido({{ produto.id }}, '{{ produto.nome | replace("'", "\\'") }}', {{ produto.preco_promocional if produto.em_promocao and produto.preco_promocional else produto.preco or 0 }}, '{{ produto.imagem_url or '' }}')">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Produtos por Categoria -->
+    <main class="produtos-main" id="produtos-container">
+        {% for cat_key, produtos in produtos_por_categoria.items() %}
+        <section class="categoria-section" data-categoria-id="{{ cat_key }}">
+            {% if cat_key == 'geral' or cat_key == 'todos' %}
+            <h2 class="categoria-titulo">Todos os Produtos</h2>
+            {% else %}
+            {% for cat in categorias %}
+            {% if cat.id == cat_key %}
+            <h2 class="categoria-titulo">{{ cat.nome }}</h2>
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+
+            <div class="produtos-grid">
+                {% for produto in produtos %}
+                <div class="produto-card" data-produto-id="{{ produto.id }}" data-nome="{{ produto.nome | lower }}" onclick="abrirProduto({{ produto.id }})">
+                    <div class="produto-imagem">
+                        {% if produto.imagem_url %}
+                        <img src="{{ produto.imagem_url }}" alt="{{ produto.nome }}" loading="lazy">
+                        {% else %}
+                        <div class="imagem-placeholder">
+                            <i class="fas fa-image"></i>
+                        </div>
+                        {% endif %}
+
+                        {% if produto.em_promocao %}
+                        <span class="badge-promocao">
+                            <i class="fas fa-tag"></i> Promo
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="produto-info">
+                        <h3 class="produto-nome">{{ produto.nome }}</h3>
+
+                        {% if produto.descricao %}
+                        <p class="produto-descricao">{{ produto.descricao[:80] }}{% if produto.descricao|length > 80 %}...{% endif %}</p>
+                        {% endif %}
+
+                        <div class="produto-preco">
+                            {% if produto.em_promocao and produto.preco_promocional %}
+                            <span class="preco-antigo">R$ {{ "%.2f"|format(produto.preco) }}</span>
+                            <span class="preco-atual promocao">R$ {{ "%.2f"|format(produto.preco_promocional) }}</span>
+                            {% else %}
+                            <span class="preco-atual">R$ {{ "%.2f"|format(produto.preco or 0) }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <button class="btn-adicionar" onclick="event.stopPropagation(); adicionarRapido({{ produto.id }}, '{{ produto.nome | replace("'", "\\'") }}', {{ produto.preco_promocional if produto.em_promocao and produto.preco_promocional else produto.preco or 0 }}, '{{ produto.imagem_url or '' }}')">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                {% else %}
+                <p class="sem-produtos">Nenhum produto nesta categoria</p>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </main>
+
+    <!-- Carrinho Flutuante -->
+    <div class="carrinho-flutuante" id="carrinho-flutuante" style="display: none;">
+        <button onclick="abrirCarrinho()">
+            <div class="carrinho-info">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Ver Carrinho</span>
+                <span class="carrinho-qtd" id="carrinho-qtd">0</span>
+            </div>
+            <span class="carrinho-total" id="carrinho-total">R$ 0,00</span>
+        </button>
+    </div>
+
+    <!-- Modal do Carrinho -->
+    <div class="modal-overlay" id="modal-carrinho" style="display: none;" onclick="if(event.target === this) fecharCarrinho()">
+        <div class="modal-carrinho">
+            <div class="modal-header">
+                <h3><i class="fas fa-shopping-cart"></i> Seu Carrinho</h3>
+                <button onclick="fecharCarrinho()" class="btn-fechar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="carrinho-itens" id="carrinho-itens">
+                    <!-- Itens inseridos via JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div class="carrinho-totais">
+                    <div class="total-linha">
+                        <span>Subtotal</span>
+                        <span id="subtotal">R$ 0,00</span>
+                    </div>
+                    <div class="total-linha">
+                        <span>Taxa de entrega</span>
+                        <span id="taxa-entrega">R$ {{ "%.2f"|format(empresa.taxa_entrega or 0) }}</span>
+                    </div>
+                    <div class="total-linha total-final">
+                        <span>Total</span>
+                        <span id="total-final">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <button class="btn-whatsapp" onclick="finalizarPedido()">
+                    <i class="fab fa-whatsapp"></i>
+                    Finalizar pelo WhatsApp
+                </button>
+
+                <p class="whatsapp-info">
+                    <i class="fas fa-info-circle"></i>
+                    Voce sera redirecionado para o WhatsApp da loja
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- WhatsApp Fixo -->
+    {% set whatsapp_limpo = (empresa.whatsapp_numero or '') | replace('+','') | replace(' ','') | replace('-','') | replace('(','') | replace(')','') %}
+    {% if whatsapp_limpo %}
+    <a href="https://wa.me/{% if not whatsapp_limpo.startswith('55') %}55{% endif %}{{ whatsapp_limpo }}"
+       class="whatsapp-fixo" target="_blank" title="Falar no WhatsApp">
+        <i class="fab fa-whatsapp"></i>
+    </a>
+    {% endif %}
+</div>
+
+<script>
+    // Dados da loja para JS
+    window.LOJA = {
+        slug: '{{ empresa.slug }}',
+        nome: '{{ empresa.nome_fantasia or empresa.nome }}',
+        whatsapp: '{% if not whatsapp_limpo.startswith("55") %}55{% endif %}{{ whatsapp_limpo }}',
+        taxaEntrega: {{ empresa.taxa_entrega or 0 }},
+        pedidoMinimo: {{ empresa.pedido_minimo or 0 }}
+    };
+</script>
+{% endblock %}

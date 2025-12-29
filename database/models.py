@@ -245,12 +245,61 @@ class Empresa(Base):
     estado = Column(String(2))
     cep = Column(String(9))
 
+    # === CAMPOS DA LOJA VIRTUAL PÚBLICA ===
+
+    # Identificação pública
+    slug = Column(String(100), unique=True, index=True)  # URL amigável: /loja/tintas-do-ze
+
+    # Personalização visual
+    logo_url = Column(String(500))
+    banner_url = Column(String(500))
+    cor_primaria = Column(String(7), default='#22C55E')
+    cor_secundaria = Column(String(7), default='#16A34A')
+    cor_texto = Column(String(7), default='#FFFFFF')
+    tema_padrao = Column(String(10), default='dark')  # dark ou light
+
+    # Informações públicas
+    descricao_curta = Column(String(200))
+    descricao_longa = Column(Text)
+    categoria_negocio = Column(String(50))  # tintas, autopecas, restaurante
+
+    # Localização
+    latitude = Column(Float)
+    longitude = Column(Float)
+
+    # Redes sociais
+    instagram = Column(String(100))
+    facebook = Column(String(100))
+
+    # Funcionamento da loja
+    horario_funcionamento = Column(JSON)  # {"seg": {"abre": "08:00", "fecha": "18:00"}, "dom": null}
+
+    # Entrega
+    entrega_ativa = Column(Boolean, default=True)
+    taxa_entrega = Column(Float, default=0)
+    pedido_minimo = Column(Float, default=0)
+    tempo_entrega = Column(String(50), default='30-60 min')
+    raio_entrega_km = Column(Float, default=10)
+
+    # Status da loja virtual
+    loja_publica_ativa = Column(Boolean, default=False)
+
+    # Avaliação
+    avaliacao_media = Column(Float, default=5.0)
+    total_avaliacoes = Column(Integer, default=0)
+
+    # SEO
+    meta_title = Column(String(100))
+    meta_description = Column(String(200))
+
     # Metadados
     criado_em = Column(DateTime, default=datetime.utcnow)
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relacionamentos
     usuarios = relationship("Usuario", back_populates="empresa")
+    categorias_loja = relationship("CategoriaLoja", back_populates="empresa")
+    pedidos_loja = relationship("PedidoLoja", back_populates="empresa")
     configuracao = relationship("ConfiguracaoBot", back_populates="empresa", uselist=False)
     leads = relationship("Lead", back_populates="empresa")
     conversas = relationship("Conversa", back_populates="empresa")
@@ -720,6 +769,17 @@ class Produto(Base):
     # Informações extras (JSON flexível)
     dados_extras = Column(JSON)  # Ex: cores, tamanhos, especificações técnicas
 
+    # === CAMPOS PARA LOJA VIRTUAL ===
+    categoria_loja_id = Column(Integer, ForeignKey('categorias_loja.id'), nullable=True)
+    variacoes = Column(JSON)  # [{"nome": "Tamanho", "opcoes": [{"valor": "3.6L", "preco_adicional": 0}]}]
+    imagens_galeria = Column(JSON)  # Lista de URLs de imagens
+    destaque = Column(Boolean, default=False)  # Produto em destaque na loja
+    ordem = Column(Integer, default=0)  # Ordem de exibição
+    em_promocao = Column(Boolean, default=False)  # Flag de promoção
+    visualizacoes = Column(Integer, default=0)  # Contagem de visualizações
+    cliques_whatsapp = Column(Integer, default=0)  # Contagem de cliques no WhatsApp
+    exibir_loja = Column(Boolean, default=True)  # Exibir na loja virtual
+
     # Controle
     ativo = Column(Boolean, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
@@ -728,9 +788,84 @@ class Produto(Base):
 
     # Relacionamentos
     empresa = relationship("Empresa", back_populates="produtos")
+    categoria_loja = relationship("CategoriaLoja", back_populates="produtos")
 
     def __repr__(self):
         return f'<Produto {self.nome} - R$ {self.preco}>'
+
+
+class CategoriaLoja(Base):
+    """Categorias de produtos na loja pública"""
+    __tablename__ = 'categorias_loja'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    nome = Column(String(100), nullable=False)
+    descricao = Column(String(200))
+    icone = Column(String(50))  # Classe do ícone (ex: fas fa-paint-brush) ou emoji
+    imagem_url = Column(String(500))
+    ordem = Column(Integer, default=0)
+    ativo = Column(Boolean, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", back_populates="categorias_loja")
+    produtos = relationship("Produto", back_populates="categoria_loja")
+
+    def __repr__(self):
+        return f'<CategoriaLoja {self.nome}>'
+
+
+class PedidoLoja(Base):
+    """Pedidos gerados pela loja virtual pública"""
+    __tablename__ = 'pedidos_loja'
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey('leads.id'), nullable=True)
+
+    # Código único do pedido
+    codigo = Column(String(20), unique=True, index=True)  # Ex: PED-ABC123
+
+    # Cliente
+    cliente_nome = Column(String(200))
+    cliente_telefone = Column(String(20))
+    cliente_endereco = Column(Text)
+
+    # Itens (JSON)
+    itens = Column(JSON)
+    # [{"produto_id": 1, "nome": "Tinta X", "qtd": 2, "preco": 89.90, "variacoes": {...}}]
+
+    # Valores
+    subtotal = Column(Float)
+    taxa_entrega = Column(Float, default=0)
+    desconto = Column(Float, default=0)
+    total = Column(Float)
+
+    # Entrega
+    tipo_entrega = Column(String(20), default='entrega')  # entrega, retirada
+
+    # Status
+    status = Column(String(20), default='pendente')
+    # pendente, confirmado, preparando, saiu_entrega, entregue, cancelado
+
+    # WhatsApp
+    enviado_whatsapp = Column(Boolean, default=False)
+    mensagem_whatsapp = Column(Text)
+
+    # Origem
+    origem = Column(String(50), default='loja_virtual')  # loja_virtual, whatsapp_direto
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    empresa = relationship("Empresa", back_populates="pedidos_loja")
+    lead = relationship("Lead")
+
+    def __repr__(self):
+        return f'<PedidoLoja {self.codigo} - R$ {self.total}>'
 
 
 class ArquivoImportacao(Base):
