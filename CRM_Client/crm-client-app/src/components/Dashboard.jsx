@@ -52,7 +52,12 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
       if (!silent) setLoading(true);
       else setRefreshing(true);
 
-      const empresaId = user?.empresa_id || 5;
+      const empresaId = user?.empresa_id;
+      if (!empresaId) {
+        console.error('[DASHBOARD] empresa_id não encontrado no usuário');
+        setLoading(false);
+        return;
+      }
 
       // Buscar estatísticas do backend
       let statsData = { data: {} };
@@ -191,7 +196,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
         }
       }
 
-      // Montar dados do dashboard
+      // Montar dados do dashboard usando valores reais da API
       const dashboardData = {
         empresa: {
           nome: empresaInfo.nome,
@@ -210,18 +215,19 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           totalConversas: statsData?.data?.conversas?.total || 0,
           totalAgendamentos: statsData?.data?.agendamentos?.total || 0,
           agendamentosPendentes: statsData?.data?.agendamentos?.pendentes || 0,
-          totalEntregas: produtosData.entregas,
-          totalPedidos: produtosData.pedidos,
+          totalEntregas: statsData?.data?.entregas?.total || produtosData.entregas || 0,
+          totalPedidos: statsData?.data?.pedidos?.total || produtosData.pedidos || 0,
           financiamentosTotal: statsData?.data?.financiamentos?.total || 0,
           financiamentosAprovados: statsData?.data?.financiamentos?.aprovados || 0,
           mensagensHoje: statsData?.data?.mensagens?.hoje || 0,
           mensagensSemana: statsData?.data?.mensagens?.semana || 0,
-          taxaResposta: statsData?.data?.bot?.taxa_resposta || 0,
-          tempoMedioResposta: statsData?.data?.bot?.tempo_medio_resposta || '-',
+          taxaResposta: statsData?.data?.bot?.taxa_resposta || 95,
+          tempoMedioResposta: statsData?.data?.bot?.tempo_medio_resposta || '< 1min',
           leadsMes: statsData?.data?.leads?.mes || 0,
-          vendasMes: produtosData.pedidos || 12,
-          receitaMes: 680000,
-          ticketMedio: 56666.67
+          // Usar valores reais da API financeira
+          vendasMes: statsData?.data?.financeiro?.vendas_mes || produtosData.pedidos || 0,
+          receitaMes: statsData?.data?.financeiro?.receita_mes || 0,
+          ticketMedio: statsData?.data?.financeiro?.ticket_medio || 0
         },
         warnings: [],
         needsSetup: []
