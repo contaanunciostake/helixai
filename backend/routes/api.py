@@ -1,6 +1,8 @@
 """API REST Endpoints"""
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from datetime import datetime, timedelta
+from sqlalchemy import text
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -913,6 +915,275 @@ _Notificação automática - {empresa_nome}_"""
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ══════════════════════════════════════════════════════════════
+# SALES API - Dashboard de Vendas
+# ══════════════════════════════════════════════════════════════
+
+@bp.route('/sales/<int:empresa_id>')
+def get_sales_dashboard(empresa_id):
+    """
+    GET /api/sales/<empresa_id>?periodo=30
+    Dashboard completo de vendas para a empresa
+    """
+    session = db_manager.get_session()
+    try:
+        periodo = int(request.args.get('periodo', 30))
+        hoje = datetime.now()
+        data_inicio = hoje - timedelta(days=periodo)
+
+        # ═══════════════════════════════════════════════════════════
+        # 1. MÉTRICAS GERAIS - Baseado em Pedidos e Entregas
+        # ═══════════════════════════════════════════════════════════
+
+        # Total de vendas (pedidos entregues + entregas concluídas)
+        result = session.execute(text('''
+            SELECT
+                COUNT(*) as total_vendas,
+                COALESCE(SUM(total), 0) as valor_total
+            FROM pedidos
+            WHERE empresa_id = :empresa_id
+            AND status = 'entregue'
+            AND criado_em >= :data_inicio
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        pedidos_stats = result.fetchone()
+
+        # Também incluir entregas com status entregue
+        result = session.execute(text('''
+            SELECT
+                COUNT(*) as total_entregas,
+                COALESCE(SUM(valor_pedido), 0) as valor_entregas
+            FROM entregas
+            WHERE empresa_id = :empresa_id
+            AND status = 'entregue'
+            AND criado_em >= :data_inicio
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        entregas_stats = result.fetchone()
+
+        total_vendas = (pedidos_stats[0] or 0) + (entregas_stats[0] or 0)
+        valor_total = float(pedidos_stats[1] or 0) + float(entregas_stats[1] or 0)
+        ticket_medio = valor_total / total_vendas if total_vendas > 0 else 0
+
+        # Período anterior para calcular crescimento
+        data_inicio_anterior = data_inicio - timedelta(days=periodo)
+        result = session.execute(text('''
+            SELECT COALESCE(SUM(total), 0) + (
+                SELECT COALESCE(SUM(valor_pedido), 0) FROM entregas
+                WHERE empresa_id = :empresa_id AND status = 'entregue'
+                AND criado_em >= :data_inicio_ant AND criado_em < :data_inicio
+            ) as valor_anterior
+            FROM pedidos
+            WHERE empresa_id = :empresa_id AND status = 'entregue'
+            AND criado_em >= :data_inicio_ant AND criado_em < :data_inicio
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio, 'data_inicio_ant': data_inicio_anterior})
+        valor_anterior = float(result.fetchone()[0] or 0)
+
+        crescimento = 0
+        if valor_anterior > 0:
+            crescimento = ((valor_total - valor_anterior) / valor_anterior) * 100
+
+        # ═══════════════════════════════════════════════════════════
+        # 2. FUNIL DE VENDAS - Baseado em Leads
+        # ═══════════════════════════════════════════════════════════
+
+        result = session.execute(text('''
+            SELECT COUNT(*) FROM leads
+            WHERE empresa_id = :empresa_id AND criado_em >= :data_inicio
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        total_leads = result.fetchone()[0] or 0
+
+        result = session.execute(text('''
+            SELECT COUNT(*) FROM leads
+            WHERE empresa_id = :empresa_id AND criado_em >= :data_inicio
+            AND status IN ('QUALIFICADO', 'NEGOCIANDO', 'CONVERTIDO')
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        leads_qualificados = result.fetchone()[0] or 0
+
+        result = session.execute(text('''
+            SELECT COUNT(*), COALESCE(SUM(valor_venda), 0) FROM leads
+            WHERE empresa_id = :empresa_id AND vendido = true
+            AND data_venda >= :data_inicio
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        leads_vendidos = result.fetchone()
+
+        taxa_conversao_leads = (leads_vendidos[0] / total_leads * 100) if total_leads > 0 else 0
+        taxa_conversao_qualificados = (leads_vendidos[0] / leads_qualificados * 100) if leads_qualificados > 0 else 0
+
+        # ═══════════════════════════════════════════════════════════
+        # 3. VENDAS POR DIA
+        # ═══════════════════════════════════════════════════════════
+
+        result = session.execute(text('''
+            SELECT
+                DATE(criado_em) as data,
+                COUNT(*) as quantidade,
+                COALESCE(SUM(total), 0) as valor
+            FROM pedidos
+            WHERE empresa_id = :empresa_id
+            AND status = 'entregue'
+            AND criado_em >= :data_inicio
+            GROUP BY DATE(criado_em)
+            ORDER BY data
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        vendas_pedidos = {str(row[0]): {'quantidade': row[1], 'valor': float(row[2])} for row in result.fetchall()}
+
+        result = session.execute(text('''
+            SELECT
+                DATE(criado_em) as data,
+                COUNT(*) as quantidade,
+                COALESCE(SUM(valor_pedido), 0) as valor
+            FROM entregas
+            WHERE empresa_id = :empresa_id
+            AND status = 'entregue'
+            AND criado_em >= :data_inicio
+            GROUP BY DATE(criado_em)
+            ORDER BY data
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        vendas_entregas = {str(row[0]): {'quantidade': row[1], 'valor': float(row[2])} for row in result.fetchall()}
+
+        # Combinar vendas por dia
+        vendas_por_dia = []
+        for i in range(periodo):
+            data = (data_inicio + timedelta(days=i)).strftime('%Y-%m-%d')
+            pedido = vendas_pedidos.get(data, {'quantidade': 0, 'valor': 0})
+            entrega = vendas_entregas.get(data, {'quantidade': 0, 'valor': 0})
+            vendas_por_dia.append({
+                'data': data,
+                'quantidade': pedido['quantidade'] + entrega['quantidade'],
+                'valor': pedido['valor'] + entrega['valor']
+            })
+
+        # Recorde do dia
+        recorde_dia = max(vendas_por_dia, key=lambda x: x['valor']) if vendas_por_dia else None
+
+        # ═══════════════════════════════════════════════════════════
+        # 4. VENDAS POR CATEGORIA (produtos)
+        # ═══════════════════════════════════════════════════════════
+
+        result = session.execute(text('''
+            SELECT
+                COALESCE(p.categoria, 'Outros') as categoria,
+                COUNT(DISTINCT ped.id) as quantidade,
+                COALESCE(SUM(ip.quantidade * ip.preco_unitario), 0) as valor
+            FROM itens_pedido ip
+            JOIN pedidos ped ON ip.pedido_id = ped.id
+            JOIN produtos p ON ip.produto_id = p.id
+            WHERE ped.empresa_id = :empresa_id
+            AND ped.status = 'entregue'
+            AND ped.criado_em >= :data_inicio
+            GROUP BY p.categoria
+            ORDER BY valor DESC
+            LIMIT 10
+        '''), {'empresa_id': empresa_id, 'data_inicio': data_inicio})
+        vendas_por_categoria = [
+            {'categoria': row[0], 'quantidade': row[1], 'valor': float(row[2])}
+            for row in result.fetchall()
+        ]
+
+        # ═══════════════════════════════════════════════════════════
+        # 5. VENDAS RECENTES
+        # ═══════════════════════════════════════════════════════════
+
+        result = session.execute(text('''
+            SELECT
+                ped.id, c.nome as cliente, c.email, c.telefone,
+                ped.total as valor, ped.criado_em as data,
+                ped.forma_pagamento, ped.observacoes
+            FROM pedidos ped
+            LEFT JOIN clientes c ON ped.cliente_id = c.id
+            WHERE ped.empresa_id = :empresa_id
+            AND ped.status = 'entregue'
+            ORDER BY ped.criado_em DESC
+            LIMIT 10
+        '''), {'empresa_id': empresa_id})
+
+        vendas_recentes = []
+        for row in result.fetchall():
+            vendas_recentes.append({
+                'id': row[0],
+                'cliente': row[1] or 'Cliente',
+                'email': row[2] or '',
+                'telefone': row[3] or '',
+                'carro': 'Pedido',  # Placeholder
+                'valor': float(row[4] or 0),
+                'data': row[5].isoformat() if row[5] else None,
+                'forma_pagamento': row[6] or 'pago',
+                'vendedor': 'Sistema',
+                'observacoes': row[7] or ''
+            })
+
+        # Também incluir entregas recentes
+        result = session.execute(text('''
+            SELECT
+                id, cliente_nome, '', cliente_telefone,
+                valor_pedido, criado_em, forma_pagamento, observacoes
+            FROM entregas
+            WHERE empresa_id = :empresa_id
+            AND status = 'entregue'
+            ORDER BY criado_em DESC
+            LIMIT 10
+        '''), {'empresa_id': empresa_id})
+
+        for row in result.fetchall():
+            vendas_recentes.append({
+                'id': row[0],
+                'cliente': row[1] or 'Cliente',
+                'email': row[2] or '',
+                'telefone': row[3] or '',
+                'carro': 'Entrega',
+                'valor': float(row[4] or 0),
+                'data': row[5].isoformat() if row[5] else None,
+                'forma_pagamento': row[6] or 'pago',
+                'vendedor': 'Sistema',
+                'observacoes': row[7] or ''
+            })
+
+        # Ordenar por data e limitar a 10
+        vendas_recentes.sort(key=lambda x: x['data'] or '', reverse=True)
+        vendas_recentes = vendas_recentes[:10]
+
+        # ═══════════════════════════════════════════════════════════
+        # 6. MONTAR RESPOSTA
+        # ═══════════════════════════════════════════════════════════
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'metricas_gerais': {
+                    'total_vendas': total_vendas,
+                    'valor_total': valor_total,
+                    'ticket_medio': ticket_medio,
+                    'crescimento_periodo': round(crescimento, 1),
+                    'roi': round(crescimento + 100, 0) if crescimento > 0 else 100
+                },
+                'funil': {
+                    'total_leads': total_leads,
+                    'visitas_realizadas': leads_qualificados,
+                    'total_vendas': leads_vendidos[0] if leads_vendidos else 0,
+                    'taxa_conversao_leads': round(taxa_conversao_leads, 1),
+                    'taxa_conversao_visitas': round(taxa_conversao_qualificados, 1)
+                },
+                'recorde_dia': {
+                    'data': recorde_dia['data'],
+                    'quantidade': recorde_dia['quantidade'],
+                    'valor_total': recorde_dia['valor']
+                } if recorde_dia and recorde_dia['valor'] > 0 else None,
+                'vendas_por_dia': vendas_por_dia,
+                'vendas_por_categoria': vendas_por_categoria,
+                'vendas_por_vendedor': [],  # Não temos vendedores implementados
+                'vendas_recentes': vendas_recentes,
+                'performance_radar': vendas_por_categoria[:5] if vendas_por_categoria else []
+            }
+        })
+
+    except Exception as e:
+        print(f'[SALES API] Erro: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
 @bp.route('/docs')
 def docs():
     """Documentação da API"""
@@ -921,6 +1192,7 @@ def docs():
         'endpoints': {
             '/api/stats': 'GET - Estatísticas gerais (requer autenticação)',
             '/api/stats/<empresa_id>': 'GET - Estatísticas por empresa',
+            '/api/sales/<empresa_id>': 'GET - Dashboard de vendas (periodo=30)',
             '/api/bot-config/<empresa_id>': 'GET - Configuração do bot',
             '/api/empresa/bot/toggle': 'POST - Ativar/Desativar bot (Body: {"empresa_id": 5, "bot_ativo": true})',
             '/api/empresa/check-setup/<empresa_id>': 'GET - Verificar status de setup da empresa',
