@@ -17,6 +17,20 @@ import {
   Package, Boxes, Truck
 } from 'lucide-react';
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const BACKEND_API_URL = getBackendUrl()
+
 export default function Dashboard({ user, botConfig, onNavigate, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,7 +57,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
       // Buscar estatísticas do backend
       let statsData = { data: {} };
       try {
-        const statsResponse = await fetch(`/api/stats/${empresaId}`);
+        const statsResponse = await fetch(`${BACKEND_API_URL}/api/stats/${empresaId}`);
         if (statsResponse.ok) {
           const data = await statsResponse.json();
           if (data.success) {
@@ -78,7 +92,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
 
       try {
         console.log('[DASHBOARD] 📡 Buscando dados da empresa...');
-        const empresaResponse = await fetch(`/api/empresa/info`);
+        const empresaResponse = await fetch(`${BACKEND_API_URL}/api/empresa/info`);
         console.log('[DASHBOARD] 📡 Status HTTP:', empresaResponse.status);
 
         if (empresaResponse.ok) {
@@ -129,7 +143,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
 
       if (nicho === 'atacado_varejo' || nicho === 'varejo' || nicho === 'loja_tintas') {
         try {
-          const produtosResponse = await fetch(`/api/produtos/listar?empresa_id=${empresaId}`, {
+          const produtosResponse = await fetch(`${BACKEND_API_URL}/api/produtos/listar?empresa_id=${empresaId}`, {
             headers: { 'X-Empresa-ID': empresaId?.toString() }
           });
           if (produtosResponse.ok) {
@@ -141,7 +155,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           }
 
           // Buscar entregas
-          const entregasResponse = await fetch(`/api/entregas?empresa_id=${empresaId}`, {
+          const entregasResponse = await fetch(`${BACKEND_API_URL}/api/entregas?empresa_id=${empresaId}`, {
             headers: { 'X-Empresa-ID': empresaId?.toString() }
           });
           if (entregasResponse.ok) {
@@ -152,7 +166,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           }
 
           // Buscar pedidos
-          const pedidosResponse = await fetch(`/api/pedidos/listar?empresa_id=${empresaId}`, {
+          const pedidosResponse = await fetch(`${BACKEND_API_URL}/api/pedidos/listar?empresa_id=${empresaId}`, {
             headers: { 'X-Empresa-ID': empresaId?.toString() }
           });
           if (pedidosResponse.ok) {
@@ -163,7 +177,7 @@ export default function Dashboard({ user, botConfig, onNavigate, showNotificatio
           }
 
           // Buscar clientes
-          const clientesResponse = await fetch(`/api/clientes/listar?empresa_id=${empresaId}`, {
+          const clientesResponse = await fetch(`${BACKEND_API_URL}/api/clientes/listar?empresa_id=${empresaId}`, {
             headers: { 'X-Empresa-ID': empresaId?.toString() }
           });
           if (clientesResponse.ok) {

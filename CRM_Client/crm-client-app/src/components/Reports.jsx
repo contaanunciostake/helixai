@@ -17,7 +17,19 @@ import {
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const API_URL = getBackendUrl();
 
 export default function Reports({ user, botConfig, showNotification }) {
   const [selectedReport, setSelectedReport] = useState(null);

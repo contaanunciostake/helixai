@@ -14,6 +14,33 @@ import { MessageSquare, RefreshCw, AlertTriangle, X, Phone, Clock, MapPin, User,
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { Button } from '@/components/ui/button.jsx';
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+// Detectar URL do WebSocket dinamicamente
+const getWsUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'wss://vendefacil-whatsapp.onrender.com/ws'
+  }
+  return 'ws://localhost:3010/ws'
+}
+
+const BACKEND_API_URL = getBackendUrl();
+const WS_URL = getWsUrl();
+
 export default function Conversations({ user, botConfig, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,7 +61,7 @@ export default function Conversations({ user, botConfig, showNotification }) {
   // ═══════════════════════════════════════════════════════════════
   const connectWebSocket = useCallback(() => {
     const empresaId = user?.empresa_id || 9;
-    const wsUrl = `ws://localhost:3010/ws?empresa_id=${empresaId}`;
+    const wsUrl = `${WS_URL}?empresa_id=${empresaId}`;
 
     console.log('[WS] Conectando ao WebSocket:', wsUrl);
 
@@ -125,7 +152,7 @@ export default function Conversations({ user, botConfig, showNotification }) {
       else setRefreshing(true);
 
       const empresaId = user?.empresa_id || 9;
-      const apiUrl = botConfig?.apiUrl || 'http://localhost:5000';
+      const apiUrl = botConfig?.apiUrl || BACKEND_API_URL;
 
       // Buscar conversas reais da API
       console.log(`[CONVERSATIONS] Buscando conversas da empresa ${empresaId}...`);

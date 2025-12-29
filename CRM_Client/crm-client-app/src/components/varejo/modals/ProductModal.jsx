@@ -12,7 +12,19 @@ import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Loader2, Save, X, Package, DollarSign, Boxes, Tag } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000';
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const API_URL = getBackendUrl();
 
 export default function ProductModal({
   isOpen,

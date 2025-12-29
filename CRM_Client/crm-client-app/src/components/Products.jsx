@@ -14,7 +14,19 @@ import {
   FileText, TrendingUp, Database, RefreshCw, Car, Filter, Image
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // Backend Flask
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const API_URL = getBackendUrl(); // Backend Flask
 
 export default function Products({ user, nicho }) {
   const [products, setProducts] = useState([]);

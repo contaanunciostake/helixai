@@ -14,10 +14,46 @@ import {
   Zap, Eye, EyeOff, Copy, LogOut, Phone, Bot, Sparkles
 } from 'lucide-react';
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+// Detectar URL do bot dinamicamente
+const getBotApiUrl = () => {
+  if (import.meta.env.VITE_BOT_API_URL) {
+    return import.meta.env.VITE_BOT_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-whatsapp.onrender.com'
+  }
+  return 'http://localhost:3010'
+}
+
+// Detectar URL do WebSocket dinamicamente
+const getWsUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'wss://vendefacil-whatsapp.onrender.com/ws'
+  }
+  return 'ws://localhost:3010/ws'
+}
+
 // URLs padrão (usadas se botConfig não for passado)
-const BACKEND_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const DEFAULT_BOT_API_URL = import.meta.env.VITE_BOT_API_URL || 'http://localhost:3010';
-const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3010/ws';
+const BACKEND_API_URL = getBackendUrl();
+const DEFAULT_BOT_API_URL = getBotApiUrl();
+const DEFAULT_WS_URL = getWsUrl();
 
 export default function WhatsAppConnection({ user, showNotification, botConfig }) {
   // Usar URLs do botConfig se disponível, senão usar padrão
@@ -245,8 +281,7 @@ export default function WhatsAppConnection({ user, showNotification, botConfig }
   const fetchRealStats = async () => {
     try {
       const empresaId = user?.empresa_id || 9;
-      const apiUrl = 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/stats/${empresaId}`);
+      const response = await fetch(`${BACKEND_API_URL}/api/stats/${empresaId}`);
 
       if (response.ok) {
         const data = await response.json();

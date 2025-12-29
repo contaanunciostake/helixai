@@ -1,6 +1,20 @@
 import { useState } from 'react';
 import { Award, User, CreditCard, Building, Check } from 'lucide-react';
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const API_URL = getBackendUrl();
+
 export function AfiliadoRegistro({ onRegistroCompleto }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -21,7 +35,7 @@ export function AfiliadoRegistro({ onRegistroCompleto }) {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/afiliados/registrar', {
+      const res = await fetch(`${API_URL}/api/afiliados/registrar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

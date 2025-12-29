@@ -5,6 +5,20 @@ import {
   Award, Target, Zap
 } from 'lucide-react';
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const API_URL = getBackendUrl();
+
 export function AfiliadoDashboard() {
   const [afiliado, setAfiliado] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -20,7 +34,7 @@ export function AfiliadoDashboard() {
       setLoading(true);
 
       // Carregar perfil do afiliado
-      const resPerfil = await fetch('http://localhost:5000/api/afiliados/meu-perfil', {
+      const resPerfil = await fetch(`${API_URL}/api/afiliados/meu-perfil`, {
         credentials: 'include'
       });
       const dataPerfil = await resPerfil.json();
@@ -30,7 +44,7 @@ export function AfiliadoDashboard() {
       }
 
       // Carregar dashboard
-      const resDashboard = await fetch('http://localhost:5000/api/afiliados/dashboard?periodo_dias=30', {
+      const resDashboard = await fetch(`${API_URL}/api/afiliados/dashboard?periodo_dias=30`, {
         credentials: 'include'
       });
       const dataDashboard = await resDashboard.json();
@@ -48,7 +62,7 @@ export function AfiliadoDashboard() {
 
   const copiarLink = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/afiliados/meu-link', {
+      const res = await fetch(`${API_URL}/api/afiliados/meu-link`, {
         credentials: 'include'
       });
       const data = await res.json();

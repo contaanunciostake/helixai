@@ -7,9 +7,33 @@
 
 import axios from 'axios'
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+// Detectar URL do bot dinamicamente
+const getBotApiUrl = () => {
+  if (import.meta.env.VITE_BOT_API_URL) {
+    return import.meta.env.VITE_BOT_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-whatsapp.onrender.com'
+  }
+  return 'http://localhost:3010'
+}
+
 // Base URLs
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-const BOT_API_URL = import.meta.env.VITE_BOT_API_URL || 'http://localhost:3010'
+const API_BASE_URL = getBackendUrl()
+const BOT_API_URL = getBotApiUrl()
 
 // Criar instância do axios
 const api = axios.create({

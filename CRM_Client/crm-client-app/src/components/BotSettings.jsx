@@ -17,6 +17,20 @@ import {
   Loader2, AlertCircle, RefreshCw, Briefcase
 } from 'lucide-react';
 
+// Detectar URL do backend dinamicamente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com'
+  }
+  return 'http://localhost:5000'
+}
+
+const BACKEND_API_URL = getBackendUrl()
+
 export default function BotSettings({ user, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,7 +86,7 @@ export default function BotSettings({ user, showNotification }) {
       setLoading(true);
       const empresaId = user?.empresa_id || 1;
 
-      const response = await fetch(`http://localhost:5000/api/bot/config/${empresaId}`);
+      const response = await fetch(`${BACKEND_API_URL}/api/bot/config/${empresaId}`);
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -96,7 +110,7 @@ export default function BotSettings({ user, showNotification }) {
       setSaving(true);
       const empresaId = user?.empresa_id || 1;
 
-      const response = await fetch(`http://localhost:5000/api/bot/config/${empresaId}`, {
+      const response = await fetch(`${BACKEND_API_URL}/api/bot/config/${empresaId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
