@@ -6,6 +6,8 @@ import {
   ArrowDownRight, BarChart3
 } from 'lucide-react'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export function AdminDashboard() {
   const [metrics, setMetrics] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -19,7 +21,7 @@ export function AdminDashboard() {
     try {
       setLoading(true)
 
-      const res = await fetch(`http://localhost:5000/api/admin/dashboard/metrics`, {
+      const res = await fetch(`${API_URL}/api/admin/dashboard/metrics`, {
         credentials: 'include'
       })
 

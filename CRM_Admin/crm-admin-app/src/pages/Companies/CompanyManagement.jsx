@@ -5,6 +5,8 @@ import {
   ChevronLeft, ChevronRight, Download, RefreshCw
 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export function CompanyManagement() {
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +34,7 @@ export function CompanyManagement() {
         if (filtros[key]) params.append(key, filtros[key]);
       });
 
-      const res = await fetch(`http://localhost:5000/api/admin/empresas?${params.toString()}`, {
+      const res = await fetch(`${API_URL}/api/admin/empresas?${params.toString()}`, {
         credentials: 'include'
       });
 
@@ -51,7 +53,7 @@ export function CompanyManagement() {
 
   const verDetalhes = async (empresaId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/empresas/${empresaId}`, {
+      const res = await fetch(`${API_URL}/api/admin/empresas/${empresaId}`, {
         credentials: 'include'
       });
 
