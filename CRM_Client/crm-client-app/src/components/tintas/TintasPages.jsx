@@ -34,7 +34,19 @@ import TintaModal from './modals/TintaModal.jsx';
 import OrcamentoModal from './modals/OrcamentoModal.jsx';
 import CalculadoraModal from './modals/CalculadoraModal.jsx';
 
-const API_URL = '';
+// URL do Backend - detectar ambiente
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('onrender.com') || window.location.hostname.includes('render.com'))) {
+    return 'https://vendefacil-backend.onrender.com';
+  }
+  return 'http://localhost:5000';
+};
+
+const API_URL = getBackendUrl();
 
 // ══════════════════════════════════════════════════════════════
 // CONSTANTES E OPCOES PARA TINTAS
@@ -172,30 +184,8 @@ export function CatalogoTintasPage({ user }) {
       }
     } catch (err) {
       console.error('[TINTAS] Erro ao carregar:', err);
-      // Dados de exemplo para desenvolvimento
-      setTintas([
-        {
-          id: 1, nome: 'Tinta Acrilica Premium Fosco', tipo: 'acrilica', acabamento: 'fosco',
-          base: 'agua', cor: 'Branco Neve', codigo_cor: 'W001', hex_cor: '#FFFFFF',
-          linha: 'premium', ambiente: 'interno_externo', marca: 'Suvinil',
-          volume: 18, rendimento_m2: 12, preco: 289.90, estoque: 45,
-          tempo_secagem: '1h ao toque', demaos: 2
-        },
-        {
-          id: 2, nome: 'Esmalte Sintetico Brilhante', tipo: 'esmalte', acabamento: 'brilhante',
-          base: 'solvente', cor: 'Branco', codigo_cor: 'W001', hex_cor: '#FFFFFF',
-          linha: 'standard', ambiente: 'interno_externo', marca: 'Coral',
-          volume: 3.6, rendimento_m2: 10, preco: 89.90, estoque: 32,
-          tempo_secagem: '4h ao toque', demaos: 2
-        },
-        {
-          id: 3, nome: 'Tinta Latex PVA Economica', tipo: 'latex', acabamento: 'fosco',
-          base: 'agua', cor: 'Palha', codigo_cor: 'Y001', hex_cor: '#F5DEB3',
-          linha: 'economica', ambiente: 'interno', marca: 'Lukscolor',
-          volume: 18, rendimento_m2: 8, preco: 149.90, estoque: 28,
-          tempo_secagem: '30min ao toque', demaos: 3
-        }
-      ]);
+      // Mostrar lista vazia em caso de erro - nao usar dados fake
+      setTintas([]);
     } finally {
       setLoading(false);
     }
@@ -1027,34 +1017,8 @@ export function OrcamentosPage({ user }) {
       }
     } catch (err) {
       console.error('[ORCAMENTOS] Erro:', err);
-      // Dados exemplo
-      setOrcamentos([
-        {
-          id: 1,
-          cliente_nome: 'Joao Silva',
-          cliente_telefone: '11999998888',
-          obra: 'Pintura residencia - Sala e Quartos',
-          status: 'pendente',
-          valor_total: 1850.00,
-          criado_em: new Date().toISOString(),
-          itens: [
-            { tinta: 'Suvinil Fosco Premium', cor: 'Branco Neve', volume: '18L', qtd: 2, valor: 579.80 },
-            { tinta: 'Suvinil Acrilica', cor: 'Palha', volume: '18L', qtd: 1, valor: 289.90 }
-          ]
-        },
-        {
-          id: 2,
-          cliente_nome: 'Maria Santos',
-          cliente_telefone: '11988887777',
-          obra: 'Fachada comercial',
-          status: 'aprovado',
-          valor_total: 2450.00,
-          criado_em: new Date(Date.now() - 86400000).toISOString(),
-          itens: [
-            { tinta: 'Coral Rende Muito', cor: 'Branco Gelo', volume: '18L', qtd: 4, valor: 980.00 }
-          ]
-        }
-      ]);
+      // Mostrar lista vazia em caso de erro - nao usar dados fake
+      setOrcamentos([]);
     } finally {
       setLoading(false);
     }
@@ -1255,30 +1219,24 @@ export function HistoricoCoresPage({ user }) {
   const loadClientes = async () => {
     try {
       setLoading(true);
-      // Carregar clientes com historico de cores
-      // Por enquanto, dados exemplo
-      setClientes([
-        {
-          id: 1,
-          nome: 'Joao Silva',
-          telefone: '11999998888',
-          historico: [
-            { data: '2024-01-15', obra: 'Sala de estar', cor: 'Branco Neve', codigo: 'W001', hex: '#FFFFFF', tinta: 'Suvinil Fosco Premium', volume: '18L' },
-            { data: '2024-01-15', obra: 'Sala de estar', cor: 'Palha', codigo: 'Y001', hex: '#F5DEB3', tinta: 'Suvinil Acrilica', volume: '3.6L' },
-            { data: '2023-08-20', obra: 'Quarto casal', cor: 'Cinza Claro', codigo: 'G001', hex: '#D3D3D3', tinta: 'Coral Rende Muito', volume: '18L' }
-          ]
-        },
-        {
-          id: 2,
-          nome: 'Maria Santos',
-          telefone: '11988887777',
-          historico: [
-            { data: '2024-02-10', obra: 'Fachada', cor: 'Branco Gelo', codigo: 'W002', hex: '#F5F5F5', tinta: 'Coral Protecao Sol e Chuva', volume: '18L' }
-          ]
-        }
-      ]);
+      // Carregar clientes com historico de cores da API
+      const response = await fetch(`${API_URL}/api/clientes/listar?empresa_id=${empresaId}`, {
+        headers: { 'X-Empresa-ID': empresaId?.toString() }
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Mapear clientes para formato esperado
+        const clientesComHistorico = (data.data?.clientes || data.clientes || []).map(c => ({
+          ...c,
+          historico: c.historico_cores || []
+        }));
+        setClientes(clientesComHistorico);
+      } else {
+        setClientes([]);
+      }
     } catch (err) {
       console.error('Erro ao carregar clientes:', err);
+      setClientes([]);
     } finally {
       setLoading(false);
     }
