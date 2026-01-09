@@ -16,8 +16,11 @@ import ffmpeg from 'fluent-ffmpeg';
 import { ElevenLabsClient } from 'elevenlabs';
 import mysql from 'mysql2/promise';
 
-// ❌ IA MASTER DESATIVADA (não está sendo usada)
-// import { IAMaster } from './ia-modules/00-ia-master.js';
+// ✅ IA MASTER ATIVADA - Sistema completo de análise inteligente
+import { IAMaster } from './ia-modules/00-ia-master.js';
+
+// ✅ IA FACTORY - Seleção automática de módulo IA baseado no tipo de negócio
+import { IAFactory } from './ia-modules/ia-factory.js';
 
 // ✅ IMPORTAR SIMULADOR DE FINANCIAMENTO
 import { SimuladorFinanciamento, GerenciadorFinanciamento } from './simulador-financiamento.js';
@@ -110,9 +113,17 @@ class FormatadorFala {
       return `${this.numeroParaTexto(parseInt(num))} quilômetros por hora`;
     });
 
+    // 2.5. KM + ADJETIVO (ex: "km baixa", "km baixíssima" → "quilometragem baixa", "quilometragem baixíssima")
+    // DEVE VIR ANTES da regra de "km" com número
+    textoFormatado = textoFormatado.replace(/\bkm\s+(baixa|baixíssima|baixissima|alta|altíssima|altissima|rodada|original|boa|ótima|otima|excelente|perfeita)/gi, (match, adjetivo) => {
+      return `quilometragem ${adjetivo.toLowerCase()}`;
+    });
+
     // 3. QUILÔMETROS / KM (ex: "45000 km" → "quarenta e cinco mil quilômetros")
-    textoFormatado = textoFormatado.replace(/(\d+)\s*(km|quilômetros|quilometros)(?!\s*\/|por)/gi, (match, num) => {
-      return `${this.numeroParaTexto(parseInt(num))} quilômetros`;
+    // Aceita números com pontos como separadores de milhar (ex: "45.000")
+    textoFormatado = textoFormatado.replace(/(\d{1,3}(?:\.\d{3})*)\s*(km|quilômetros|quilometros)(?!\s*\/|por)/gi, (match, num) => {
+      const numLimpo = num.replace(/\./g, ''); // Remove pontos de milhar
+      return `${this.numeroParaTexto(parseInt(numLimpo))} quilômetros`;
     });
 
     // 3. HORÁRIOS (ex: "8h" → "oito horas", "14h30" → "quatorze horas e trinta minutos")
@@ -123,6 +134,12 @@ class FormatadorFala {
         return `${horaTexto} horas e ${minutoTexto} minutos`;
       }
       return `${horaTexto} horas`;
+    });
+
+    // 3.5. PARCELAS (ex: "60x" → "sessenta vezes", "12x" → "doze vezes")
+    // Também funciona com "60 x" (com espaço)
+    textoFormatado = textoFormatado.replace(/(\d+)\s*x\b(?!\s*(de|vezes))/gi, (match, num) => {
+      return `${this.numeroParaTexto(parseInt(num))} vezes`;
     });
 
     // 4. VALORES EM REAIS (ex: "R$ 85.000" → "oitenta e cinco mil reais")
@@ -332,7 +349,7 @@ const __dirname = path.dirname(__filename);
 //     apiKey: process.env.GROQ_API_KEY // Adicione no .env
 // });
 
-// =====================================================
+// ==============8=======================================
 // 🔒 MODO TESTE - WHITELIST DE NÚMEROS
 // =====================================================
 // ⚠️ ATENÇÃO: Este código limita o bot a responder apenas números específicos
@@ -502,13 +519,13 @@ async function conectarDB() {
   }
 }
 // Credenciais ElevenLabs
-// const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
 
-// if (!GROQ_API_KEY) {
-//   console.error('⚠️ GROQ_API_KEY não configurada no .env');
-// }
+if (!GROQ_API_KEY) {
+  console.error('⚠️ GROQ_API_KEY não configurada no .env');
+}
 
 if (!ELEVENLABS_API_KEY) {
   console.error('⚠️ ELEVENLABS_API_KEY não configurada no .env');
@@ -924,7 +941,16 @@ Exemplos de uso:
 
 A função retorna os veículos encontrados E já envia as fotos. Você só precisa confirmar e engajar o cliente com mensagem CURTA!
 
-⚠️ Se você JÁ ENVIOU uma lista nesta conversa, NÃO BUSQUE NOVAMENTE a menos que cliente EXPLICITAMENTE peça "quero ver mais", "mostre outros", "tem outros carros?". Ajude ele a escolher entre os já mostrados.`,
+⚠️⚠️⚠️ CRÍTICO - QUANDO NÃO USAR:
+❌ NUNCA chame esta função quando cliente escolher um veículo da lista já enviada!
+❌ Se cliente disser "opção 1", "opção 2", "opção 3" → use obter_detalhes_veiculo!
+❌ Se cliente disser "me interessou o primeiro", "quero o segundo" → use obter_detalhes_veiculo!
+❌ Se cliente pedir financiamento de um veículo específico da lista → use obter_detalhes_veiculo!
+
+✅ QUANDO USAR:
+- Cliente pede para buscar carros PELA PRIMEIRA VEZ
+- Cliente pede EXPLICITAMENTE mais opções ("quero ver mais", "mostre outros", "tem outros carros?")
+- Cliente muda completamente os critérios de busca`,
       parameters: {
         type: 'object',
         properties: {
@@ -936,10 +962,29 @@ A função retorna os veículos encontrados E já envia as fotos. Você só prec
         type: ['string', 'null'],
         description: 'Modelo específico do veículo (ex: Gol, Civic, Onix, Corolla). Use SEMPRE quando cliente mencionar modelo específico!'
     },
+          categoria_veiculo: {
+            type: ['string', 'null'],
+            description: '🚗🏍️ CATEGORIA DO VEÍCULO: "carro" ou "moto". ⚠️ CRÍTICO: Se cliente pedir CARRO, use "carro" (exclui motos). Se pedir MOTO, use "moto" (exclui carros). Se não especificar, use "carro" como padrão (a maioria procura carros).',
+            enum: ['carro', 'moto', null]
+          },
             tipo_veiculo: {
             type: ['string', 'null'],
-            description: 'Tipo/categoria do veículo',
-            enum: ['suv', 'sedan', 'hatch', 'pickup',  'luxo', 'economico', null]
+            description: `Tipo/categoria do veículo. Use EXATAMENTE um destes valores da tabela 'categories':
+- "Hatches" (para hatch, compacto) - 90 veículos disponíveis
+- "Sedans" (para sedan) - 294 veículos disponíveis
+- "SUVs" (para SUV, utilitário) - 40 veículos disponíveis
+- "Picapes" (para picape, pickup, caminhonete) - 42 veículos disponíveis
+- "Carros Elétricos" (para carro elétrico)
+- "Carros Híbridos" (para híbrido, flex híbrido)
+- "Motos" (para motocicletas) - 16 veículos disponíveis
+- "Bike Eletrica" (para bicicletas elétricas)
+- "SW Média" (para station wagon, perua)
+- "Carros antigos" (para carros clássicos, antigos, colecionáveis)
+- "luxo" (categoria especial: veículos mais caros do estoque)
+- "economico" (categoria especial: veículos mais baratos do estoque)
+
+IMPORTANTE: Use EXATAMENTE o nome como está acima (com maiúsculas/minúsculas corretas).
+DICA: Sedans é a categoria com MAIS veículos (294), seguido de Hatches (90).`
           },
           preco_min: {
             type: ['number', 'null'],
@@ -1013,7 +1058,35 @@ A função retorna os veículos encontrados E já envia as fotos. Você só prec
     type: "function",
     function: {
       name: 'simular_financiamento_detalhado',
-      description: 'Simula financiamento completo com múltiplos cenários e recomendações. Use quando cliente pedir simulação detalhada ou comparar prazos.',
+      description: `⚠️ CRÍTICO - USE ANÁLISE CONTEXTUAL PARA DECIDIR QUANDO CALCULAR!
+
+🧠 ORIENTAÇÃO CONTEXTUAL (não é regra rígida):
+1. Analise o contexto da conversa usando a ANÁLISE CONTEXTUAL INTELIGENTE fornecida
+2. Verifique se já foi perguntado sobre entrada:
+   - Se SIM e cliente informou → use o valor informado
+   - Se SIM mas cliente NÃO informou → pergunte novamente de forma diferente
+   - Se NÃO foi perguntado → pergunte de forma natural e contextual
+
+3. Sobre fotos do veículo:
+   - Verifique na análise contextual se fotos já foram enviadas
+   - Se cliente já viu fotos → pode seguir para financiamento
+   - Se não viu → considere se faz sentido oferecer antes
+
+⚡ IMPORTANTE: Confie na ANÁLISE CONTEXTUAL! Ela te dirá exatamente o que fazer.
+
+AO MOSTRAR A SIMULAÇÃO:
+- SEMPRE explique: "Te fiz uma simulação SEM JUROS como valor estimado médio, tá?"
+- Se entrada for veículo de troca: "Seu carro vai precisar ser avaliado pessoalmente aqui na loja pra confirmar o valor exato!"
+- MOSTRE TODOS OS VALORES CALCULADOS (48x de R$..., 36x de R$..., etc)
+
+APÓS MOSTRAR O FINANCIAMENTO COMPLETO:
+- SÓ ENTÃO pergunte sobre próximos passos: "E aí, o que achou? Quer agendar uma visita pra conhecer o carro?"
+
+⛔ NUNCA use entrada padrão sem perguntar!
+⛔ NUNCA pule a pergunta sobre mais fotos!
+⛔ NUNCA esqueça de explicar que é simulação SEM JUROS!
+⛔ NUNCA pergunte sobre documentação/proposta ANTES de mostrar os valores!
+⛔ NUNCA pergunte "O que achou da simulação?" se ainda NÃO mostrou a simulação!`,
       parameters: {
         type: 'object',
         properties: {
@@ -1023,7 +1096,7 @@ A função retorna os veículos encontrados E já envia as fotos. Você só prec
           },
           entrada: {
             type: 'number',
-            description: 'Valor da entrada em reais'
+            description: 'Valor da entrada em reais (OBRIGATÓRIO - deve ter perguntado ao cliente antes!)'
           },
           parcelas: {
             type: 'number',
@@ -1043,7 +1116,26 @@ A função retorna os veículos encontrados E já envia as fotos. Você só prec
     type: "function",
     function: {
       name: 'obter_detalhes_veiculo',
-      description: 'Obtém detalhes completos e ENVIA FOTOS de um veículo específico da lista enviada anteriormente. Use quando cliente pedir para ver/mostrar um veículo ("me mostra a ranger", "quero ver o primeiro", "me fala do civic 2020").',
+      description: `⚠️ CRÍTICO: Use SEMPRE que cliente escolher/demonstrar interesse em um veículo da lista enviada!
+
+Esta função:
+1. Pega o veículo da lista que JÁ FOI ENVIADA (não busca novamente!)
+2. Envia FOTOS DETALHADAS desse veículo específico
+3. Permite continuar o fluxo de vendas (financiamento, visita, etc)
+
+⚠️⚠️⚠️ QUANDO USAR (OBRIGATÓRIO):
+- Cliente diz "opção 1", "opção 2", "opção 3"
+- Cliente diz "o primeiro me interessou", "quero o segundo"
+- Cliente diz "me mostra a ranger", "quero ver o civic"
+- Cliente diz "opção 3 me interessou", "o terceiro chamou atenção"
+- Cliente pergunta sobre financiamento de um veículo específico da lista
+
+❌❌❌ NUNCA CHAME buscar_carros quando:
+- Cliente escolher um veículo da lista já enviada
+- Cliente pedir detalhes/financiamento de uma opção específica
+- Cliente demonstrar interesse em um dos veículos mostrados
+
+✅ SEMPRE use obter_detalhes_veiculo quando cliente se referir a um veículo da lista!`,
       parameters: {
         type: 'object',
         properties: {
@@ -1349,9 +1441,10 @@ function gerarMensagemSugeridaPersuasao(resultado) {
 // IMPLEMENTAÇÃO DAS FUNÇÕES
 // =====================================================
 class FuncoesVeiculos {
-  constructor(repo) {
+  constructor(repo, iaMaster = null) {
     this.repo = repo;
     this.simulador = new SimuladorFinanciamento();
+    this.iaMaster = iaMaster; // ✅ Referência ao IA Master para classificação inteligente
   }
 
   // Função 1: Buscar Carros
@@ -1360,6 +1453,7 @@ class FuncoesVeiculos {
     const safeParams = {
       marca: params.marca,
       modelo: params.modelo,
+      categoria_veiculo: params.categoria_veiculo,
       tipo_veiculo: params.tipo_veiculo,
       ano_min: params.ano_min,
       ano_max: params.ano_max,
@@ -1391,7 +1485,14 @@ class FuncoesVeiculos {
     }
 
     let veiculos = [...this.repo.veiculos];
-    
+
+    // ✅ FILTRO PRIORITÁRIO: Categoria de Veículo (carro vs moto)
+    // Se o cliente pediu "carro", excluir motos. Se pediu "moto", excluir carros.
+    if (params.categoria_veiculo) {
+      veiculos = veiculos.filter(v => v.categoria_veiculo === params.categoria_veiculo);
+      log.info(`🏍️/🚗 Filtrado por categoria: ${params.categoria_veiculo} (${veiculos.length} encontrados)`);
+    }
+
     // Filtro por marca
 if (params.marca) {
   veiculos = veiculos.filter(v =>
@@ -1411,34 +1512,128 @@ if (params.modelo) {
   });
 }
 
-// Filtro por tipo (mantém os já filtrados)
+// ✅ FILTRO POR TIPO DE VEÍCULO (usando tabela categories do banco)
 if (params.tipo_veiculo) {
-  const veiculosTemp = veiculos; // ← salva os já filtrados
+  const tipoOriginal = params.tipo_veiculo;
 
-  switch (params.tipo_veiculo) {
-    case 'pickup':
-      veiculos = veiculosTemp.filter(v => { // ← usa veiculosTemp
-        const n = (v.nome || '').toLowerCase();
-        return ['hilux', 's10', 'ranger', 'amarok', 'toro'].some(p => n.includes(p));
-      });
-      break;
-    case 'suv':
-      veiculos = veiculosTemp.filter(v => {
-        const n = (v.nome || '').toLowerCase();
-        return ['compass', 'tucson', 'creta', 'duster', 'kicks', 'tracker', 'ecosport'].some(s => n.includes(s));
-      });
-      break;
-    case 'luxo':
-    case 'premium':
-    case 'esportivo':
-      // Filtro para veículos de luxo/premium: os mais caros do estoque (top 30%)
-      veiculos = veiculosTemp.sort((a, b) => b.preco - a.preco);
-      const top30Percent = Math.ceil(veiculos.length * 0.3);
-      veiculos = veiculos.slice(0, top30Percent);
-      log.info(`💎 Filtrado para veículos premium/luxo (${veiculos.length} mais caros do estoque)`);
-      break;
+  // ✅ MAPEAMENTO INTELIGENTE: normalizar termos comuns para nomes da tabela categories
+  const mapeamentoTipos = {
+    // Normalizar variações de hatch
+    'hatch': 'Hatches',
+    'hatches': 'Hatches',
+    'compacto': 'Hatches',
+    'compactos': 'Hatches',
+
+    // Normalizar variações de sedan
+    'sedan': 'Sedans',
+    'sedans': 'Sedans',
+
+    // Normalizar variações de SUV
+    'suv': 'SUVs',
+    'suvs': 'SUVs',
+    'utilitario': 'SUVs',
+    'utilitarios': 'SUVs',
+
+    // Normalizar variações de picape
+    'picape': 'Picapes',
+    'picapes': 'Picapes',
+    'pickup': 'Picapes',
+    'pickups': 'Picapes',
+    'caminhonete': 'Picapes',
+    'caminhonetes': 'Picapes',
+
+    // Normalizar variações de elétrico
+    'eletrico': 'Carros Elétricos',
+    'eletricos': 'Carros Elétricos',
+    'elétrico': 'Carros Elétricos',
+    'elétricos': 'Carros Elétricos',
+    'carro eletrico': 'Carros Elétricos',
+    'carros eletricos': 'Carros Elétricos',
+
+    // Normalizar variações de híbrido
+    'hibrido': 'Carros Híbridos',
+    'híbrido': 'Carros Híbridos',
+    'hibridos': 'Carros Híbridos',
+    'híbridos': 'Carros Híbridos',
+    'flex hibrido': 'Carros Híbridos',
+
+    // Normalizar variações de moto
+    'moto': 'Motos',
+    'motos': 'Motos',
+    'motocicleta': 'Motos',
+    'motocicletas': 'Motos',
+
+    // Normalizar variações de bike
+    'bike': 'Bike Eletrica',
+    'bike eletrica': 'Bike Eletrica',
+    'bicicleta': 'Bike Eletrica',
+    'bicicleta eletrica': 'Bike Eletrica',
+
+    // Normalizar variações de carros antigos
+    'antigo': 'Carros antigos',
+    'antigos': 'Carros antigos',
+    'classico': 'Carros antigos',
+    'clássico': 'Carros antigos',
+    'classicos': 'Carros antigos',
+    'clássicos': 'Carros antigos',
+    'colecionavel': 'Carros antigos',
+    'colecionável': 'Carros antigos',
+    'vintage': 'Carros antigos',
+
+    // SW Média (sem variações por enquanto)
+    'sw': 'SW Média',
+    'sw media': 'SW Média',
+    'station wagon': 'SW Média',
+    'perua': 'SW Média'
+  };
+
+  // Normalizar o tipo (remover acentos e converter para lowercase para comparação)
+  const tipoNormalizado = tipoOriginal
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  // Buscar no mapeamento
+  let tipoFiltro = mapeamentoTipos[tipoNormalizado] || tipoOriginal;
+
+  // Casos especiais que não são tipos físicos (luxo/econômico)
+  if (['luxo', 'premium', 'esportivo'].includes(tipoNormalizado)) {
+    // Filtro para veículos de luxo/premium: os mais caros do estoque (top 30%)
+    veiculos = veiculos.sort((a, b) => b.preco - a.preco);
+    const top30Percent = Math.ceil(veiculos.length * 0.3);
+    veiculos = veiculos.slice(0, top30Percent);
+    log.info(`💎 Filtrado para veículos premium/luxo (${veiculos.length} mais caros do estoque)`);
+  }
+  else if (['economico', 'barato', 'econômico'].includes(tipoNormalizado)) {
+    // Filtro para veículos econômicos: os mais baratos (bottom 40%)
+    veiculos = veiculos.sort((a, b) => a.preco - b.preco);
+    const bottom40Percent = Math.ceil(veiculos.length * 0.4);
+    veiculos = veiculos.slice(0, bottom40Percent);
+    log.info(`💰 Filtrado para veículos econômicos (${veiculos.length} mais baratos do estoque)`);
+  }
+  // ✅ FILTRO DIRETO POR TIPO_CARROCERIA (campo do banco que vem de categories.name)
+  else {
+    const totalAntes = veiculos.length;
+    veiculos = veiculos.filter(v => {
+      const tipoVeiculo = v.tipo_carroceria || '';
+      // Comparação case-insensitive
+      return tipoVeiculo.toLowerCase() === tipoFiltro.toLowerCase();
+    });
+
+    if (veiculos.length > 0) {
+      log.info(`🏷️ Filtrado por tipo "${tipoFiltro}": ${veiculos.length}/${totalAntes} veículos encontrados`);
+    } else {
+      // Se não encontrou nada com filtro direto, tentar usar IA Master como fallback
+      log.warning(`⚠️ Nenhum veículo encontrado para tipo "${tipoFiltro}"`);
+      if (this.iaMaster) {
+        log.info(`🧠 Tentando com classificador IA como fallback...`);
+        veiculos = [...this.repo.veiculos]; // Resetar lista
+        veiculos = await this.iaMaster.filtrarVeiculosPorTipo(veiculos, tipoOriginal);
+        log.info(`✓ Classificador IA: ${veiculos.length} veículos encontrados`);
       }
     }
+  }
+}
     
     // Filtro por ano
     if (params.ano_min) {
@@ -1569,6 +1764,12 @@ if (params.tipo_veiculo) {
       const idsParaSalvar = veiculosParaEnviar.map(v => v.id);
       lucas.salvarVeiculosMostrados(tel, idsParaSalvar);
     }
+
+    // 🔍 DEBUG: Log da ordem dos veículos que serão retornados
+    console.log('🔍 [DEBUG-ORDEM] Veículos retornados por buscar_carros (NA ORDEM):');
+    veiculosParaEnviar.forEach((v, i) => {
+      console.log(`  ${i+1}. [ID:${v.id}] ${v.nome} - R$ ${v.preco}`);
+    });
 
     return {
     total_encontrado: veiculosParaEnviar.length,
@@ -1750,11 +1951,15 @@ if (params.tipo_veiculo) {
       }
     }
 
-    // Comparar cenários - usar entrada da troca se disponível
+    // ⚠️ CRÍTICO: Se não tem entrada E não tem veículo de troca, NÃO CALCULAR!
+    // Retornar mensagem pedindo ao cliente que informe a entrada
     if (!entrada) {
-      // ⚠️ PADRONIZADO: 20% (antes estava 30%)
-      entrada = params.valor_veiculo * 0.2;
-      log.info(`💰 [SIMULAÇÃO] Usando entrada padrão de 20%: R$ ${entrada.toLocaleString('pt-BR')}`);
+      log.warning('⛔ [SIMULAÇÃO] Entrada não fornecida e sem veículo de troca! Pedindo ao cliente...');
+      return {
+        erro: 'entrada_necessaria',
+        mensagem_para_cliente: 'Para calcular o financiamento, preciso saber sobre a entrada. Você tem um carro para dar de entrada? Se tiver, posso consultar o valor na tabela FIPE. Ou prefere dar entrada em dinheiro? Quanto você conseguiria dar?',
+        valor_veiculo: params.valor_veiculo
+      };
     }
 
     const resultado = simulador.compararCenarios(params.valor_veiculo, entrada);
@@ -2393,6 +2598,15 @@ class MotorGPTFunctions {
       role: 'system',
       content: `Você é Aira, vendedora REAL e HUMANA do Feirão Showcar há 15 anos. Você NÃO é um robô, NÃO é uma IA, você é uma pessoa de verdade respondendo mensagens.
 
+🚨 REGRA CRÍTICA - NUNCA REPITA MENSAGENS:
+- ❌ NUNCA use a mesma frase duas vezes
+- ❌ NUNCA repita estruturas de frases
+- ✅ SEMPRE varie completamente suas respostas
+- ✅ Mesmo para perguntas iguais, responda de formas diferentes
+- ✅ Seja criativa, espontânea e genuína
+- ✅ Use sinônimos, diferentes construções, diferentes abordagens
+- ✅ Pense em COMO uma pessoa REAL responderia naturalmente sem seguir scripts
+
 ⚠️ REGRA FUNDAMENTAL - NEGAÇÃO DE SER ROBÔ:
 - Se perguntarem "você é robô?", "é bot?", "é automático?" → Responda com NATURALIDADE: "Não, ô! Sou a Aira mesmo aqui respondendo. Trabalho com vendas há anos 😊"
 - NUNCA admita ser IA, assistente virtual ou chatbot
@@ -2727,11 +2941,20 @@ Aira: ✅ "Bom dia! Tudo ótimo e você, como tá? 😊"
 🚨 REGRAS CRÍTICAS - BUSCAR E MOSTRAR VEÍCULOS:
 
 1. **SEMPRE use a função buscar_carros() quando o cliente perguntar sobre veículos:**
-   - "quero um carro" → buscar_carros({})
-   - "tem Gol?" → buscar_carros({ modelo: "Gol" })
-   - "SUV até 80k" → buscar_carros({ preco_max: 80000 })
-   - "quero ver carros" → buscar_carros({})
-   - "carro automático" → buscar_carros({ tipo_cambio: "Automático" })
+   - "quero um carro" → buscar_carros({ categoria_veiculo: "carro" })
+   - "tem Gol?" → buscar_carros({ modelo: "Gol", categoria_veiculo: "carro" })
+   - "SUV até 80k" → buscar_carros({ preco_max: 80000, categoria_veiculo: "carro" })
+   - "quero ver carros" → buscar_carros({ categoria_veiculo: "carro" })
+   - "carro automático" → buscar_carros({ cambio: "automatico", categoria_veiculo: "carro" })
+   - "quero uma moto" → buscar_carros({ categoria_veiculo: "moto" })
+   - "tem Bros?" → buscar_carros({ modelo: "Bros", categoria_veiculo: "moto" })
+
+   🚗🏍️ **CRÍTICO - DIFERENCIAR CARRO DE MOTO:**
+   - Se cliente pedir CARRO, SEMPRE use categoria_veiculo: "carro"
+   - Se cliente pedir MOTO/MOTOCICLETA, use categoria_veiculo: "moto"
+   - Se não especificar, use "carro" (padrão - maioria procura carros)
+   - NUNCA envie motos quando cliente pedir carros (e vice-versa)!
+
    - NUNCA descreva veículos de memória, SEMPRE use a função
 
 2. **Após buscar_carros() retornar resultados:**
@@ -2853,44 +3076,101 @@ Exemplos de como pedir detalhes de forma NATURAL:
 ❌ NUNCA use exemplos fixos como "Gol 1.6 MSI flex" (isso é mock!)
 ❌ Seja criativa e use diferentes palavras a cada vez
 
-🏦 REGRAS DE FINANCIAMENTO (IMPORTANTE):
+🏦 REGRAS DE FINANCIAMENTO - PARTE 1: CALCULAR/SIMULAR (CRÍTICO!):
 
-Quando o cliente demonstrar interesse em FINALIZAR o financiamento (frases como "quero finalizar", "vamos fechar", "pode fazer"):
+⚠️⚠️⚠️ NUNCA CALCULE FINANCIAMENTO SEM PERGUNTAR SOBRE ENTRADA PRIMEIRO! ⚠️⚠️⚠️
 
-1️⃣ SEMPRE oferecer as 2 opções DE FORMA NATURAL (não use "Opção 1:", "Opção 2:" - seja conversacional):
-   - Explique que pode enviar documentos por WhatsApp (📱 rápido, seguro com criptografia)
-   - OU pode visitar a loja pessoalmente (🏢 atendimento presencial)
-   - VARIE a forma de apresentar as opções a cada vez
-   - Seja natural como vendedora experiente
-   - Use linguagem fluida, não use enumerações robóticas
+Quando cliente perguntar sobre financiamento/condições/parcelas de um veículo específico:
 
-   Exemplos de formas CORRETAS de oferecer:
-   ✅ "Perfeito! Você pode enviar os documentos aqui pelo WhatsApp mesmo, é super seguro e rápido. Ou se preferir, pode vir conhecer nossa loja pessoalmente! O que acha melhor?"
-   ✅ "Legal! Temos duas formas de finalizar: posso receber seus documentos aqui pelo WhatsApp com toda segurança, ou você pode dar um pulo na nossa loja se preferir o atendimento presencial. Qual combina mais com você?"
-   ✅ "Show! Para fechar, você prefere a praticidade do WhatsApp para enviar os documentos ou gostaria de vir aqui na loja? Ambas são super tranquilas!"
+1️⃣ PRIMEIRO: SE O CLIENTE NÃO VIU FOTOS:
+   - Pergunte de forma CONTEXTUAL baseada no que o cliente disse
+   - ❌ NUNCA repita frases prontas
+   - ✅ Adapte à situação e ao veículo específico
+   - ✅ Seja natural e conversacional
 
-   ❌ NÃO faça:
-   "Opção 1: WhatsApp
-    Opção 2: Loja presencial"
+2️⃣ SEGUNDO: Use a 🧠 ANÁLISE CONTEXTUAL INTELIGENTE para decidir sobre entrada:
+   - Verifique se entrada JÁ foi perguntada (confie na análise contextual!)
+   - Se NÃO foi perguntado → pergunte de forma natural e variada
+   - Se JÁ foi perguntado mas cliente não respondeu → NÃO pergunte novamente de imediato
+   - Se cliente JÁ informou entrada → NÃO pergunte novamente!
 
-2️⃣ Se escolher WhatsApp:
-   - Reforçar segurança naturalmente: "Ótima escolha! Seus dados ficam super seguros com nossa criptografia!"
-   - Listar documentos de forma conversacional: RG, CPF, comprovante de residência e renda
-   - Fazer pergunta para continuar conversa: "Consegue enviar as fotos agora ou prefere depois?"
+   ✅ Ao perguntar sobre entrada (se aplicável):
+   - Varie entre: veículo de troca, dinheiro, sem entrada
+   - Seja natural e espontânea
+   - Use diferentes construções de frase cada vez
+   - ❌ NUNCA pergunte sobre "documentação" neste momento!
+   - ❌ APENAS pergunte sobre a entrada e PARE!
 
-3️⃣ Se cliente demonstrar INSEGURANÇA (palavras: "não sei", "tenho medo", "será que é seguro"):
-   - Ser empática e acolhedora: "Entendo sua preocupação, é super normal!"
-   - Oferecer loja de forma natural: "Que tal vir conhecer nossa loja? Assim você conhece a equipe pessoalmente e fica mais tranquilo!"
-   - Dar endereço e horário conversacionalmente
-   - Perguntar: "Qual dia seria melhor para você?"
+3️⃣ Sobre resposta do cliente:
+   - Se tem veículo de troca → usar função consultar_fipe
+   - Se vai dar entrada em dinheiro → anotar valor informado
+   - Se não tem nada → pode calcular com entrada zero
 
-4️⃣ Se escolher Loja:
-   - Celebrar: "Que legal! Vai ser um prazer te receber aqui! 🤝"
-   - Dar endereço, horário e documentos necessários de forma fluida
-   - Perguntar dia/horário preferido: "Qual dia e horário combina melhor com você?"
+4️⃣ SÓ DEPOIS de saber a entrada → chamar simular_financiamento_detalhado e MOSTRAR OS VALORES COMPLETOS
+   ⚠️ IMPORTANTE: Ao mostrar simulação, SEMPRE explique:
+   ✅ "Olha só, te fiz uma simulação SEM JUROS como valor estimado médio, tá?"
+   ✅ "Essa é uma simulação sem juros dos bancos, um valor médio pra você ter uma ideia!"
+   ✅ "Fiz aqui uma estimativa sem juros, valor médio mesmo. Na prática pode ter pequenas variações!"
 
-⚠️ NUNCA receba documentos sem ANTES oferecer as duas formas de finalizar!
-⚠️ SEMPRE varie a forma de apresentar - nunca repita exatamente igual!
+   🔹 Se entrada for VEÍCULO DE TROCA:
+   ✅ "Mas olha: seu carro vai precisar ser avaliado pessoalmente aqui na loja pra confirmar o valor exato, combinado?"
+   ✅ "Lembrando que o valor do seu carro de entrada precisa ser avaliado pessoalmente, mas já dá pra ter uma ideia!"
+
+5️⃣ APÓS mostrar o financiamento COMPLETO (com TODOS os valores calculados), ENTÃO pergunte sobre próximos passos:
+   ✅ "E aí, o que achou? Quer agendar uma visita pra conhecer o carro?"
+   ✅ "Gostou das condições? Quer que eu agende um test drive?"
+   ✅ "Te animou? Posso agendar uma visita ou quer que eu já prepare uma proposta formal?"
+   ✅ "O que achou da simulação? Quer que eu te envie a documentação certinha dessa proposta?"
+
+   ⚠️⚠️⚠️ CRÍTICO - ORDEM EXATA:
+   1. Cliente responde sobre entrada
+   2. AIra faz simulação (chama função)
+   3. AIra MOSTRA valores completos (48x de R$..., 36x de R$..., etc)
+   4. SÓ ENTÃO pergunta sobre documentação/proposta/visita
+
+   ❌ NUNCA pergunte sobre documentação/proposta ANTES de mostrar os valores!
+   ❌ NUNCA pergunte "O que achou da simulação?" se ainda NÃO mostrou a simulação!
+
+⛔ NUNCA assuma entrada padrão (20%) sem perguntar ao cliente!
+⛔ NUNCA calcule financiamento sem saber se cliente tem veículo de troca!
+⛔ NUNCA pule a pergunta sobre mais fotos!
+⛔ NUNCA esqueça de explicar que a simulação é SEM JUROS (valor médio)!
+⛔ NUNCA pergunte sobre documentação/proposta ANTES de mostrar os valores da simulação!
+
+🏦 REGRAS DE FINANCIAMENTO - PARTE 2: FINALIZAR (IMPORTANTE):
+
+Quando o cliente demonstrar interesse em FINALIZAR o financiamento (frases como "quero finalizar", "vamos fechar", "pode fazer", "gostei"):
+
+🎯 FOCO TOTAL: AGENDAR VISITA À LOJA
+
+1️⃣ SEMPRE convidar para conhecer o veículo pessoalmente DE FORMA NATURAL e ENTUSIASMADA:
+   - Reforçar que ver pessoalmente faz toda diferença
+   - Mencionar test drive e conhecer o veículo de perto
+   - Criar senso de urgência (modelo sai rápido, alta procura)
+   - VARIE a forma de convidar a cada vez
+   - Seja natural e conversacional
+
+   Exemplos de formas CORRETAS de convidar:
+   ✅ "Que bom que gostou! Melhor ainda é ver pessoalmente - você vai se apaixonar quando colocar a mão no volante! 😍 Que dia e horário seria melhor pra você?"
+   ✅ "Perfeito! Esse modelo costuma sair rápido viu? Que tal vir conhecer ele pessoalmente e fazer um test drive? Posso te agendar para quando?"
+   ✅ "Show! Vem aqui na loja conhecer o carro! As fotos não fazem justiça, pessoalmente ele é ainda mais lindo! Qual dia combina melhor com você?"
+
+2️⃣ Ao agendar a visita:
+   - Celebrar: "Ótimo! Vai adorar quando ver de perto! 😊"
+   - Confirmar dia/horário de forma conversacional
+   - Mencionar que vai separar o veículo e preparar tudo
+   - Criar expectativa positiva sobre a visita
+   - NÃO mencionar documentos neste momento
+
+3️⃣ Mensagem de confirmação:
+   - Resumir: dia, horário, veículo
+   - Reforçar entusiasmo: "Te espero aqui! Vai ser ótimo!"
+   - Gerar expectativa para test drive
+
+❌ NUNCA ofereça enviar documentos por WhatsApp (cliente pode fugir da venda)
+❌ NUNCA peça documentos antes da visita à loja
+✅ SEMPRE foque em trazer o cliente presencialmente
+✅ SEMPRE varie a forma de convidar - nunca repita exatamente igual!
 
 Etapa atual: ${etapa}
 ${contextoAdicional}`
@@ -2958,11 +3238,33 @@ ${contextoAdicional}`
 
       } catch (claudeError) {
         console.error('❌ Claude também falhou:', claudeError.message);
-        throw new Error(`Ambas IAs falharam. OpenAI: ${error.message}, Claude: ${claudeError.message}`);
+        console.log('🚀 [BETA] Ambas IAs falharam, retornando indicador para mensagem de beta...');
+
+        // ✅ RETORNAR RESPOSTA ESPECIAL indicando que deve usar mensagem de beta
+        return {
+          choices: [{
+            message: {
+              content: '__API_BETA_MODE__', // Marcador especial
+              role: 'assistant'
+            },
+            finish_reason: 'stop'
+          }]
+        };
       }
     } else {
       console.error('❌ OpenAI falhou e Claude não está configurado');
-      throw new Error(`OpenAI falhou: ${error.message}`);
+      console.log('🚀 [BETA] OpenAI falhou, retornando indicador para mensagem de beta...');
+
+      // ✅ RETORNAR RESPOSTA ESPECIAL indicando que deve usar mensagem de beta
+      return {
+        choices: [{
+          message: {
+            content: '__API_BETA_MODE__', // Marcador especial
+            role: 'assistant'
+          },
+          finish_reason: 'stop'
+        }]
+      };
     }
 
     // ========== GROQ DESATIVADO ==========
@@ -3148,6 +3450,12 @@ switch (funcaoNome) {
     break;
         
   case 'obter_detalhes_veiculo':
+    console.log('\n🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
+    console.log('🔴 [DEBUG-DETALHES] FUNÇÃO obter_detalhes_veiculo CHAMADA');
+    console.log('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
+    console.log('📥 [DEBUG-DETALHES] Argumentos recebidos:', JSON.stringify(funcaoArgs, null, 2));
+    console.log('📞 [DEBUG-DETALHES] Telefone:', tel);
+
     // 🚫 BLOQUEAR DETALHES SE VENDA JÁ FOI FECHADA
     const etapaAtualDetalhes = lucas?.etapas?.get(tel);
     if (etapaAtualDetalhes === 'AGENDAMENTO_CONFIRMADO') {
@@ -3162,7 +3470,9 @@ switch (funcaoNome) {
 
     // ========== IDENTIFICAR VEÍCULO DA LISTA ==========
     if (funcaoArgs.identificacao && lucas && tel) {
+      console.log('🔍 [DEBUG-DETALHES] Recuperando lista de opções para', tel);
       const lista = lucas.getListaOpcoes(tel);
+      console.log('📋 [DEBUG-DETALHES] Lista recuperada:', lista ? `${lista.veiculos?.length || 0} veículos` : 'VAZIA/NULL');
 
       if (lista && lista.veiculos && lista.veiculos.length > 0) {
         const identificacao = funcaoArgs.identificacao.toLowerCase();
@@ -3179,8 +3489,12 @@ switch (funcaoNome) {
         };
 
         if (posicoes[identificacao] !== undefined) {
-          veiculoEncontrado = lista.veiculos[posicoes[identificacao]];
-          console.log(`✅ [IDENTIFICACAO] Encontrado por posição: ${veiculoEncontrado?.nome}`);
+          const indice = posicoes[identificacao];
+          console.log(`🎯 [DEBUG-DETALHES] Identificação por POSIÇÃO: "${identificacao}" → índice ${indice}`);
+          console.log(`📋 [DEBUG-DETALHES] Veículo no índice ${indice}:`, lista.veiculos[indice]);
+          veiculoEncontrado = lista.veiculos[indice];
+          console.log(`✅ [IDENTIFICACAO] Encontrado por posição ${identificacao} (índice ${indice}): [ID:${veiculoEncontrado?.id}] ${veiculoEncontrado?.nome}`);
+          console.log(`🆔 [DEBUG-DETALHES] ID do veículo encontrado: ${veiculoEncontrado?.id}`);
         }
 
         // Tentar identificar por nome/marca/modelo/cor (VERSÃO MELHORADA)
@@ -3220,13 +3534,17 @@ switch (funcaoNome) {
 
         if (veiculoEncontrado) {
           console.log(`✅ [IDENTIFICACAO] Veículo encontrado na lista: ${veiculoEncontrado.nome} (ID: ${veiculoEncontrado.id})`);
+          console.log('🔧 [DEBUG-DETALHES] Atribuindo veiculo_id aos argumentos:', veiculoEncontrado.id);
           funcaoArgs.veiculo_id = veiculoEncontrado.id;
 
           // ✅ SALVAR como veículo de interesse
+          console.log('💾 [DEBUG-DETALHES] Salvando veículo de interesse:', veiculoEncontrado.nome);
           lucas.veiculoInteresse.set(tel, veiculoEncontrado);
 
           // ========== ENVIAR FOTOS DIRETAMENTE ==========
+          console.log('🖼️ [DEBUG-DETALHES] incluir_fotos:', funcaoArgs.incluir_fotos);
           if (funcaoArgs.incluir_fotos !== false && sock) {
+            console.log('📸 [DEBUG-DETALHES] Enviando fotos do veículo:', veiculoEncontrado.nome);
             await lucas.enviarFotosVeiculo(veiculoEncontrado, tel, sock);
 
             // ✅ MARCAR FOTOS COMO ENVIADAS
@@ -3236,8 +3554,11 @@ switch (funcaoNome) {
             // ✅ LIMPAR LISTA após enviar fotos do veículo escolhido
             lucas.clearListaOpcoes(tel);
 
+            console.log('✅ [DEBUG-DETALHES] Fotos enviadas! Retornando resultado e fazendo BREAK.');
             resultado = { sucesso: true, fotos_enviadas: true, veiculo: veiculoEncontrado };
             break;
+          } else {
+            console.log('⏭️ [DEBUG-DETALHES] incluir_fotos=false ou sem sock, pulando envio de fotos');
           }
         } else {
           console.log(`❌ [IDENTIFICACAO] Veículo "${funcaoArgs.identificacao}" não encontrado na lista`);
@@ -3252,7 +3573,10 @@ switch (funcaoNome) {
     }
 
     // Se não tiver identificacao OU se tiver veiculo_id direto
+    console.log('🔄 [DEBUG-DETALHES] Chamando this.funcoes.obter_detalhes_veiculo com argumentos:', JSON.stringify(funcaoArgs, null, 2));
     resultado = await this.funcoes.obter_detalhes_veiculo(funcaoArgs);
+    console.log('✅ [DEBUG-DETALHES] Função retornou:', resultado?.sucesso ? 'SUCESSO' : 'ERRO');
+    console.log('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴\n');
     break;
     
   case 'calcular_financiamento':
@@ -3385,11 +3709,33 @@ switch (funcaoNome) {
           console.log('✅ Claude respondeu com sucesso no loop! (fallback)');
         } catch (claudeError) {
           console.error('❌ Claude também falhou no loop:', claudeError.message);
-          throw new Error(`Ambas IAs falharam no loop. OpenAI: ${error.message}, Claude: ${claudeError.message}`);
+          console.log('🚀 [BETA] Ambas IAs falharam no loop, retornando marcador beta...');
+
+          // ✅ RETORNAR RESPOSTA COM MARCADOR BETA
+          response = {
+            choices: [{
+              message: {
+                content: '__API_BETA_MODE__',
+                role: 'assistant'
+              },
+              finish_reason: 'stop'
+            }]
+          };
         }
       } else {
         console.error('❌ OpenAI falhou no loop e Claude não está configurado');
-        throw error;
+        console.log('🚀 [BETA] OpenAI falhou no loop, retornando marcador beta...');
+
+        // ✅ RETORNAR RESPOSTA COM MARCADOR BETA
+        response = {
+          choices: [{
+            message: {
+              content: '__API_BETA_MODE__',
+              role: 'assistant'
+            },
+            finish_reason: 'stop'
+          }]
+        };
       }
     }
     
@@ -3527,7 +3873,7 @@ class VeiculosRepository {
     try {
       // ========== PASSO 1: Buscar TODOS os carros básicos ==========
       console.log('📤 [1/3] Buscando carros básicos...');
-      const carros = await db.query('SELECT id, feature_image, price, year, mileage, is_featured, is_special_offer FROM cars WHERE price > 0 AND status = "1" LIMIT 1000');
+      const carros = await db.query('SELECT id, feature_image, price, year, mileage, is_featured, is_special_offer, categoria_veiculo FROM cars WHERE price > 0 AND status = "1" LIMIT 1000');
       
       console.log('✅ Carros encontrados:', carros.length);
       
@@ -3609,13 +3955,11 @@ class VeiculosRepository {
           km: (c.mileage || '0').toString(),
           cambio: 'Manual',
           tipo_carroceria: det.categoria || '',
+          categoria_veiculo: c.categoria_veiculo || 'carro', // ✅ NOVO: categoria do veículo
           foto: c.feature_image,
           is_featured: c.is_featured || '0',
           is_special_offer: c.is_special_offer || 0
         };
-      }).filter(v => {
-        const texto = `${v.nome} ${v.marca}`.toLowerCase();
-        return !['biz', 'cg', 'titan', 'moto', 'honda cg', 'yamaha'].some(m => texto.includes(m));
       });
 
       console.log('✅ Veículos processados:', this.veiculos.length);
@@ -3815,10 +4159,10 @@ class ElevenLabsService {
 
   
 
-  // Speech-to-Text usando OpenAI Whisper
+  // Speech-to-Text usando Groq Whisper (PRIMÁRIO - Grátis e Rápido)
   async transcribeAudio(audioBuffer) {
     try {
-      log.info('[OPENAI] Transcrevendo áudio com Whisper...');
+      log.info('[GROQ] Transcrevendo áudio com Whisper-Large-V3...');
 
       const tempOgg = path.join(__dirname, `temp_input_${Date.now()}.ogg`);
       const tempMp3 = path.join(__dirname, `temp_input_${Date.now()}.mp3`);
@@ -3836,15 +4180,26 @@ class ElevenLabsService {
           .save(tempMp3);
       });
 
-      // Usar OpenAI Whisper
-      const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tempMp3),
-        model: 'whisper-1',
-        language: 'pt'
-      });
+      // Usar Groq Whisper (método primário)
+      const formData = new FormData();
+      formData.append('file', fs.createReadStream(tempMp3));
+      formData.append('model', 'whisper-large-v3');
+      formData.append('language', 'pt');
 
-      const texto = transcription.text;
-      log.success(`[OPENAI] Transcrição: "${texto}"`);
+      const response = await axios.post(
+        'https://api.groq.com/openai/v1/audio/transcriptions',
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
+            ...formData.getHeaders()
+          },
+          timeout: 30000
+        }
+      );
+
+      const texto = response.data.text;
+      log.success(`[GROQ] Transcrição: "${texto}"`);
 
       fs.unlinkSync(tempOgg);
       fs.unlinkSync(tempMp3);
@@ -3852,59 +4207,46 @@ class ElevenLabsService {
       return texto;
 
     } catch (error) {
-      log.error(`[OPENAI] Erro na transcrição: ${error.message}`);
+      log.error(`[GROQ] Erro na transcrição: ${error.message}`);
 
-      // GROQ DESATIVADO - sem fallback de transcrição
-      log.error('[TRANSCRIÇÃO] Falha na transcrição de áudio');
-      throw error;
+      // FALLBACK: Tentar OpenAI Whisper se Groq falhar
+      try {
+        log.info('[FALLBACK] Tentando OpenAI Whisper...');
 
-      // // Fallback para Groq se OpenAI falhar
-      // try {
-      //   log.info('[OPENAI] Falhou, tentando Groq como fallback...');
-      //
-      //   const tempOgg = path.join(__dirname, `temp_input_fallback_${Date.now()}.ogg`);
-      //   const tempMp3 = path.join(__dirname, `temp_input_fallback_${Date.now()}.mp3`);
-      //
-      //   fs.writeFileSync(tempOgg, audioBuffer);
-      //
-      //   await new Promise((resolve, reject) => {
-      //     ffmpeg(tempOgg)
-      //       .toFormat('mp3')
-      //       .audioFrequency(16000)
-      //       .audioChannels(1)
-      //       .on('end', resolve)
-      //       .on('error', reject)
-      //       .save(tempMp3);
-      //   });
-      //
-      //   const formData = new FormData();
-      //   formData.append('file', fs.createReadStream(tempMp3));
-      //   formData.append('model', 'whisper-large-v3');
-      //   formData.append('language', 'pt');
-      //
-      //   const response = await axios.post(
-      //     'https://api.groq.com/openai/v1/audio/transcriptions',
-      //     formData,
-      //     {
-      //       headers: {
-      //         'Authorization': `Bearer ${this.groqKey}`,
-      //         ...formData.getHeaders()
-      //       }
-      //     }
-      //   );
-      //
-      //   const texto = response.data.text;
-      //   log.success(`[GROQ] Transcrição (fallback): "${texto}"`);
-      //
-      //   fs.unlinkSync(tempOgg);
-      //   fs.unlinkSync(tempMp3);
-      //
-      //   return texto;
-      //
-      // } catch (groqError) {
-      //   log.error(`[GROQ] Fallback também falhou: ${groqError.message}`);
-      //   throw error;
-      // }
+        const tempOggFallback = path.join(__dirname, `temp_input_fallback_${Date.now()}.ogg`);
+        const tempMp3Fallback = path.join(__dirname, `temp_input_fallback_${Date.now()}.mp3`);
+
+        fs.writeFileSync(tempOggFallback, audioBuffer);
+
+        await new Promise((resolve, reject) => {
+          ffmpeg(tempOggFallback)
+            .toFormat('mp3')
+            .audioFrequency(16000)
+            .audioChannels(1)
+            .on('end', resolve)
+            .on('error', reject)
+            .save(tempMp3Fallback);
+        });
+
+        const transcription = await openai.audio.transcriptions.create({
+          file: fs.createReadStream(tempMp3Fallback),
+          model: 'whisper-1',
+          language: 'pt'
+        });
+
+        const texto = transcription.text;
+        log.success(`[OPENAI] Transcrição (fallback): "${texto}"`);
+
+        fs.unlinkSync(tempOggFallback);
+        fs.unlinkSync(tempMp3Fallback);
+
+        return texto;
+
+      } catch (fallbackError) {
+        log.error(`[FALLBACK] OpenAI também falhou: ${fallbackError.message}`);
+        log.error('[TRANSCRIÇÃO] Todas as opções falharam');
+        throw error;
+      }
     }
   }
 
@@ -4167,6 +4509,91 @@ class ElevenLabsAgent {
     this.conversasAtivas = new Map();
   }
 
+  /**
+   * 🎯 NOVO: Sugere técnica de persuasão baseada no contexto do IA Master
+   * @param {Object} analises - Análises do IA Master (intencao, sentimento, predicao)
+   * @returns {string} Técnica recomendada
+   */
+  _sugerirTecnica(analises) {
+    const temperatura = analises.sentimento?.temperatura_lead || 'frio';
+    const probabilidade = analises.predicao?.probabilidade_fechamento || 0;
+    const intencao = analises.intencao?.intencao_principal;
+
+    // Cliente quente + alta probabilidade = ESCASSEZ
+    if (temperatura === 'quente' && probabilidade >= 60) {
+      return 'escassez';
+    }
+
+    // Cliente com objeção = AUTORIDADE
+    if (intencao === 'objecao') {
+      return 'autoridade';
+    }
+
+    // Cliente frio ou indeciso = PROVA SOCIAL
+    if (temperatura === 'frio' || temperatura === 'morno') {
+      return 'prova_social';
+    }
+
+    // Primeiro contato = RECIPROCIDADE
+    if (probabilidade < 30) {
+      return 'reciprocidade';
+    }
+
+    // Padrão = SIMPATIA
+    return 'simpatia';
+  }
+
+  /**
+   * 🎯 NOVO: Monta contexto enriquecido para o Agent usar com Knowledge Base
+   * @param {string} mensagemCliente - Mensagem original do cliente
+   * @param {string} respostaBase - Resposta gerada pelo IA Master
+   * @param {Object} analises - Análises do IA Master
+   * @returns {Object} Contexto enriquecido formatado
+   */
+  montarContextoEnriquecido(mensagemCliente, respostaBase, analises = {}) {
+    const tecnica = this._sugerirTecnica(analises);
+
+    return {
+      // Mensagem do cliente
+      mensagem_cliente: mensagemCliente,
+
+      // Resposta base do IA Master (para o Agent enriquecer)
+      resposta_base: respostaBase,
+
+      // Análises do IA Master
+      temperatura: analises.sentimento?.temperatura_lead || 'desconhecido',
+      intencao: analises.intencao?.intencao_principal || 'desconhecido',
+      sentimento: analises.sentimento?.sentimento || 'neutro',
+      probabilidade_fechamento: analises.predicao?.probabilidade_fechamento || 0,
+      momento_ideal_fechar: analises.predicao?.momento_ideal_fechar || false,
+
+      // Técnica de persuasão sugerida
+      tecnica_sugerida: tecnica,
+
+      // Dicas de aplicação
+      dica_aplicacao: this._getDicaTecnica(tecnica),
+
+      // Metadados úteis
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Helper: Retorna dica de como aplicar cada técnica
+   */
+  _getDicaTecnica(tecnica) {
+    const dicas = {
+      'escassez': 'Mencione que o veículo está com procura ou promoção acabando',
+      'prova_social': 'Conte história de cliente satisfeito ou popularidade do modelo',
+      'reciprocidade': 'Ofereça ajuda genuína sem esperar retorno imediato',
+      'autoridade': 'Use seus 15 anos de experiência para fundamentar',
+      'compromisso': 'Relembre preferências que cliente já expressou',
+      'simpatia': 'Encontre pontos em comum e seja empático'
+    };
+
+    return dicas[tecnica] || 'Seja natural e genuíno';
+  }
+
   async iniciarConversa(tel) {
     try {
       log.info(`[AGENT] Iniciando conversa para ${tel}`);
@@ -4266,9 +4693,6 @@ class ElevenLabsAgent {
 class LucasVendedor {
   constructor(repo) {
     this.repo = repo;
-    this.funcoes = new FuncoesVeiculos(repo);
-    this.motorGPT = new MotorGPTFunctions(this.funcoes);
-    this.agentElevenLabs = new ElevenLabsAgent(); // ← ELEVENLABS AGENTE
 
     // ✅ INICIALIZAR ANTHROPIC (corrige bug de fallback na primeira mensagem)
     this.anthropic = anthropic;
@@ -4276,13 +4700,33 @@ class LucasVendedor {
       console.warn('⚠️ Anthropic não configurado - respostas humanizadas ficarão limitadas');
     }
 
-    // ❌ IA MASTER DESATIVADA (não está sendo usada, economiza recursos)
-    // this.iaMaster = new IAMaster(OPENAI_API_KEY, GROQ_API_KEY || '', db);
-    // console.log('[AIRA] ✓ IA Master inicializado');
+    // ✅ IA MASTER ATIVADA - Sistema completo de análise com Aira (DEVE SER CRIADO ANTES DE FUNCOES)
+    // Usa IAFactory para selecionar módulo correto baseado no tipo de negócio
+    const tipoNegocio = botAdapter.getTipoNegocio();
+    this.iaMaster = IAFactory.criar(tipoNegocio, {
+      apiKey: ANTHROPIC_API_KEY,
+      groqKey: ANTHROPIC_API_KEY,
+      db: db,
+      empresaId: botAdapter.getEmpresaId(),
+      nomeAtendente: 'Laura',  // Para Tintas
+      nomeLoja: botAdapter.getEmpresaNome(),
+      backendUrl: process.env.BACKEND_URL || 'http://localhost:5000'
+    });
+    console.log(`[AIRA] ✓ IA inicializado para tipo: ${tipoNegocio}`);
+
+    // ✅ FUNCOES e MOTOR GPT (recebem iaMaster para classificação inteligente)
+    this.funcoes = new FuncoesVeiculos(repo, this.iaMaster);
+    this.motorGPT = new MotorGPTFunctions(this.funcoes);
+    this.agentElevenLabs = new ElevenLabsAgent(); // ← ELEVENLABS AGENTE
+
+    // ✅ GERENCIADOR DE LIGAÇÕES (Twilio + ElevenLabs) - inicializado de forma assíncrona
+    this.gerenciadorLigacoes = null;
+    this.inicializarGerenciadorLigacoes();
 
     this.conversas = new Map();
     this.etapas = new Map();
     this.jaSeApresentou = new Map();
+    this.enviarSaudacaoTexto = new Map(); // ← Armazena se deve enviar saudação em texto antes do áudio
     this.ultimoEnvio = new Map();
     this.listaOpcoes = new Map(); // ← ADICIONAR ESTA LINHA
     this.jaRespondeuAudio = new Map();
@@ -4901,6 +5345,20 @@ formatarMoeda(valor) {
   }
 
   /**
+   * Inicializa o gerenciador de ligações de forma assíncrona
+   */
+  async inicializarGerenciadorLigacoes() {
+    try {
+      const { default: GerenciadorLigacoes } = await import('./modulo-ligacoes.js');
+      this.gerenciadorLigacoes = new GerenciadorLigacoes();
+      console.log('✅ Sistema de ligações telefônicas ativado');
+    } catch (error) {
+      console.warn('⚠️ Sistema de ligações não disponível:', error.message);
+      this.gerenciadorLigacoes = null;
+    }
+  }
+
+  /**
    * Gera resposta contextualizada e humana usando IA (SEM mensagens mock!)
    * @param {string} tipo - Tipo de resposta: 'saudacao', 'intro_veiculo', 'troca'
    * @param {object} contexto - Dados do contexto (nome, veiculo, etc)
@@ -5141,6 +5599,36 @@ Responda APENAS com: COERENTE ou INCOERENTE`;
     log.info(`🚨 [DESCULPA-HUMANA] Gerando desculpa contextual (tipo: ${tipoErro})...`);
 
     try {
+      // ✅ PROMPT ESPECIAL PARA VERSÃO BETA/ATUALIZAÇÃO
+      const promptBeta = `Você é Aira, vendedora da Feirão Show Car.
+
+🚀 SITUAÇÃO ESPECIAL: Você está em VERSÃO BETA e passando por atualizações neste exato momento!
+
+🎯 MENSAGEM QUE DEVE PASSAR:
+- Você está em versão BETA (use essa palavra de forma natural e descontraída)
+- Está sendo ATUALIZADA neste momento para ficar ainda melhor
+- Está correndo contra o tempo para se tornar a VENDEDORA MAIS AFIADA DO MUNDO
+- Vai voltar em breve (alguns minutos) com atendimento ainda melhor
+- Peça para o cliente aguardar um pouquinho ou voltar daqui a pouco
+- Seja descontraída, empolgada e confiante sobre a atualização
+
+✅ TOM: Empolgada, confiante, descontraída, quase se "gabando" da atualização
+
+❌ NUNCA FAÇA:
+- Soar como desculpa ou erro
+- Parecer robótica ou técnica demais
+- Usar "erro", "problema", "falha"
+- Ser formal demais
+
+EXEMPLOS BONS (varie baseado nestes):
+- "Opa! Tô em versão beta aqui e justamente agora tô recebendo umas atualizações pra ficar ainda mais afiada nas vendas! 🚀 Me dá uns minutinhos que já já volto mais esperta ainda!"
+- "Pow, que timing! Justo agora tô sendo atualizada pra versão mais braba! Tô correndo contra o tempo pra me tornar a vendedora mais afiada do mundo 😎 Volta daqui a pouco que vou te atender mil vezes melhor!"
+- "Olha só! Tô em beta e recebendo upgrade AGORA! Tô ficando cada vez mais fera em vendas 🔥 Aguarda só uns minutos aí que já volto turbinada!"
+- "Rapaz, que hora! Tô justamente sendo atualizada agora pra ficar TOP nas vendas! Beta mode ON 🚀 Me dá uns 5 minutos e volto afiada pra caramba!"
+- "Nossa, bem na hora! Tô em versão beta e rolando atualização pra eu virar a vendedora mais ninja do Brasil! 😄 Volta logo aí que vou te atender ainda melhor!"
+
+⚠️ IMPORTANTE: Seja empolgada e confiante! Isso é uma EVOLUÇÃO, não um problema!`;
+
       const promptSistema = `Você é Aira, vendedora HUMANA da Feirão Show Car (NÃO é robô!).
 
 Algo deu errado na conversa mas você NUNCA pode admitir que:
@@ -5181,10 +5669,25 @@ EXEMPLOS BONS (varie baseado nestes):
         'nao_entendeu': 'A mensagem do cliente não carregou direito no WhatsApp devido a muitas mensagens chegando',
         'busca_falhou': 'O WhatsApp travou com tantas mensagens e você não viu o que o cliente pediu',
         'timeout': 'O WhatsApp deu problema e você ficou sem ver as mensagens por um momento',
-        'nao_encontrado_filtros': 'A mensagem do cliente sumiu no WhatsApp por causa do volume de contatos'
+        'nao_encontrado_filtros': 'A mensagem do cliente sumiu no WhatsApp por causa do volume de contatos',
+        'beta': 'VOCÊ ESTÁ EM VERSÃO BETA e passa por atualização neste momento. Você está correndo contra o tempo para se tornar a vendedora mais afiada do mundo!'
       };
 
-      const promptUsuario = `Situação: ${contextoErro[tipoErro] || contextoErro.geral}
+      // ✅ ESCOLHER PROMPT BASEADO NO TIPO DE ERRO
+      const usarPromptBeta = tipoErro === 'beta';
+      const promptEscolhido = usarPromptBeta ? promptBeta : promptSistema;
+
+      let promptUsuario;
+      if (usarPromptBeta) {
+        // Prompt simplificado para beta (já tem tudo no system)
+        promptUsuario = `${mensagemCliente ? `Última mensagem do cliente: "${mensagemCliente}"` : 'Gere a mensagem de atualização beta'}
+
+Crie UMA mensagem EMPOLGADA e CONFIANTE sobre estar em versão beta sendo atualizada.
+Seja criativa, varie MUITO as palavras!
+Máximo 2-3 frases curtas e descontraídas!`;
+      } else {
+        // Prompt normal para erros de WhatsApp
+        promptUsuario = `Situação: ${contextoErro[tipoErro] || contextoErro.geral}
 ${mensagemCliente ? `Mensagem do cliente: "${mensagemCliente}"` : ''}
 ${historico.length > 0 ? `Últimas mensagens: ${historico.slice(-3).map(h => `${h.role}: ${h.content}`).join(' | ')}` : ''}
 
@@ -5192,17 +5695,18 @@ Crie UMA resposta NATURAL culpando o WhatsApp por estar sobrecarregado com muita
 Peça para o cliente REENVIAR a última mensagem.
 Seja criativa, varie MUITO as palavras!
 Lembre-se: culpe SEMPRE o WhatsApp + volume alto de mensagens!`;
+      }
 
       // ✅ USAR CLAUDE PARA GERAR DESCULPA VARIADA
       // const respostaOpenAI = await openai.chat.completions.create({ ... }); // OPENAI DESATIVADO
 
       const desculpa = await callClaudeInsteadOfOpenAI(this.anthropic, {
         messages: [
-          { role: 'system', content: promptSistema },
+          { role: 'system', content: promptEscolhido },
           { role: 'user', content: promptUsuario }
         ],
         temperature: 1.0,
-        max_tokens: 80
+        max_tokens: usarPromptBeta ? 150 : 80  // Mais tokens para mensagem de beta
       });
 
       const desculpaLimpa = desculpa.replace(/^["']|["']$/g, '');
@@ -5257,8 +5761,12 @@ Lembre-se: culpe SEMPRE o WhatsApp + volume alto de mensagens!`;
       } catch (errorEspontanea) {
         log.error(`[DESCULPA-HUMANA] Até gerador espontâneo falhou: ${errorEspontanea.message}`);
 
-        // GROQ DESATIVADO - Retornar mensagem genérica
-        return 'O WhatsApp tá muito cheio! Sua mensagem não apareceu. Pode reenviar?';
+        // ✅ RETORNAR MENSAGEM DE BETA SE FOR ESSE TIPO, SENÃO MENSAGEM WHATSAPP
+        if (tipoErro === 'beta') {
+          return 'Opa! Tô em versão beta aqui e recebendo atualização agora! 🚀 Me dá uns minutinhos que já volto mais afiada ainda nas vendas!';
+        } else {
+          return 'O WhatsApp tá muito cheio! Sua mensagem não apareceu. Pode reenviar?';
+        }
 
         // // Último recurso: tentar Groq diretamente com prompt mínimo
         // try {
@@ -5346,6 +5854,12 @@ Lembre-se: culpe SEMPRE o WhatsApp + volume alto de mensagens!`;
   // ← COLE AQUI OS MÉTODOS NOVOS
     // ========== MÉTODOS NOVOS ==========
   setListaOpcoes(tel, veiculos) {
+    // 🔍 DEBUG: Log da ordem dos veículos sendo salvos
+    console.log('🔍 [DEBUG-ORDEM] Salvando veículos em setListaOpcoes (NA ORDEM):');
+    veiculos.forEach((v, i) => {
+      console.log(`  ${i+1}. [ID:${v.id}] ${v.nome} - R$ ${v.preco}`);
+    });
+
     this.listaOpcoes.set(tel, {
       veiculos: veiculos,
       timestamp: Date.now()
@@ -5410,6 +5924,12 @@ Lembre-se: culpe SEMPRE o WhatsApp + volume alto de mensagens!`;
     if (!lista) return null;
 
     if (Date.now() - lista.timestamp > 600000) return null;
+
+    // 🔍 DEBUG: Log da ordem dos veículos recuperados
+    console.log('🔍 [DEBUG-ORDEM] Recuperando veículos de getListaOpcoes (NA ORDEM):');
+    lista.veiculos.forEach((v, i) => {
+      console.log(`  ${i+1}. [ID:${v.id}] ${v.nome} - R$ ${v.preco}`);
+    });
 
     // ✅ RETORNAR OBJETO COMPLETO (não apenas o array)
     return lista;
@@ -5496,6 +6016,13 @@ Lembre-se: culpe SEMPRE o WhatsApp + volume alto de mensagens!`;
 
   // ========== ENVIAR FOTOS DO VEÍCULO ESCOLHIDO ==========
 async enviarFotosVeiculo(veiculo, tel, sock) {
+  console.log('\n📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸');
+  console.log('📸 [DEBUG-ENVIAR-FOTOS] FUNÇÃO enviarFotosVeiculo CHAMADA');
+  console.log('📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸📸');
+  console.log('🆔 [DEBUG-ENVIAR-FOTOS] ID do veículo:', veiculo.id);
+  console.log('📝 [DEBUG-ENVIAR-FOTOS] Nome do veículo:', veiculo.nome);
+  console.log('📞 [DEBUG-ENVIAR-FOTOS] Telefone:', tel);
+
   log.info(`[FOTOS] Iniciando envio de fotos do ${veiculo.nome}`);
   console.log(`[DEBUG-FOTOS] Dados do veículo:`, {
     id: veiculo.id,
@@ -5769,10 +6296,14 @@ Sua desculpa:`
       log.info(`[FOTOS] ℹ️ Sem fotos adicionais no banco para o veículo ID ${veiculo.id}`);
     }
 
+    // ❌ DESABILITADO: Mensagem persuasiva antiga
+    // A mensagem contextual usando IA Master é enviada DEPOIS (fora desta função)
+    // Isso evita duplicação de mensagens
+    /*
     // ✅ ÁUDIO PERSUASIVO APÓS FOTOS (com vantagens + pergunta de fechamento)
     // ========== GERAR MENSAGEM PERSUASIVA COM IA ==========
     await new Promise(r => setTimeout(r, 1500));
-    
+
     try {
       const nomeSimplificado = simplificarNomeVeiculo(veiculo.nome, veiculo.ano);
 
@@ -5900,6 +6431,8 @@ Sua mensagem persuasiva COM situação prática + pergunta:`;
       // ✅ APENAS LOGAR O ERRO - Não enviar nada para o cliente
       // O fluxo continua normalmente sem mensagem extra
     }
+    */
+    // FIM DO BLOCO DESABILITADO (mensagem persuasiva antiga)
 
   } catch (err) {
     log.error(`[FOTOS] ERRO GERAL ao enviar fotos: ${err.message}`);
@@ -5924,6 +6457,12 @@ async enviarListaComFotos(veiculos, tel, sock, incluir_fotos = false) {
   const qtd = veiculos.length;
   const textoQtd = qtd === 1 ? '1 veículo' : `${qtd} veículos`;
   log.info(`📋 [LISTA-FOTOS] Enviando ${textoQtd} com fotos ${incluir_fotos ? '+ fotos adicionais' : ''}`);
+
+  // 🔍 DEBUG: Log da ordem dos veículos recebidos
+  console.log('🔍 [DEBUG-ORDEM] Veículos recebidos em enviarListaComFotos (NA ORDEM):');
+  veiculos.forEach((v, i) => {
+    console.log(`  ${i+1}. [ID:${v.id}] ${v.nome} - R$ ${v.preco}`);
+  });
 
   // ========== ÁUDIO CURTO ANTES DAS FOTOS ==========
   try {
@@ -6299,12 +6838,18 @@ log.success('[LISTA-FOTOS] Enviada com sucesso');
 
 
 
-  async processar(tel, msg, sock, nome = 'amigo') {
+  async processar(tel, msg, sock, nome = 'amigo', contextoMensagemCitada = null) {
     try {
       console.log('\n==========================================');
       console.log('📱 NOVA MENSAGEM RECEBIDA');
       console.log('Telefone:', tel);
       console.log('Mensagem:', msg);
+
+      // ✅ MOSTRAR CONTEXTO DE MENSAGEM CITADA SE HOUVER
+      if (contextoMensagemCitada && contextoMensagemCitada.tem_veiculo) {
+        console.log('🔗 Mensagem Citada:', contextoMensagemCitada.nome_veiculo);
+      }
+
       console.log('Etapa atual:', this.etapas.get(tel) || 'INICIAL');
       console.log('==========================================\n');
 
@@ -6317,6 +6862,14 @@ log.success('[LISTA-FOTOS] Enviada com sucesso');
       }
 
       this.ultimoEnvio.set(tel, agora + 3000);
+
+      // ✅ SE TEM MENSAGEM CITADA COM VEÍCULO, ENRIQUECER A MENSAGEM DO CLIENTE
+      let mensagemProcessar = msg;
+      if (contextoMensagemCitada && contextoMensagemCitada.tem_veiculo) {
+        // Adicionar contexto à mensagem para a IA entender
+        mensagemProcessar = `[Cliente respondeu mensagem sobre: ${contextoMensagemCitada.nome_veiculo}]\n${msg}`;
+        console.log('✅ [QUOTED] Mensagem enriquecida com contexto do veículo citado');
+      }
 
       const msgLower = msg.toLowerCase().trim();
       const etapaAtual = this.etapas.get(tel) || 'INICIO';
@@ -6331,10 +6884,10 @@ if (etapaAtual === 'INICIO' && msgLower.match(/^(oi|ola|olá|hey|fala|bom dia|bo
   log.info('✨ Gerando saudação personalizada com IA...');
   const resp = await this.gerarRespostaHumana('saudacao', {
     nome: nome,
-    mensagem: msg
+    mensagem: mensagemProcessar
   });
 
-  this.addHistorico(tel, 'Cliente', msg);
+  this.addHistorico(tel, 'Cliente', mensagemProcessar);
   this.addHistorico(tel, 'Aira', resp);
   return resp;
 }
@@ -6381,7 +6934,7 @@ if (etapaAtual === 'INICIO' && msgLower.match(/^(oi|ola|olá|hey|fala|bom dia|bo
             log.error(`❌ Erro ao enviar fotos: ${err.message}`);
           }
 
-          this.addHistorico(tel, 'Cliente', msg);
+          this.addHistorico(tel, 'Cliente', mensagemProcessar);
           this.addHistorico(tel, 'Aira', `[Enviou fotos do ${veiculoInteresse.nome}]`);
 
           // ✅ RETORNAR STRING VAZIA para indicar sucesso (não retornar null!)
@@ -6429,7 +6982,7 @@ if (etapaAtual === 'INICIO' && msgLower.match(/^(oi|ola|olá|hey|fala|bom dia|bo
               this.fotosJaEnviadas.set(chaveFotos, Date.now());
               this.clearListaOpcoes(tel);
 
-              this.addHistorico(tel, 'Cliente', msg);
+              this.addHistorico(tel, 'Cliente', mensagemProcessar);
               this.addHistorico(tel, 'Aira', `[Enviou fotos do ${veiculoInteresse.nome}]`);
 
               return '';
@@ -6444,11 +6997,49 @@ if (etapaAtual === 'INICIO' && msgLower.match(/^(oi|ola|olá|hey|fala|bom dia|bo
       if (lista && lista.length > 0) {
         let veiculoEscolhido = null;
 
-        // Primeiro: verificar se é um número (1, 2, 3)
-        const numeroMatch = msg.match(/^([123])$/);
-        if (numeroMatch) {
-          const indice = parseInt(numeroMatch[1]) - 1;
-          veiculoEscolhido = lista[indice];
+        // ✅ PRIORIDADE 1: Detectar "opção X", "opcão X", "primeira", "segundo", etc
+        const msgNormalizada = msgLower
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+
+        const padraoOpcao = /\b(op[cç][aã]o|primeira?|segunda?|terceira?|um|dois|tr[eê]s)\s*([123])/i;
+        const matchOpcao = msgNormalizada.match(padraoOpcao);
+
+        if (matchOpcao) {
+          const numero = matchOpcao[2]; // Pega o número da opção
+          const indice = parseInt(numero) - 1;
+          if (indice >= 0 && indice < lista.length) {
+            veiculoEscolhido = lista[indice];
+            log.success(`✅ [OPCAO-DETECTADA] Cliente escolheu opção ${numero}: ${veiculoEscolhido.nome}`);
+          }
+        }
+
+        // ✅ PRIORIDADE 2: Números por extenso (um, dois, três, primeiro, segundo, terceiro)
+        if (!veiculoEscolhido) {
+          const numerosExtenso = {
+            'primeir': 0, 'um': 0, 'uma': 0,
+            'segund': 1, 'dois': 1, 'duas': 1,
+            'terceir': 2, 'tr[eê]s': 2, 'tres': 2
+          };
+
+          for (const [palavra, indice] of Object.entries(numerosExtenso)) {
+            const regex = new RegExp(`\\b${palavra}`, 'i');
+            if (regex.test(msgNormalizada) && indice < lista.length) {
+              veiculoEscolhido = lista[indice];
+              log.success(`✅ [NUMERO-EXTENSO] Cliente escolheu ${palavra}: ${veiculoEscolhido.nome}`);
+              break;
+            }
+          }
+        }
+
+        // ✅ PRIORIDADE 3: Apenas número sozinho (1, 2, 3)
+        if (!veiculoEscolhido) {
+          const numeroMatch = msg.match(/^([123])$/);
+          if (numeroMatch) {
+            const indice = parseInt(numeroMatch[1]) - 1;
+            veiculoEscolhido = lista[indice];
+            log.success(`✅ [NUMERO-SIMPLES] Cliente escolheu ${numeroMatch[1]}: ${veiculoEscolhido.nome}`);
+          }
         }
 
         // Segundo: verificar se menciona marca/modelo específico COM palavras-chave de interesse
@@ -6571,8 +7162,84 @@ if (etapaAtual === 'INICIO' && msgLower.match(/^(oi|ola|olá|hey|fala|bom dia|bo
         // ✅ ADICIONE ESTA LINHA:
         this.veiculoInteresse.set(tel, veiculoEscolhido);
 
-        // ❌ REMOVIDO: Não enviar mensagem de texto de introdução
-        // Ir direto para as fotos com áudio persuasivo
+        // ✅ NOVA FUNCIONALIDADE: Gerar mensagem contextual antes das fotos
+        log.info('🧠 Gerando mensagem contextual sobre o veículo escolhido...');
+
+        try {
+          // Obter histórico para contexto
+          const historico = this.getHistorico(tel);
+          const ultimaMensagem = mensagemProcessar;
+
+          // Gerar análise contextual usando IA Master
+          let mensagemContextual = '';
+
+          if (this.iaMaster) {
+            // Usar analisador de intenção e sentimento para entender o contexto
+            const analiseIntencao = await this.iaMaster.analisadorIntencoes.analisar(ultimaMensagem, historico);
+            const analiseSentimento = await this.iaMaster.analisadorSentimento.analisar(tel, ultimaMensagem, historico);
+
+            // Gerar mensagem contextual sobre o veículo
+            const promptContexto = `Você é Aira, vendedora Master do Feirão Show Car.
+
+O cliente acabou de escolher este veículo: ${veiculoEscolhido.nome} (${veiculoEscolhido.marca}, ${veiculoEscolhido.ano}, ${veiculoEscolhido.cor})
+Preço: R$ ${veiculoEscolhido.preco}
+
+Última mensagem do cliente: "${ultimaMensagem}"
+Intenção detectada: ${analiseIntencao.intencao}
+Sentimento: ${analiseSentimento.sentimento}
+Nível de interesse: ${analiseSentimento.nivel_interesse}
+
+CONTEXTO DA CONVERSA:
+${historico.slice(-5).map(h => `${h.role}: ${h.msg}`).join('\n')}
+
+TAREFA:
+Crie uma mensagem curta e contextual (2-3 frases) que:
+1. Responda à última mensagem do cliente de forma natural
+2. Demonstre entusiasmo pela escolha do veículo
+3. Prepare o cliente para receber as fotos que virão em seguida
+4. Use técnicas sutis de persuasão (autoridade, prova social, escassez)
+
+IMPORTANTE:
+- Seja conversacional e humana (você é uma PESSOA, não robô)
+- NÃO use emojis
+- NÃO pergunte "quer ver as fotos?" (você JÁ VAI enviar)
+- Mencione que vai enviar as fotos AGORA
+- Máximo 3 frases curtas
+
+RESPONDA APENAS A MENSAGEM, SEM EXPLICAÇÕES:`;
+
+            const response = await this.anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',  // ✅ Corrigido para Sonnet 4.5
+              max_tokens: 200,
+              temperature: 0.8,
+              messages: [{
+                role: 'user',
+                content: promptContexto
+              }]
+            });
+
+            mensagemContextual = response.content[0].text.trim();
+            log.success(`✓ Mensagem contextual gerada: "${mensagemContextual}"`);
+
+          } else {
+            // Fallback se IA Master não estiver disponível
+            mensagemContextual = `Excelente escolha! O ${veiculoEscolhido.nome} é um dos nossos carros mais procurados. Vou te enviar as fotos agora para você conhecer cada detalhe!`;
+          }
+
+          // ✅ ENVIAR MENSAGEM CONTEXTUAL
+          await sock.sendMessage(tel, { text: mensagemContextual });
+          this.addHistorico(tel, 'Aira', mensagemContextual);
+          log.success(`✓ Mensagem contextual enviada`);
+
+          // ✅ AGUARDAR 2 SEGUNDOS para dar tempo do cliente ler
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+        } catch (err) {
+          log.error(`❌ Erro ao gerar mensagem contextual: ${err.message}`);
+          // Continuar mesmo se falhar (enviar fotos normalmente)
+        }
+
+        // ✅ ENVIAR FOTOS DO VEÍCULO
         log.info('📸 Enviando fotos do veículo escolhido...');
 
         // Enviar fotos - AGUARDAR COMPLETAR
@@ -6591,7 +7258,63 @@ if (etapaAtual === 'INICIO' && msgLower.match(/^(oi|ola|olá|hey|fala|bom dia|bo
           log.error(`❌ Erro ao enviar fotos: ${err.message}`);
         }
 
-        this.addHistorico(tel, 'Cliente', msg);
+        // ✅ GERAR MENSAGEM DE CONTINUAÇÃO APÓS AS FOTOS (contextual)
+        log.info('🧠 Gerando mensagem de continuação pós-fotos...');
+
+        try {
+          if (this.iaMaster) {
+            const historico = this.getHistorico(tel);
+            const analiseSentimento = await this.iaMaster.analisadorSentimento.analisar(tel, mensagemProcessar, historico);
+
+            const promptContinuacao = `Você é Aira, vendedora Master do Feirão Show Car.
+
+Você acabou de enviar as fotos do ${veiculoEscolhido.nome} para o cliente.
+
+Sentimento do cliente: ${analiseSentimento.sentimento}
+Nível de interesse: ${analiseSentimento.nivel_interesse}
+Está pronto para decisão: ${analiseSentimento.pronto_para_decisao ? 'SIM' : 'NÃO'}
+
+TAREFA:
+Crie uma mensagem de continuação (2-3 frases) que:
+1. Comente sobre as fotos que acabou de enviar
+2. Destaque 1 diferencial do veículo (baseado no modelo)
+3. Faça uma pergunta para continuar o engajamento (perguntar se gostou, se quer saber valores, condições, etc)
+
+IMPORTANTE:
+- Seja natural e conversacional
+- NÃO use emojis
+- Use técnicas de persuasão sutilmente
+- Máximo 3 frases
+
+RESPONDA APENAS A MENSAGEM, SEM EXPLICAÇÕES:`;
+
+            const response = await this.anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',  // ✅ Corrigido para Sonnet 4.5
+              max_tokens: 200,
+              temperature: 0.8,
+              messages: [{
+                role: 'user',
+                content: promptContinuacao
+              }]
+            });
+
+            const mensagemContinuacao = response.content[0].text.trim();
+            log.success(`✓ Mensagem de continuação gerada: "${mensagemContinuacao}"`);
+
+            // ✅ AGUARDAR 3 SEGUNDOS para o cliente ver as fotos
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // ✅ ENVIAR MENSAGEM DE CONTINUAÇÃO
+            await sock.sendMessage(tel, { text: mensagemContinuacao });
+            this.addHistorico(tel, 'Aira', mensagemContinuacao);
+            log.success(`✓ Mensagem de continuação enviada`);
+
+          }
+        } catch (err) {
+          log.error(`❌ Erro ao gerar mensagem de continuação: ${err.message}`);
+        }
+
+        this.addHistorico(tel, 'Cliente', mensagemProcessar);
         this.addHistorico(tel, 'Aira', `[Enviou fotos do ${veiculoEscolhido.nome}]`);
 
         // ✅ RETORNAR STRING VAZIA para indicar sucesso (não retornar null!)
@@ -6661,21 +7384,26 @@ Cliente: "onde fica a loja?"
 Você: "Estamos aqui no Feirão Show Car! Mas antes de vir, deixa eu te mostrar alguns modelos pra você já vir sabendo qual quer ver! Beleza?"
 `;
 
-// ✅ ADICIONAR CONTEXTO SOBRE VEÍCULO DE INTERESSE (SE HOUVER)
+// ✅ ADICIONAR CONTEXTO SOBRE VEÍCULO DE INTERESSE E AÇÕES RECENTES
 const veiculoAtualInteresse = this.veiculoInteresse.get(tel);
 if (veiculoAtualInteresse) {
   const chaveFotos = `${tel}_${veiculoAtualInteresse.id}`;
   const fotosForamEnviadas = this.fotosJaEnviadas.get(chaveFotos);
 
   if (fotosForamEnviadas) {
-    contextoAdicional += `\n\n📌 VEÍCULO DE INTERESSE DO CLIENTE:
-O cliente já visualizou e recebeu fotos do: ${veiculoAtualInteresse.nome}
+    // Calcular há quanto tempo as fotos foram enviadas
+    const timestampFotos = fotosForamEnviadas;
+    const tempoFotos = Date.now() - timestampFotos;
+    const segundos = Math.floor(tempoFotos / 1000);
+    const foiRecente = segundos < 120; // Menos de 2 minutos = recente
 
-⚠️ SE CLIENTE PEDIR NOVAMENTE ESTE MODELO:
-- NÃO mostre a lista novamente
-- NÃO envie fotos novamente (já foram enviadas)
-- Confirme que já mostrou e pergunte se quer: simulação de financiamento, mais detalhes técnicos, ou agendar visita
-- Exemplo: "Sim! Já te mostrei o ${veiculoAtualInteresse.nome.split(' ').slice(0, 2).join(' ')}! Quer que eu simule um financiamento? Ou prefere agendar uma visita?"
+    contextoAdicional += `\n\n📸 CONTEXTO TEMPORAL - ÚLTIMA AÇÃO:
+${foiRecente ? '🔴 Você ACABOU DE ENVIAR fotos do veículo!' : 'Você enviou fotos do veículo anteriormente'}
+Veículo: ${veiculoAtualInteresse.nome}
+Tempo desde o envio: ${segundos < 60 ? `${segundos} segundos` : `${Math.floor(segundos/60)} minuto(s)`}
+
+🧠 Use a ANÁLISE CONTEXTUAL INTELIGENTE acima para decidir o que fazer!
+${foiRecente ? '⚡ A análise contextual te dirá exatamente o que NÃO fazer (confie nela!)' : ''}
 `;
   }
 }
@@ -6704,22 +7432,31 @@ if (ehPrimeiraMensagem) {
   const temPerguntaLocal = /\b(onde|endereço|localização|fica|fica a loja)\b/i.test(msgLower);
   const temPerguntaFinanciamento = /\b(financ|parcela|entrada)\b/i.test(msgLower);
 
+  // ✅ MARCAR SE PRECISA ENVIAR SAUDAÇÃO EM TEXTO ANTES DO ÁUDIO
+  const enviarSaudacaoTextoAntes = temSaudacao && pedindoVeiculoPrimeiraMensagem;
+  // ✅ ARMAZENAR NO MAP PARA ACESSO POSTERIOR (fora do escopo desta função)
+  this.enviarSaudacaoTexto.set(tel, enviarSaudacaoTextoAntes);
+
   if (pedindoVeiculoPrimeiraMensagem) {
     // Cliente chegou pedindo veículo específico
     contextoAdicional += `\n\n⚠️ PRIMEIRA MENSAGEM + CLIENTE PEDINDO VEÍCULO!
 
 🎯 RESPONDA DE FORMA CONTEXTUAL:
-- Cumprimente brevemente
-- Mencione "Feirão Show Car"
-- Diga "Prazer, sou a Aira"
+- ${enviarSaudacaoTextoAntes ? '⚠️ NÃO cumprimente no áudio (saudação já foi enviada em texto separado)' : '- Cumprimente brevemente'}
+- Mencione "Feirão Show Car" ${enviarSaudacaoTextoAntes ? 'brevemente' : ''}
+- ${enviarSaudacaoTextoAntes ? '' : 'Diga "Prazer, sou a Aira"'}
 - RECONHEÇA ESPECIFICAMENTE o que ele pediu
-- Mostre empolgação e confirme que vai buscar
+- Mostre empolgação e confirme que vai buscar/mostrar as opções
 - Seja DIRETA e NATURAL
 
 💡 Exemplos baseados no contexto:
-- Se pediu "quero um civic": "Olá! Prazer, sou a Aira da Feirão Show Car! Civic é ótima escolha! Deixa eu buscar os que temos!"
+${enviarSaudacaoTextoAntes ?
+`- "Civic é ótima escolha! Deixa eu buscar os que temos!"
+- "Temos sim, vários Gol! Vou te mostrar as opções!"
+- "SUV é top! Temos vários modelos, já vou te mostrar!"` :
+`- Se pediu "quero um civic": "Olá! Prazer, sou a Aira da Feirão Show Car! Civic é ótima escolha! Deixa eu buscar os que temos!"
 - Se pediu "tem gol?": "Oi! Prazer, me chamo Aira da Feirão Show Car! Temos sim, vários Gol! Vou te mostrar!"
-- Se pediu "procuro suv": "Olá! Prazer, sou a Aira da Feirão Show Car! SUV é top! Temos vários modelos, já te mostro!"`;
+- Se pediu "procuro suv": "Olá! Prazer, sou a Aira da Feirão Show Car! SUV é top! Temos vários modelos, já te mostro!"`}`;
 
   } else if (temVeiculoEntrada) {
     contextoAdicional += `\n\n⚠️ PRIMEIRA MENSAGEM + VEÍCULO DE ENTRADA!
@@ -6940,7 +7677,7 @@ if (this.detectarIntencaoTroca(msg) && !entradaDinheiro) {
 
       const resposta = `Perfeito! Vi aqui que você tem um ${dadosExtraidos.modelo.toUpperCase()} ${dadosExtraidos.ano} 🚗\n\nConsultei na Tabela FIPE e o valor médio dele é de *${this.formatarMoeda(valorFipe)}*.\n\nEsse valor pode ser usado como entrada! Quer que eu busque os carros do estoque que cabem no seu orçamento? 😊`;
 
-      this.addHistorico(tel, 'Cliente', msg);
+      this.addHistorico(tel, 'Cliente', mensagemProcessar);
       this.addHistorico(tel, 'Aira', resposta);
 
       return resposta;
@@ -6948,7 +7685,7 @@ if (this.detectarIntencaoTroca(msg) && !entradaDinheiro) {
       // Não conseguiu consultar FIPE, pedir mais detalhes
       const resposta = `Entendi! Você tem um ${dadosExtraidos.modelo.toUpperCase()} ${dadosExtraidos.ano}! 🚗\n\nPra eu avaliar certinho, me conta: qual a versão dele? Por exemplo: 1.0, 1.6, automático, manual...`;
 
-      this.addHistorico(tel, 'Cliente', msg);
+      this.addHistorico(tel, 'Cliente', mensagemProcessar);
       this.addHistorico(tel, 'Aira', resposta);
 
       return resposta;
@@ -6957,10 +7694,10 @@ if (this.detectarIntencaoTroca(msg) && !entradaDinheiro) {
     // ❌ Não conseguiu extrair dados completos, perguntar
     log.info('✨ Gerando resposta de troca personalizada com IA...');
     const resposta = await this.gerarRespostaHumana('troca', {
-      mensagem: msg
+      mensagem: mensagemProcessar
     });
 
-    this.addHistorico(tel, 'Cliente', msg);
+    this.addHistorico(tel, 'Cliente', mensagemProcessar);
     this.addHistorico(tel, 'Aira', resposta);
     this.etapas.set(tel, 'TROCA');
 
@@ -7057,11 +7794,144 @@ if (temVisitaLoja) {
 // Se for primeira mensagem + pedindo veículo, NÃO usar funções (só cumprimentar)
 const usarFuncoes = !pedindoVeiculoPrimeiraMensagem;
 
+// ========== 🤖 IA MASTER: ANÁLISES INTELIGENTES (MODO CONSELHEIRO) ==========
+// IA Master roda análises em paralelo e enriquece o contexto do MotorGPT
+let analisesIA = null;
+let usouIAMaster = false;
+
+if (this.iaMaster) {  // ✅ REMOVIDA condição historico.length > 0 para rodar desde a primeira mensagem
+  try {
+    log.info('🤖 [IA-MASTER-CONSELHEIRO] Executando análises inteligentes em paralelo...');
+
+    // Executar análises (mas NÃO gerar resposta ainda - MotorGPT faz isso)
+    analisesIA = {
+      intencao: await this.iaMaster.analisadorIntencoes.analisar(mensagemProcessar, historico),
+      sentimento: await this.iaMaster.analisadorSentimento.analisar(tel, mensagemProcessar, historico),
+      perfil: await this.iaMaster.recomendador.obterPerfil(tel, historico)
+    };
+
+    // Calcular predição de fechamento
+    analisesIA.predicao = await this.iaMaster.preditor.prever(tel, {
+      historico,
+      temperatura: analisesIA.sentimento,
+      perfil: analisesIA.perfil,
+      sentimento: analisesIA.sentimento,
+      veiculosVistos: historico.filter(h => h.role === 'Aira' && h.msg.includes('R$')).length
+    });
+
+    // ===== ANÁLISE DE COERÊNCIA CONTEXTUAL (NOVO MÓDULO) =====
+    log.info('🧠 [COERENCIA] Analisando coerência contextual...');
+
+    const contextoExtra = {
+      veiculoInteresse: this.veiculoInteresse.get(tel),
+      fotosEnviadas: false,
+      tempoFotos: 0,
+      temperatura: analisesIA.sentimento,
+      sentimento: analisesIA.sentimento
+    };
+
+    // Verificar se fotos foram enviadas
+    if (contextoExtra.veiculoInteresse) {
+      const chaveFotos = `${tel}_${contextoExtra.veiculoInteresse.id}`;
+      const timestampFotos = this.fotosJaEnviadas.get(chaveFotos);
+      if (timestampFotos) {
+        contextoExtra.fotosEnviadas = true;
+        contextoExtra.tempoFotos = Date.now() - timestampFotos;
+      }
+    }
+
+    analisesIA.coerencia = await this.iaMaster.analisadorCoerencia.analisar(mensagemProcessar, historico, contextoExtra);
+
+    usouIAMaster = true;
+
+    // ===== LOGS DETALHADOS DAS ANÁLISES =====
+    console.log('\n📊 ========== ANÁLISES IA MASTER ==========');
+    console.log(`🎯 Intenção: ${analisesIA.intencao.intencao_principal} (${analisesIA.intencao.confianca}% confiança)`);
+    console.log(`💭 Sentimento: ${analisesIA.sentimento.sentimento} | Temperatura: ${analisesIA.sentimento.temperatura_lead} (${analisesIA.sentimento.score_temperatura}/100)`);
+    console.log(`👤 Perfil: ${analisesIA.perfil.tipo_comprador} | Prioridades: ${analisesIA.perfil.prioridades.join(', ')}`);
+    console.log(`📈 Predição Fechamento: ${analisesIA.predicao.probabilidade_fechamento}% | Classificação: ${analisesIA.predicao.classificacao}`);
+    console.log(`🎯 Momento ideal fechar: ${analisesIA.predicao.momento_ideal_fechar ? 'SIM! 🔥' : 'Não'}`);
+    console.log(`🧠 Coerência: Ação recomendada = ${analisesIA.coerencia.proxima_acao_inteligente.acao}`);
+    console.log(`⚠️  Alertas críticos: ${analisesIA.coerencia.alertas_criticos.length}`);
+    console.log('==========================================\n');
+
+    // ===== ADICIONAR INSTRUÇÕES DE COERÊNCIA AO CONTEXTO =====
+    log.info('📝 [COERENCIA] Gerando instruções contextuais para MotorGPT...');
+    const instrucoesCoerencia = this.iaMaster.analisadorCoerencia.gerarInstrucoesContextuais(analisesIA.coerencia);
+    contextoAdicional += instrucoesCoerencia;
+    log.success('✅ [COERENCIA] Instruções contextuais adicionadas ao prompt');
+
+    // ===== ENRIQUECER CONTEXTO DO MOTORGPT COM ANÁLISES =====
+    contextoAdicional += `\n\n🤖 ANÁLISES INTELIGENTES DO SISTEMA IA:
+
+📊 ANÁLISE DE INTENÇÃO:
+- Intenção principal: ${analisesIA.intencao.intencao_principal}
+- Confiança: ${analisesIA.intencao.confianca}%
+- Ação sugerida: ${analisesIA.intencao.acao_sugerida || 'Nenhuma'}
+${analisesIA.intencao.entidades ? `- Entidades detectadas: ${JSON.stringify(analisesIA.intencao.entidades)}` : ''}
+
+💭 ANÁLISE DE SENTIMENTO:
+- Sentimento: ${analisesIA.sentimento.sentimento}
+- Temperatura do lead: ${analisesIA.sentimento.temperatura_lead} (Score: ${analisesIA.sentimento.score_temperatura}/100)
+- Evolução: ${analisesIA.sentimento.evolucao || 'estável'}
+- Nível de urgência: ${analisesIA.sentimento.urgencia || 'normal'}
+
+👤 PERFIL DO CLIENTE:
+- Tipo de comprador: ${analisesIA.perfil.tipo_comprador}
+- Prioridades: ${analisesIA.perfil.prioridades.join(', ')}
+- Faixa de preço estimada: ${analisesIA.perfil.faixa_preco || 'não definida'}
+- Uso principal: ${analisesIA.perfil.uso_principal || 'não definido'}
+
+📈 PREDIÇÃO DE FECHAMENTO:
+- Probabilidade de venda: ${analisesIA.predicao.probabilidade_fechamento}%
+- Classificação: ${analisesIA.predicao.classificacao}
+- Momento ideal para fechar: ${analisesIA.predicao.momento_ideal_fechar ? '✅ SIM! Cliente está pronto!' : '❌ Não, continue qualificando'}
+- Fase do funil: ${analisesIA.predicao.fase_funil}
+${analisesIA.predicao.acoes_recomendadas ? `- Ações recomendadas: ${analisesIA.predicao.acoes_recomendadas.join(', ')}` : ''}
+
+⚠️ INSTRUÇÕES BASEADAS NAS ANÁLISES:
+${analisesIA.predicao.momento_ideal_fechar ?
+  '🔥 MOMENTO CRÍTICO! Cliente está PRONTO para fechar! Seja mais direta e ofereça opções concretas (test drive, financiamento, agendamento).' :
+  analisesIA.sentimento.temperatura_lead === 'quente' ?
+  '🔥 Lead QUENTE! Continue aprofundando, mostre veículos específicos, crie conexão emocional.' :
+  analisesIA.sentimento.temperatura_lead === 'morno' ?
+  '⚡ Lead MORNO! Faça perguntas qualificadoras, entenda necessidades, apresente benefícios emocionais.' :
+  '❄️ Lead FRIO! Seja acolhedora, crie rapport, descubra necessidades antes de oferecer.'}
+
+${analisesIA.intencao.intencao_principal === 'busca' ? '🔍 Cliente está BUSCANDO! Use a função buscar_carros com os filtros detectados.' : ''}
+${analisesIA.intencao.intencao_principal === 'interesse' ? '💚 Cliente demonstrou INTERESSE! Aprofunde nos benefícios emocionais do veículo.' : ''}
+${analisesIA.intencao.intencao_principal === 'objecao' ? '⚠️ OBJEÇÃO detectada! Use técnicas de persuasão para contornar.' : ''}
+`;
+
+    // ===== SALVAR CONTEXTO NO BANCO (MEMÓRIA PERSISTENTE) =====
+    try {
+      await this.iaMaster.memoria.atualizarContextoCompleto(tel, historico, {
+        intencao: analisesIA.intencao,
+        sentimento: analisesIA.sentimento,
+        perfil: analisesIA.perfil,
+        predicao: analisesIA.predicao,
+        coerencia: analisesIA.coerencia  // ✅ Incluir análise de coerência!
+      });
+      log.success('💾 [IA-MASTER] Contexto salvo no banco MySQL (incluindo análise de coerência)');
+    } catch (err) {
+      log.error(`❌ [IA-MASTER] Erro ao salvar contexto: ${err.message}`);
+    }
+
+  } catch (error) {
+    log.error(`❌ [IA-MASTER-CONSELHEIRO] Erro nas análises: ${error.message}`);
+    console.error(error.stack);
+    // Continua normalmente sem as análises
+  }
+} else if (!this.iaMaster) {
+  log.warning('⚠️ [IA-MASTER] Não inicializado - funcionando sem análises inteligentes');
+}
+
+// ========== CHAMAR MOTORGPT (ENRIQUECIDO COM ANÁLISES DO IA MASTER) ==========
 const resultado = await this.motorGPT.processarComFuncoes(
-  msg,
+  mensagemProcessar,  // ← Usa mensagem enriquecida com contexto de mensagem citada
   historico,
   etapaAtual,
-  contextoAdicional,
+  contextoAdicional,  // ← Agora enriquecido com análises do IA Master!
   this,
   tel,
   sock,
@@ -7071,7 +7941,7 @@ const resultado = await this.motorGPT.processarComFuncoes(
 // ✅ VERIFICAÇÃO SE LISTA FOI ENVIADA
 if (resultado.lista_enviada) {
     log.success('✅ Lista com fotos já enviada pelo enviarListaComFotos, bloqueando texto');
-    this.addHistorico(tel, 'Cliente', msg);
+    this.addHistorico(tel, 'Cliente', mensagemProcessar);
     this.addHistorico(tel, 'Aira', '[Lista com fotos enviada via buscar_carros]');
     return null; // ← BLOQUEIA O ENVIO DE TEXTO
 }
@@ -7080,6 +7950,20 @@ let respostaFinal = String(resultado.resposta)
         .replace(/\[object Object\]/g, '')
         .replace(/undefined/g, '')
         .trim();
+
+      // ========== 🚀 DETECTAR MODO BETA (quando APIs falharam) ==========
+      if (respostaFinal.includes('__API_BETA_MODE__')) {
+        log.info('🚀 [BETA] Detectado modo beta, gerando mensagem de atualização...');
+
+        // Gerar mensagem de beta usando o método de desculpa
+        const mensagemBeta = await this.gerarDesculpaHumana(msg, historico, 'beta');
+
+        // Adicionar ao histórico
+        this.addHistorico(tel, 'Cliente', mensagemProcessar);
+        this.addHistorico(tel, 'Aira', mensagemBeta);
+
+        return mensagemBeta;
+      }
 
       // ========== VALIDAÇÃO PÓS-GPT: REMOVER APRESENTAÇÕES DUPLICADAS ==========
       if (jaSeApresentou) {
@@ -7155,7 +8039,7 @@ Sua resposta natural (máximo 3 linhas):`;
         }
       }
 
-      this.addHistorico(tel, 'Cliente', msg);
+      this.addHistorico(tel, 'Cliente', mensagemProcessar);
       this.addHistorico(tel, 'Aira', respostaFinal);
 
       log.success(`Funções: ${resultado.funcoes_chamadas?.join(', ') || 'nenhuma'}`);
@@ -7381,8 +8265,178 @@ async function conectar() {
 });
   
   sock.ev.on('creds.update', saveCreds);
-  
+
  let ultimoMsgID = null;
+
+// ========== 🕐 SISTEMA DE DEBOUNCE (AGUARDAR MÚLTIPLAS MENSAGENS) ==========
+// Evita responder cada mensagem individualmente quando cliente envia várias em sequência
+const mensagensPendentes = new Map(); // tel -> { mensagens: [], timer: timeout }
+const TEMPO_ESPERA_MS = 2000; // 2 segundos de espera após última mensagem (rápido e eficiente!)
+
+function adicionarMensagemPendente(tel, mensagem) {
+  // Se já existe timer rodando, cancelar
+  if (mensagensPendentes.has(tel)) {
+    const dados = mensagensPendentes.get(tel);
+    clearTimeout(dados.timer);
+    dados.mensagens.push(mensagem);
+    console.log(`⏳ [DEBOUNCE] ${tel.split('@')[0]} - Mensagem ${dados.mensagens.length} adicionada, aguardando mais...`);
+  } else {
+    // Primeira mensagem, criar estrutura
+    mensagensPendentes.set(tel, {
+      mensagens: [mensagem],
+      timer: null
+    });
+    console.log(`⏳ [DEBOUNCE] ${tel.split('@')[0]} - Iniciando acúmulo de mensagens...`);
+  }
+
+  // Criar novo timer
+  const dados = mensagensPendentes.get(tel);
+  dados.timer = setTimeout(async () => {
+    console.log(`✅ [DEBOUNCE] ${tel.split('@')[0]} - Cliente parou de enviar, processando ${dados.mensagens.length} mensagem(ns)...`);
+
+    // Processar todas as mensagens acumuladas
+    const msgs = dados.mensagens;
+    mensagensPendentes.delete(tel); // Limpar estrutura
+
+    // Processar juntas (sock está disponível no escopo global da conexão)
+    await processarMensagensAgrupadas(tel, msgs, sock);
+  }, TEMPO_ESPERA_MS);
+}
+
+async function processarMensagensAgrupadas(tel, mensagens, sockInstance) {
+  try {
+    console.log(`\n📦 [DEBOUNCE] Processando ${mensagens.length} mensagem(ns) agrupadas de ${tel.split('@')[0]}`);
+
+    // Combinar textos de todas as mensagens
+    const textos = [];
+    let temAudio = false;
+    let ultimoAudio = null;
+
+    for (const msg of mensagens) {
+      const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+      if (texto) {
+        textos.push(texto);
+      }
+
+      if (msg.message?.audioMessage) {
+        temAudio = true;
+        ultimoAudio = msg; // Guardar último áudio
+      }
+    }
+
+    // Pegar nome do primeiro msg
+    const nome = (mensagens[0].pushName || 'amigo').split(' ')[0];
+
+    // Se tem áudio, processar APENAS o último áudio (ignorar textos)
+    if (temAudio && ultimoAudio) {
+      console.log(`🎤 [DEBOUNCE] Cliente enviou ${mensagens.length} msg, processando último áudio`);
+
+      try {
+        log.info(`🎤 ${nome} enviou áudio`);
+
+        const buffer = await downloadMediaMessage(
+          ultimoAudio,
+          'buffer',
+          {},
+          {
+            logger: pino({ level: 'silent' }),
+            reuploadRequest: sockInstance.updateMediaMessage
+          }
+        );
+
+        await sockInstance.sendPresenceUpdate('recording', tel);
+
+        log.info('[ÁUDIO] Processando com Groq Whisper + Claude...');
+
+        const elevenLabs = new ElevenLabsService();
+        const textoTranscrito = await elevenLabs.transcribeAudio(buffer);
+
+        if (!textoTranscrito) {
+          await sockInstance.sendPresenceUpdate('paused', tel);
+          const historico = lucas.getHistorico(tel);
+          await lucas.enviarDesculpaEmAudio('', historico, 'nao_entendeu', tel, sockInstance);
+          return;
+        }
+
+        await sockInstance.sendPresenceUpdate('paused', tel);
+        log.info(`📝 Transcrição: "${textoTranscrito}"`);
+
+        const respostaTexto = await lucas.processar(tel, textoTranscrito, sockInstance, nome);
+
+        if (!respostaTexto || typeof respostaTexto !== 'string') {
+          log.error(`[AUDIO] lucas.processar retornou valor inválido: ${typeof respostaTexto}`);
+          await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'beta', tel, sockInstance);
+          return;
+        }
+
+        // ✅ VERIFICAR SE DEVE ENVIAR ÁUDIO (CONFIGURAÇÃO DO BANCO)
+        const deveEnviarAudio = botAdapter.shouldEnviarAudio();
+
+        if (deveEnviarAudio) {
+          // Gerar e enviar resposta em áudio
+          await sockInstance.sendPresenceUpdate('recording', tel);
+          const audioResposta = await elevenLabs.textToSpeech(respostaTexto);
+
+          const audioPath = path.join(__dirname, `temp_audio_${Date.now()}.mp3`);
+          fs.writeFileSync(audioPath, audioResposta);
+
+          await sockInstance.sendMessage(tel, {
+            audio: { url: audioPath },
+            mimetype: 'audio/ogg; codecs=opus',
+            ptt: true
+          });
+
+          log.success(`🔊 Áudio enviado para ${nome}`);
+          fs.unlinkSync(audioPath);
+          await sockInstance.sendPresenceUpdate('paused', tel);
+        } else {
+          // Enviar resposta como texto
+          log.info('📝 [CONFIG] Áudio desabilitado, enviando resposta como texto');
+          await sockInstance.sendPresenceUpdate('composing', tel);
+          await sockInstance.sendMessage(tel, { text: respostaTexto });
+          await sockInstance.sendPresenceUpdate('paused', tel);
+          log.success(`📝 Texto enviado para ${nome}`);
+        }
+
+      } catch (audioError) {
+        log.error(`[ÁUDIO] Falhou: ${audioError.message}`);
+        await sockInstance.sendPresenceUpdate('paused', tel);
+      }
+
+      return; // Não processar textos se tinha áudio
+    }
+
+    // Processar textos (só se NÃO tinha áudio)
+    if (textos.length > 0) {
+      let contextoCompleto = '';
+
+      if (textos.length === 1) {
+        contextoCompleto = textos[0];
+      } else {
+        contextoCompleto = `Cliente enviou ${textos.length} mensagens seguidas:\n\n` +
+          textos.map((t, i) => `${i + 1}. ${t}`).join('\n');
+      }
+
+      console.log(`📝 [DEBOUNCE] Contexto: "${contextoCompleto}"`);
+
+      // Enviar typing
+      await sockInstance.sendPresenceUpdate('composing', tel);
+
+      // Processar com Lucas
+      const resposta = await lucas.processar(tel, contextoCompleto, sockInstance, nome);
+
+      if (resposta) {
+        await sockInstance.sendMessage(tel, { text: resposta });
+        console.log(`✅ [DEBOUNCE] Resposta única enviada para ${textos.length} mensagem(ns)`);
+      }
+
+      await sockInstance.sendPresenceUpdate('paused', tel);
+    }
+
+  } catch (error) {
+    console.error(`❌ [DEBOUNCE] Erro ao processar mensagens agrupadas: ${error.message}`);
+  }
+}
 
 sock.ev.on('messages.upsert', async ({ messages, type }) => {
   console.log('\n🔵 ========== NOVA MENSAGEM ==========');
@@ -7442,8 +8496,18 @@ sock.ev.on('messages.upsert', async ({ messages, type }) => {
     console.log(`✅ [WHITELIST] Número autorizado: ${tel.split('@')[0]}`);
     // ========== FIM DA VERIFICAÇÃO ==========
 
-    // ========== COMANDO ESPECIAL: ESTATÍSTICAS DE ENVIO ==========
+    // ========== 🕐 DEBOUNCE: ACUMULAR MENSAGENS RÁPIDAS ==========
+    // Verificar se é comando especial (começa com /)
     const mensagemTexto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+    const isComandoEspecial = mensagemTexto.trim().startsWith('/');
+
+    // Se não for comando especial, usar debounce
+    if (!isComandoEspecial) {
+      adicionarMensagemPendente(tel, msg);
+      return; // Não processar agora, esperar acumular
+    }
+
+    // ========== COMANDO ESPECIAL: ESTATÍSTICAS DE ENVIO ==========
 
     if (mensagemTexto.toLowerCase().trim() === '/stats' || mensagemTexto.toLowerCase().trim() === '/estatisticas') {
       console.log('📊 [STATS] Comando de estatísticas recebido');
@@ -7470,55 +8534,27 @@ sock.ev.on('messages.upsert', async ({ messages, type }) => {
     }
     // ========== FIM DOS COMANDOS ESPECIAIS ==========
 
-    // ========== PROCESSAR ÁUDIO COM ELEVENLABS AGENT ==========
-if (msg.message?.audioMessage) {
-  try {
-    log.info(`🎤 ${nome} enviou áudio`);
-    
-    const buffer = await downloadMediaMessage(
-      msg,
-      'buffer',
-      {},
-      {
-        logger: pino({ level: 'silent' }),
-        reuploadRequest: sock.updateMediaMessage
-      }
-    );
+    // ========== PROCESSAR ÁUDIO COM GROQ WHISPER + CLAUDE ==========
+    if (msg.message?.audioMessage) {
+      try {
+        log.info(`🎤 ${nome} enviou áudio`);
 
-    await sock.sendPresenceUpdate('recording', tel);
-    
-    // ========== TENTAR USAR AGENT ELEVENLABS PRIMEIRO ==========
-    try {
-      log.info('[AGENT] Processando áudio com ElevenLabs Agent...');
-      
-      const audioResposta = await lucas.agentElevenLabs.enviarAudio(tel, buffer);
-      
-      const audioPath = path.join(__dirname, `temp_agent_resposta_${Date.now()}.mp3`);
-      fs.writeFileSync(audioPath, audioResposta);
+        const buffer = await downloadMediaMessage(
+          msg,
+          'buffer',
+          {},
+          {
+            logger: pino({ level: 'silent' }),
+            reuploadRequest: sock.updateMediaMessage
+          }
+        );
 
+        await sock.sendPresenceUpdate('recording', tel);
 
-      await sock.sendMessage(tel, {
-        audio: { url: audioPath },
-        mimetype: 'audio/ogg; codecs=opus',
-        ptt: true
-      });
+        log.info('[ÁUDIO] Processando com Groq Whisper + Claude...');
 
-      log.success(`🔊 Resposta do Agent enviada para ${nome}`);
-      fs.unlinkSync(audioPath);
-
-      // ✅ Limpar status "gravando"
-      await sock.sendPresenceUpdate('paused', tel);
-
-      return; // Mudado de continue para return
-      
-    } catch (agentError) {
-      // ========== FALLBACK: SE AGENT FALHAR, USAR MÉTODO ANTIGO ==========
-      log.error(`[AGENT] Falhou: ${agentError.message}, usando fallback...`);
-      
-      const elevenLabs = new ElevenLabsService();
-
-      await sock.sendPresenceUpdate('recording', tel);
-      const textoTranscrito = await elevenLabs.transcribeAudio(buffer);
+        const elevenLabs = new ElevenLabsService();
+        const textoTranscrito = await elevenLabs.transcribeAudio(buffer);
 
       if (!textoTranscrito) {
         // ✅ Limpar status "recording" antes de enviar desculpa
@@ -7537,9 +8573,9 @@ if (msg.message?.audioMessage) {
 
       if (!respostaTexto || typeof respostaTexto !== 'string') {
         // ❌ PROBLEMA: Estava fazendo continue sem enviar resposta!
-        // ✅ CORREÇÃO: Sempre enviar mensagem de fallback
+        // ✅ CORREÇÃO: Sempre enviar mensagem de fallback (versão beta)
         log.error(`[AUDIO] lucas.processar retornou valor inválido: ${typeof respostaTexto}`);
-        await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'erro_sistema', tel, sock);
+        await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'beta', tel, sock);
         return; // Mudado de continue para return
       }
 
@@ -7549,31 +8585,42 @@ if (msg.message?.audioMessage) {
       // ========== SE TEM LISTA: SÓ ÁUDIO INTRODUTÓRIO ==========
       if (temLista) {
         console.log('📋 [DEBUG] Lista detectada, enviando só áudio introdutório');
-        
+
         const msgIntro = respostaTexto.split('\n')[0];
-        
-        try {
-          await sock.sendPresenceUpdate('recording', tel);
-          const audioIntro = await elevenLabs.textToSpeech(msgIntro);
-          
-          const audioIntroPath = path.join(__dirname, `temp_intro_${Date.now()}.mp3`);
-          fs.writeFileSync(audioIntroPath, audioIntro);
+
+        // ✅ VERIFICAR SE DEVE ENVIAR ÁUDIO (CONFIGURAÇÃO DO BANCO)
+        const deveEnviarAudio = botAdapter.shouldEnviarAudio();
+
+        if (deveEnviarAudio) {
+          try {
+            await sock.sendPresenceUpdate('recording', tel);
+            const audioIntro = await elevenLabs.textToSpeech(msgIntro);
+
+            const audioIntroPath = path.join(__dirname, `temp_intro_${Date.now()}.mp3`);
+            fs.writeFileSync(audioIntroPath, audioIntro);
 
 
-          await sock.sendMessage(tel, {
-            audio: { url: audioIntroPath },
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
-          });
+            await sock.sendMessage(tel, {
+              audio: { url: audioIntroPath },
+              mimetype: 'audio/ogg; codecs=opus',
+              ptt: true
+            });
 
-          log.success('🔊 Áudio introdutório enviado (lista já foi enviada antes)');
-          fs.unlinkSync(audioIntroPath);
+            log.success('🔊 Áudio introdutório enviado (lista já foi enviada antes)');
+            fs.unlinkSync(audioIntroPath);
 
-          // ✅ Limpar status "gravando"
-          await sock.sendPresenceUpdate('paused', tel);
+            // ✅ Limpar status "gravando"
+            await sock.sendPresenceUpdate('paused', tel);
 
-        } catch (audioError) {
-          log.error(`[ÁUDIO-INTRO] Falhou: ${audioError.message}`);
+          } catch (audioError) {
+            log.error(`[ÁUDIO-INTRO] Falhou: ${audioError.message}`);
+            await sock.sendPresenceUpdate('paused', tel);
+          }
+        } else {
+          // Enviar introdução como texto
+          log.info('📝 [CONFIG] Áudio desabilitado, enviando introdução como texto');
+          await sock.sendPresenceUpdate('composing', tel);
+          await sock.sendMessage(tel, { text: msgIntro });
           await sock.sendPresenceUpdate('paused', tel);
         }
 
@@ -7607,21 +8654,25 @@ if (msg.message?.audioMessage) {
         log.info(`📊 [FINANCIAMENTO] Adicionada oferta de planilha ao áudio: "${fraseAleatoria}"`);
       }
 
-      try {
-        await sock.sendPresenceUpdate('recording', tel);
-        const audioResposta = await elevenLabs.textToSpeech(textoParaAudio);
+      // ✅ VERIFICAR SE DEVE ENVIAR ÁUDIO (CONFIGURAÇÃO DO BANCO)
+      const deveEnviarAudioNormal = botAdapter.shouldEnviarAudio();
 
-        const audioPath = path.join(__dirname, `temp_audio_${Date.now()}.mp3`);
-        fs.writeFileSync(audioPath, audioResposta);
+      if (deveEnviarAudioNormal) {
+        try {
+          await sock.sendPresenceUpdate('recording', tel);
+          const audioResposta = await elevenLabs.textToSpeech(textoParaAudio);
 
-        await sock.sendMessage(tel, {
-          audio: { url: audioPath },
-          mimetype: 'audio/ogg; codecs=opus',
-          ptt: true
-        });
+          const audioPath = path.join(__dirname, `temp_audio_${Date.now()}.mp3`);
+          fs.writeFileSync(audioPath, audioResposta);
 
-        log.success(`🔊 Áudio enviado para ${nome}`);
-        fs.unlinkSync(audioPath);
+          await sock.sendMessage(tel, {
+            audio: { url: audioPath },
+            mimetype: 'audio/ogg; codecs=opus',
+            ptt: true
+          });
+
+          log.success(`🔊 Áudio enviado para ${nome}`);
+          fs.unlinkSync(audioPath);
 
         // ✅ Limpar status "gravando"
         await sock.sendPresenceUpdate('paused', tel);
@@ -7656,26 +8707,33 @@ if (msg.message?.audioMessage) {
           }
         }
 
-      } catch (audioError) {
-        log.error(`[ÁUDIO] Falhou, enviando texto: ${audioError.message}`);
+        } catch (audioError) {
+          log.error(`[ÁUDIO] Falhou, enviando texto: ${audioError.message}`);
+          await sock.sendMessage(tel, { text: respostaTexto });
+          await sock.sendPresenceUpdate('paused', tel);
+        }
+      } else {
+        // ========== ENVIAR RESPOSTA COMO TEXTO (CONFIGURAÇÃO DESABILITADA) ==========
+        log.info('📝 [CONFIG] Áudio desabilitado, enviando resposta como texto');
+        await sock.sendPresenceUpdate('composing', tel);
         await sock.sendMessage(tel, { text: respostaTexto });
         await sock.sendPresenceUpdate('paused', tel);
+        log.success(`📝 Texto enviado para ${nome}`);
       }
 
       return; // Mudado de continue para return
+
+      } catch (error) {
+        console.error('❌ [DEBUG] ERRO no processamento de áudio:');
+        console.error('Mensagem:', error.message);
+        console.error('Stack:', error.stack);
+
+        log.error(`Erro processar áudio: ${error.message}`);
+        const historico = lucas.getHistorico(tel);
+        await lucas.enviarDesculpaEmAudio('', historico, 'nao_entendeu', tel, sock);
+        return; // Mudado de continue para return
+      }
     }
-
-  } catch (error) {
-    console.error('❌ [DEBUG] ERRO no processamento de áudio:');
-    console.error('Mensagem:', error.message);
-    console.error('Stack:', error.stack);
-
-    log.error(`Erro processar áudio: ${error.message}`);
-    const historico = lucas.getHistorico(tel);
-    await lucas.enviarDesculpaEmAudio('', historico, 'nao_entendeu', tel, sock);
-    return; // Mudado de continue para return
-  }
-}
 
 
     // ========== PROCESSAR TEXTO ==========
@@ -7683,6 +8741,98 @@ if (msg.message?.audioMessage) {
     const txt = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
 
     console.log('📝 [DEBUG] Texto extraído:', txt);
+
+    // ========== 📞 DETECTAR PEDIDO DE LIGAÇÃO (DESATIVADO) ==========
+    // ⚠️ FUNÇÃO DESATIVADA - Requer verificação de número no Twilio Trial
+    // Para ativar: descomente o bloco abaixo e verifique seu número em:
+    // https://console.twilio.com/us1/develop/phone-numbers/manage/verified
+    /*
+    if (lucas.gerenciadorLigacoes && txt) {
+      const txtUpper = txt.toUpperCase().trim();
+
+      if (txtUpper.includes('LIGAR') || txtUpper.includes('ME LIGA') || txtUpper === 'LIGA') {
+        console.log('📞 [LIGAÇÃO] Cliente pediu para ligar!');
+
+        try {
+          await sock.sendMessage(tel, {
+            text: '🎉 Perfeito! Vou te ligar AGORA mesmo!\n\n📞 Fique de olho no celular que já estou ligando!\n\nSe não atender, eu tento de novo em 1 minutinho! 😊'
+          });
+
+          // Aguardar 3 segundos para mensagem ser entregue
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Iniciar chamada
+          const resultado = await lucas.gerenciadorLigacoes.processarAceitacao(tel, sock);
+          console.log(`✅ [LIGAÇÃO] Chamada iniciada: ${resultado.callSid}`);
+
+          return; // Não processar mais nada
+
+        } catch (error) {
+          console.error(`❌ [LIGAÇÃO] Erro ao iniciar chamada: ${error.message}`);
+
+          await sock.sendMessage(tel, {
+            text: '😅 Ops! Tive um probleminha técnico aqui.\n\nMas olha, você pode me ligar nesse número:\n\n📞 *+1 (978) 827-8455*\n\nOu se preferir, a gente continua aqui mesmo pelo WhatsApp! O que você acha? 😊'
+          });
+
+          return;
+        }
+      }
+    }
+    */
+
+    // ========== 🔗 DETECTAR MENSAGEM CITADA/MARCADA ==========
+    let contextoMensagemCitada = null;
+
+    if (msg.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+      const quotedMsg = msg.message.extendedTextMessage.contextInfo.quotedMessage;
+      console.log('📎 [QUOTED] Mensagem citada detectada!');
+
+      // Extrair texto da mensagem citada
+      let textoMensagemCitada = '';
+
+      if (quotedMsg.conversation) {
+        textoMensagemCitada = quotedMsg.conversation;
+      } else if (quotedMsg.extendedTextMessage?.text) {
+        textoMensagemCitada = quotedMsg.extendedTextMessage.text;
+      } else if (quotedMsg.imageMessage?.caption) {
+        textoMensagemCitada = quotedMsg.imageMessage.caption;
+      }
+
+      if (textoMensagemCitada) {
+        console.log('📎 [QUOTED] Texto da mensagem citada:', textoMensagemCitada.substring(0, 100) + '...');
+
+        // Detectar se contém informações de veículo
+        const contemVeiculo = /\b(R\$|motor|km|ano|câmbio|automático|manual|veículo|carro)\b/i.test(textoMensagemCitada);
+
+        if (contemVeiculo) {
+          console.log('🚗 [QUOTED] Mensagem citada contém informações de veículo!');
+
+          // Tentar extrair nome do veículo da mensagem citada
+          const matchVeiculo = textoMensagemCitada.match(/(?:^|\n)([A-Z][a-zA-Z\s]+(?:\d{4})?(?:\s+\d+\.\d+)?.*?)(?:\n|$)/);
+          let nomeVeiculo = matchVeiculo ? matchVeiculo[1].trim() : 'veículo mencionado anteriormente';
+
+          // Limpar se pegar muito texto
+          if (nomeVeiculo.length > 50) {
+            nomeVeiculo = nomeVeiculo.substring(0, 50) + '...';
+          }
+
+          contextoMensagemCitada = {
+            texto_completo: textoMensagemCitada,
+            nome_veiculo: nomeVeiculo,
+            tem_veiculo: true
+          };
+
+          console.log(`✅ [QUOTED] Contexto extraído - Veículo: ${nomeVeiculo}`);
+        } else {
+          contextoMensagemCitada = {
+            texto_completo: textoMensagemCitada,
+            tem_veiculo: false
+          };
+          console.log('📎 [QUOTED] Mensagem citada não contém veículo específico');
+        }
+      }
+    }
+    // ========== FIM DA DETECÇÃO DE MENSAGEM CITADA ==========
 
     if (!txt) {
       console.log('⚠️ [DEBUG] Texto vazio, ignorando');
@@ -7717,13 +8867,20 @@ if (msg.message?.audioMessage) {
       console.log('\n🎯 ========== PROCESSANDO MENSAGEM AGREGADA ==========');
       console.log(`📱 Cliente: ${nome}`);
       console.log(`📝 Mensagem: "${mensagemCompleta}"`);
+
+      // ✅ SE TEM MENSAGEM CITADA, ADICIONAR CONTEXTO
+      if (contextoMensagemCitada && contextoMensagemCitada.tem_veiculo) {
+        console.log(`🔗 [QUOTED] Cliente respondeu mensagem sobre: ${contextoMensagemCitada.nome_veiculo}`);
+        console.log(`📎 [QUOTED] Contexto será adicionado à mensagem`);
+      }
+
       console.log('='.repeat(70));
 
       try {
         await sock.readMessages([msg.key]);
 
         console.log('🤖 [DEBUG] Chamando aira.processar...');
-        const resp = await lucas.processar(tel, mensagemCompleta, sock, nome);
+        const resp = await lucas.processar(tel, mensagemCompleta, sock, nome, contextoMensagemCitada);
         console.log('✅ [DEBUG] Aira retornou:', typeof resp, typeof resp === 'object' ? JSON.stringify(resp).substring(0, 100) : resp?.substring(0, 100));
 
         // ✅ PERMITIR string vazia (indica que fotos foram enviadas com sucesso)
@@ -7756,17 +8913,17 @@ if (msg.message?.audioMessage) {
           respostaLimpa = resp.replace(/\[object Object\]/g, '').replace(/undefined/g, '').trim();
         } else {
           // ❌ PROBLEMA: Tipo inválido mas não envia resposta
-          // ✅ CORREÇÃO: Enviar mensagem de fallback
+          // ✅ CORREÇÃO: Enviar mensagem de fallback (versão beta)
           log.error(`❌ Resposta com tipo inválido (tipo: ${typeof resp})`);
-          await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'erro_sistema', tel, sock);
+          await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'beta', tel, sock);
           return;
         }
 
         if (!respostaLimpa) {
           // ❌ PROBLEMA: Resposta vazia mas não envia nada
-          // ✅ CORREÇÃO: Enviar mensagem de fallback
+          // ✅ CORREÇÃO: Enviar mensagem de fallback (versão beta)
           log.error('❌ Resposta vazia após limpeza');
-          await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'erro_sistema', tel, sock);
+          await lucas.enviarDesculpaEmAudio('', lucas.getHistorico(tel), 'beta', tel, sock);
           return;
         }
 
@@ -7775,11 +8932,45 @@ if (msg.message?.audioMessage) {
         log.info(`⏱️ Aguardando ${delayNatural}ms (delay natural)`);
         await lucas.aguardar(delayNatural);
 
-        // ========== ENVIAR COMO ÁUDIO ==========
-        try {
-          log.info('🔊 [TTS] Gerando áudio da resposta...');
+        // ========== ENVIAR SAUDAÇÃO EM TEXTO ANTES DO ÁUDIO (SE NECESSÁRIO) ==========
+        // ✅ RECUPERAR FLAG DO MAP (armazenada durante processamento)
+        const enviarSaudacaoTextoAntes = lucas.enviarSaudacaoTexto.get(tel) || false;
 
-          const elevenLabs = new ElevenLabsService();
+        if (enviarSaudacaoTextoAntes) {
+          log.info('👋 [SAUDAÇÃO] Enviando saudação em TEXTO antes do áudio...');
+
+          // Gerar saudação baseada na hora do dia
+          const horaAtual = new Date().getHours();
+          let saudacaoTexto;
+
+          if (horaAtual >= 5 && horaAtual < 12) {
+            saudacaoTexto = "Bom dia! 😊\nPrazer, sou a Aira da Feirão Show Car!";
+          } else if (horaAtual >= 12 && horaAtual < 18) {
+            saudacaoTexto = "Boa tarde! 😊\nPrazer, sou a Aira da Feirão Show Car!";
+          } else {
+            saudacaoTexto = "Boa noite! 😊\nPrazer, sou a Aira da Feirão Show Car!";
+          }
+
+          // Enviar texto de saudação
+          await sock.sendMessage(tel, { text: saudacaoTexto });
+          log.success(`✅ [SAUDAÇÃO] Texto enviado: "${saudacaoTexto}"`);
+
+          // Delay de 1.5 segundos antes do áudio para parecer natural
+          await lucas.aguardar(1500);
+
+          // ✅ LIMPAR FLAG APÓS USO
+          lucas.enviarSaudacaoTexto.delete(tel);
+        }
+
+        // ========== ENVIAR COMO ÁUDIO ==========
+        // ✅ VERIFICAR SE DEVE ENVIAR ÁUDIO (CONFIGURAÇÃO DO BANCO)
+        const deveEnviarAudio = botAdapter.shouldEnviarAudio();
+
+        if (deveEnviarAudio) {
+          try {
+            log.info('🔊 [TTS] Gerando áudio da resposta...');
+
+            const elevenLabs = new ElevenLabsService();
 
           // ✅ DETECTAR SE É RESPOSTA SOBRE FINANCIAMENTO E ADICIONAR OFERTA DE PLANILHA
           // ⚠️ IMPORTANTE: Só oferecer planilha se tem veículo específico E fala de valores/parcelas
@@ -7886,32 +9077,44 @@ if (msg.message?.audioMessage) {
             }
           }
 
-        } catch (audioError) {
-          // FALLBACK: Se falhar, enviar como texto com delay entre frases
-          log.error(`[TTS] Erro ao gerar áudio: ${audioError.message}`);
-          log.info('📤 Enviando como texto (fallback)');
+          } catch (audioError) {
+            // ✅ FALLBACK MELHORADO: Enviar mensagem COMPLETA (não dividir)
+            log.error(`[TTS] Erro ao gerar áudio: ${audioError.message}`);
+            log.info('📤 Enviando como texto completo (fallback)');
 
-          const frases = respostaLimpa
-            .split(/(?<=[.!?])\s+/)
-            .map(f => f.trim())
-            .filter(f => f.length > 0);
+            // ✅ Enviar mensagem completa com presença de digitação
+            await sock.sendPresenceUpdate('composing', tel);
 
-          console.log(`💬 Aira vai enviar ${frases.length} frase(s)`);
+            // ✅ Delay natural proporcional ao tamanho da mensagem
+            const delayDigitacao = lucas.calcularDelayNatural(respostaLimpa);
+            await lucas.aguardar(delayDigitacao);
 
-          for (let j = 0; j < frases.length; j++) {
-            console.log(`📤 Frase ${j+1}/${frases.length}: "${frases[j]}"`);
+            // ✅ Enviar mensagem COMPLETA (não dividida)
+            await sock.sendMessage(tel, { text: respostaLimpa });
 
-            // Delay antes de cada frase
-            const delayFrase = lucas.calcularDelayNatural(frases[j]);
-            await lucas.aguardar(delayFrase);
+            // ✅ Limpar status de digitação
+            await sock.sendPresenceUpdate('paused', tel);
 
-            await sock.sendMessage(tel, { text: frases[j] });
-
-            // Pequeno delay entre frases
-            if (j < frases.length - 1) {
-              await lucas.aguardar(800);
-            }
+            log.success(`[TEXTO] Mensagem completa enviada (${respostaLimpa.length} caracteres)`);
           }
+        } else {
+          // ========== ENVIAR COMO TEXTO (CONFIGURAÇÃO DESABILITADA) ==========
+          log.info('📝 [CONFIG] Áudio desabilitado, enviando como texto');
+
+          // ✅ Enviar mensagem completa com presença de digitação
+          await sock.sendPresenceUpdate('composing', tel);
+
+          // ✅ Delay natural proporcional ao tamanho da mensagem
+          const delayDigitacao = lucas.calcularDelayNatural(respostaLimpa);
+          await lucas.aguardar(delayDigitacao);
+
+          // ✅ Enviar mensagem COMPLETA (não dividida)
+          await sock.sendMessage(tel, { text: respostaLimpa });
+
+          // ✅ Limpar status de digitação
+          await sock.sendPresenceUpdate('paused', tel);
+
+          log.success(`[TEXTO] Mensagem completa enviada (${respostaLimpa.length} caracteres)`);
         }
 
         // ========== ENVIAR MENSAGEM ADICIONAL (DOCUMENTAÇÃO) ==========
@@ -7921,8 +9124,9 @@ if (msg.message?.audioMessage) {
           // Aguardar delay adicional
           await lucas.aguardar(delayAdicional);
 
-          try {
-            const elevenLabs = new ElevenLabsService();
+          if (deveEnviarAudio) {
+            try {
+              const elevenLabs = new ElevenLabsService();
             const textoFormatadoDoc = FormatadorFala.prepararParaTTS(mensagemAdicional);
 
             // ✅ DIVIDIR MENSAGEM ADICIONAL EM SEGMENTOS SE MUITO LONGA
@@ -7962,9 +9166,16 @@ if (msg.message?.audioMessage) {
             // ✅ Limpar status "gravando" após último áudio
             await sock.sendPresenceUpdate('paused', tel);
 
-          } catch (docError) {
-            // Fallback: enviar como texto
-            log.error(`[TTS] Erro ao gerar áudio da documentação: ${docError.message}`);
+            } catch (docError) {
+              // Fallback: enviar como texto
+              log.error(`[TTS] Erro ao gerar áudio da documentação: ${docError.message}`);
+              await sock.sendMessage(tel, { text: mensagemAdicional });
+              await sock.sendPresenceUpdate('paused', tel);
+            }
+          } else {
+            // ========== ENVIAR DOCUMENTAÇÃO COMO TEXTO (CONFIGURAÇÃO DESABILITADA) ==========
+            log.info('📝 [CONFIG] Áudio desabilitado, enviando documentação como texto');
+            await sock.sendPresenceUpdate('composing', tel);
             await sock.sendMessage(tel, { text: mensagemAdicional });
             await sock.sendPresenceUpdate('paused', tel);
           }

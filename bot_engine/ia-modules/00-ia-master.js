@@ -12,6 +12,9 @@ import MemoriaContexto from './04-memoria-contexto.js';
 import PreditorFechamento from './05-preditor-fechamento.js';
 import GeradorRespostas from './06-gerador-respostas.js';
 import GeradorPerguntasEspontaneas from './08-gerador-perguntas-espontaneas.js';
+import AnalisadorCoerencia from './09-analisador-coerencia.js';
+import ClassificadorVeiculos from './10-classificador-veiculos.js';
+import ValidadorCompletude from './11-validador-completude.js';
 
 export class IAMaster {
   constructor(openaiKey, anthropicKey, db) {
@@ -26,8 +29,11 @@ export class IAMaster {
     this.preditor = new PreditorFechamento(anthropicKey); // ✅ Claude Haiku
     this.gerador = new GeradorRespostas(anthropicKey); // ✅ Claude Sonnet
     this.geradorPerguntas = new GeradorPerguntasEspontaneas(anthropicKey); // ✅ Claude Haiku
+    this.analisadorCoerencia = new AnalisadorCoerencia(anthropicKey); // ✅ Claude Sonnet 4.5
+    this.classificadorVeiculos = new ClassificadorVeiculos(anthropicKey); // ✅ Claude Haiku
+    this.validadorCompletude = new ValidadorCompletude(anthropicKey); // ✅ Claude Haiku
 
-    console.log('[IA-MASTER] ✅ Sistema IA 100% Claude API inicializado com sucesso!');
+    console.log('[IA-MASTER] ✅ Sistema IA 100% Claude API + 11 Módulos Inteligentes inicializado!');
   }
 
   /**
@@ -73,13 +79,29 @@ export class IAMaster {
       console.log('✓ Probabilidade:', `${predicao.probabilidade_fechamento}%`);
       console.log('✓ Classificação:', predicao.classificacao);
 
+      // ===== PASSO 4.5: ANÁLISE DE COERÊNCIA CONTEXTUAL (NOVO!) =====
+      console.log('\n[4.5/6] 🧠 Analisando coerência contextual...');
+
+      const contextoExtra = {
+        veiculoInteresse: veiculos && veiculos.length > 0 ? veiculos[0] : null,
+        fotosEnviadas: false,
+        tempoFotos: 0,
+        temperatura: sentimento,
+        sentimento: sentimento
+      };
+
+      const coerencia = await this.analisadorCoerencia.analisar(mensagem, historico, contextoExtra);
+      console.log('✓ Coerência: Ação recomendada =', coerencia.proxima_acao_inteligente.acao);
+      console.log('✓ Alertas críticos:', coerencia.alertas_criticos.length);
+
       // ===== PASSO 5: ATUALIZAR MEMÓRIA/CONTEXTO =====
       console.log('\n[5/6] Salvando contexto...');
       await this.memoria.atualizarContextoCompleto(telefone, historico, {
         intencao,
         sentimento,
         perfil,
-        predicao
+        predicao,
+        coerencia  // ✅ Incluir análise de coerência
       });
       console.log('✓ Contexto salvo');
 
@@ -154,6 +176,22 @@ export class IAMaster {
         }
       }
 
+      // ===== PASSO 6.7: VALIDAR COMPLETUDE DA RESPOSTA =====
+      console.log('\n[6.7/6] ✂️ Validando completude da resposta...');
+
+      const validacao = await this.validadorCompletude.validarECorrigir(resposta, {
+        mensagemCliente: mensagem,
+        veiculoInteresse: veiculos && veiculos.length > 0 ? veiculos[0]?.titulo : null
+      });
+
+      if (validacao.foiCorrigida) {
+        console.log('⚠️  Resposta estava incompleta! Foi corrigida automaticamente.');
+        console.log(`   Problemas detectados: ${validacao.problemasOriginais.join(', ')}`);
+        resposta = validacao.resposta;
+      } else {
+        console.log('✅ Resposta completa, nenhuma correção necessária');
+      }
+
       console.log('\n✅ ========== PROCESSAMENTO COMPLETO ==========\n');
 
       // Retornar análise completa
@@ -164,7 +202,8 @@ export class IAMaster {
           intencao,
           sentimento,
           perfil,
-          predicao
+          predicao,
+          coerencia  // ✅ Incluir análise de coerência
         },
         acoes: {
           buscar_carros: intencao.acao_sugerida === 'buscar_carros',
@@ -311,11 +350,33 @@ export class IAMaster {
   }
 
   /**
+   * Filtra veículos por tipo usando classificação inteligente
+   * @param {Array} veiculos - Lista de veículos
+   * @param {string} tipoDesejado - Tipo solicitado (hatch, sedan, pickup, suv)
+   * @returns {Array} Veículos filtrados
+   */
+  async filtrarVeiculosPorTipo(veiculos, tipoDesejado) {
+    if (!tipoDesejado) {
+      return veiculos;
+    }
+
+    console.log(`[IA-MASTER] Filtrando ${veiculos.length} veículos por tipo: ${tipoDesejado}`);
+
+    const veiculosFiltrados = await this.classificadorVeiculos.filtrarPorTipo(
+      veiculos,
+      tipoDesejado
+    );
+
+    return veiculosFiltrados;
+  }
+
+  /**
    * Limpa todos os caches
    */
   limparCaches() {
     this.analisadorIntencoes.limparCache();
     this.memoria.limparCache();
+    this.classificadorVeiculos.limparCache();
     console.log('[IA-MASTER] ✓ Caches limpos');
   }
 }

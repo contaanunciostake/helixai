@@ -25,27 +25,19 @@ export class MemoriaContexto {
     console.log('[MEMORIA] Salvando contexto...');
 
     try {
-      const contextoExistente = await this.buscarContexto(telefone);
-
-      if (contextoExistente) {
-        // Atualizar contexto existente
-        await this.db.execute(
-          `UPDATE clientes_contexto
-           SET dados_json = ?,
-               ultima_atualizacao = NOW(),
-               total_interacoes = total_interacoes + 1
-           WHERE telefone = ?`,
-          [JSON.stringify(dados), telefone]
-        );
-      } else {
-        // Criar novo contexto
-        await this.db.execute(
-          `INSERT INTO clientes_contexto
-           (telefone, dados_json, total_interacoes, primeira_interacao, ultima_atualizacao)
-           VALUES (?, ?, 1, NOW(), NOW())`,
-          [telefone, JSON.stringify(dados)]
-        );
-      }
+      // ✅ SOLUÇÃO ROBUSTA: INSERT com ON DUPLICATE KEY UPDATE
+      // Se o telefone já existe, faz UPDATE automaticamente
+      // Se não existe, faz INSERT
+      await this.db.execute(
+        `INSERT INTO clientes_contexto
+         (telefone, dados_json, total_interacoes, primeira_interacao, ultima_atualizacao)
+         VALUES (?, ?, 1, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE
+           dados_json = VALUES(dados_json),
+           ultima_atualizacao = NOW(),
+           total_interacoes = total_interacoes + 1`,
+        [telefone, JSON.stringify(dados)]
+      );
 
       // Atualizar cache
       this.cacheMemoria.set(telefone, {
@@ -57,6 +49,8 @@ export class MemoriaContexto {
 
     } catch (error) {
       console.error('[MEMORIA] Erro ao salvar:', error.message);
+      // Re-lançar erro para tratamento upstream
+      throw error;
     }
   }
 

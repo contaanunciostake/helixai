@@ -9,6 +9,8 @@ class BotAdapter {
   constructor() {
     this.empresaId = null;
     this.empresaConfig = null;
+    this.empresaNome = null;
+    this.tipoNegocio = null;  // Tipo de negócio: veiculos, loja_tintas, etc
     this.myPhoneNumber = null;
   }
 
@@ -30,9 +32,12 @@ class BotAdapter {
 
       this.empresaId = config.empresa_id;
       this.empresaConfig = config.config;
+      this.empresaNome = config.empresa_nome;
+      this.tipoNegocio = config.tipo_negocio || 'veiculos';
 
       console.log(`[BOT-ADAPTER] ✅ Empresa carregada: ${config.empresa_nome}`);
       console.log(`[BOT-ADAPTER] ✅ Empresa ID: ${this.empresaId}`);
+      console.log(`[BOT-ADAPTER] ✅ Tipo negócio: ${this.tipoNegocio}`);
       console.log(`[BOT-ADAPTER] ✅ Auto-resposta: ${this.empresaConfig.auto_resposta_ativa ? 'ATIVA' : 'DESATIVADA'}`);
       console.log(`[BOT-ADAPTER] ✅ Enviar áudio: ${this.empresaConfig.enviar_audio ? 'SIM' : 'NÃO'}`);
       console.log(`[BOT-ADAPTER] ✅ OpenAI Model: ${this.empresaConfig.openai_model || 'gpt-4'}`);
@@ -98,9 +103,10 @@ class BotAdapter {
 
   /**
    * Verifica se deve enviar áudio
+   * 🔊 FORÇADO: Sempre retorna true (ignorando configuração do banco)
    */
   shouldEnviarAudio() {
-    return this.empresaConfig?.enviar_audio === true;
+    return true; // ✅ SEMPRE ENVIAR ÁUDIO
   }
 
   /**
@@ -115,6 +121,35 @@ class BotAdapter {
    */
   isModuloFinanciamentoAtivo() {
     return this.empresaConfig?.modulo_financiamento_ativo === true;
+  }
+
+  /**
+   * Retorna tipo de negócio da empresa
+   * @returns {string} - veiculos, loja_tintas, autopecas, etc
+   */
+  getTipoNegocio() {
+    return this.tipoNegocio || 'veiculos';
+  }
+
+  /**
+   * Retorna nome da empresa
+   */
+  getEmpresaNome() {
+    return this.empresaNome || 'Empresa';
+  }
+
+  /**
+   * Retorna ID da empresa
+   */
+  getEmpresaId() {
+    return this.empresaId;
+  }
+
+  /**
+   * Verifica se é loja de tintas
+   */
+  isLojaTintas() {
+    return this.tipoNegocio === 'loja_tintas' || this.tipoNegocio === 'tintas';
   }
 
   /**

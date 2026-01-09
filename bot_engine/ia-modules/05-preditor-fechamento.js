@@ -39,7 +39,8 @@ export class PreditorFechamento {
         temperatura,
         sentimento,
         historico,
-        veiculosVistos
+        veiculosVistos,
+        perfil
       );
 
       // Análise com IA (opcional, para refinar)
@@ -80,7 +81,7 @@ export class PreditorFechamento {
   /**
    * Calcula score base (0-100) usando métricas objetivas
    */
-  _calcularScoreBase(temperatura, sentimento, historico, veiculosVistos) {
+  _calcularScoreBase(temperatura, sentimento, historico, veiculosVistos, perfil) {
     let score = 0;
 
     // 1. TEMPERATURA DO LEAD (40 pontos)
